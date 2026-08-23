@@ -1,47 +1,82 @@
-Supercard Core (supercard-core)
-A high-performance, GPU-optimized, and modular custom card for the Home Assistant Dashboard built on LitElement. supercard-core combines dynamic vector animations, gauges, progress indicators, and flexible grid layouts within a performant rendering pipeline.
-🏗️ System Architecture & Rendering Pipeline
-supercard-core uses a strict z-index layer hierarchy to prevent DOM overlay issues and rendering collisions inside the Shadow DOM:
-Z-Index Level	Constant ID	Description
-0	BG_NATIVE	Native base card container
-100	BG_STATIC	Dynamic background layer via pseudo-elements (.bubble-container::before)
-500	LAYOUT_GRID	Primary grid system and slot containers
-700	ELM_BASE	Base vector elements and SVG render targets
-800	ELM_STATIC	Static interaction elements (icons, ticks, sub-buttons)
-900	ELM_DYNAMIC	High-priority overlays, gauges, indicators, and animations
-DOM & Event Rules for Stable Operation
-Pseudo-Element Rendering: Backgrounds are strictly rendered using CSS pseudo-elements (.bubble-container::before). No extra background DIV elements are inserted into the DOM.
-Native Background Suppression: The original .bubble-background element is hidden (display: none), giving the custom layer pipeline full control.
-Sub-Button Transparency: Sub-buttons and icon containers use explicit transparency (rgba(255, 255, 255, 0.1)) so pulsating warning and alarm backgrounds shine through everywhere.
-Explicit State Styling: Text and icon colors are set explicitly via CSS variables for each state (Normal, Warning, Alarm) rather than relying on automatic colors.
-Isolated Touch Handling: To prevent overlay bugs, every touch and click event handler calls e.stopPropagation() immediately at the start of the function. This prevents parent containers ("mother cards") from receiving the event and accidentally toggling card states.
-⚡ GPU Acceleration Strategy
-The rendering engine prioritizes GPU acceleration across all intensive processes while maintaining system stability:
-Prioritized Hardware Execution: Shaders, filter operations, and layout transformations are dispatched to the GPU by default rather than forced recklessly.
-Layer Isolation: Employs GPU-promoting properties (transform: translate3d(0,0,0) and will-change: transform, opacity) for heavy animations (e.g., Aurora, Mesh, and Fluid effects).
-DOM Efficiency: Decouples heavy visual rendering from DOM updates to avoid layout thrashing.
-🧩 Module Ecosystem Breakdown
-1. Core Module (core)
-Entity & Attribute Observer: Real-time monitoring of main entities and specific attributes.
-Global Alias Entities (global_entities): Register arbitrary secondary entities referenced across gauges, progress bars, and color triggers.
-Responsive Scaling Engine: Utilizes a ResizeObserver to continuously measure component dimensions and calculate the scaling factor (--sc-scale).
-2. Color & Animation Module (color)
-Background Modes: Solid, Linear Gradient, Radial Gradient, State-Calculated Dynamic Gradient, and Vector Fluid Engine (Aurora, Gooey, Smoke, Particles).
-Animation Effects: pulse, pump, ripple, waves, wobble_radial, wobble_linear, and fluid.
-3. Progressbar Module (progressbar)
-Orientations: Linear (Horizontal / Vertical) and Circular (Donut, Speedo, Half-circle).
-Features: Dynamic ticks/subticks, glassmorphism indicator pills (Liquid, Gooey, Clean Frost, Lens), cubic-bezier easing, and rotatable value labels.
-4. Gauge Engine Module (gauge)
-SVG Dials (360° / 270°): Scalable SVG gauges with spring physics for pointer movement (spring, overshoot, elastic).
-Dynamic Range: Auto-scaling (k,M,G), multi-stop threshold gradients, custom sectors, and threshold alert pulsing.
-5. Interactive Layout Module (layout)
-Multi-Cell Grid System: Includes an inline trackpad canvas with grid-snapping capabilities for precise element placing in slots.
-Debug Visualizer: Overlays visual slot borders and element boundaries for real-time layout alignment.
-6. Dynamic Labels Module (labels)
-Conditional status pills, unit badges, and dynamic icons with customizable alignment and visibility triggers matching entity states (on, off, warning).6. Dynamic Labels Module (labels)
-Conditional status pills, unit badges, and dynamic icons with customizable alignment and visibility triggers matching entity states (on, off, warning).
-📝 YAML Configuration Example
-YAML
+# Supercard Core (`supercard-core`)
+**A High-Performance, Modular LitElement Custom Card for Home Assistant Dashboard**
+
+`supercard-core` is a modular, highly customizable dashboard card component built with LitElement. It features responsive CSS scaling, advanced CSS layered pipeline backgrounds, dynamic color patterns, integrated fluid mesh animations, custom vector layouts, custom gauges, and multi-progressbar support.
+
+---
+
+## 🌟 Key Features
+
+* **Layered Render Pipeline (`Z-Index Hierarchy`)**:
+  Separates background layers, grid overlay slots, static elements (icons/buttons), and dynamic dynamic elements (gauges, labels) cleanly without DOM overlay bugs.
+* **Responsive Scaling Engine**:
+  Uses `ResizeObserver` to automatically measure available component width/height and dynamically compute the scale factor (`--sc-scale`).
+* **Modular Architecture**:
+  Extensible architecture using `SupercardModules`. Built-in modules include:
+  * **Core Editor & Global Entities**: Easily register alias entities, attributes, and handle click detail views (`hass-action`).
+  * **Color & Animation Engine**: Solid, gradient, vector fluid (Aurora, Gooey, Smoke, Particles), wave, ripple, and drop pulse effects.
+  * **Interactive Layout Engine**: Modular multi-cell layout manager with fine-tuning, flexible aspect-ratio canvas, and responsive sizing.
+  * **Progressbars**: Linear and circular (donut, speedo, half-circle) progress bars with glassmorphism/gooey indicator pills.
+  * **Gauges**: Custom SVG full 360° / semi 270° dials with spring acceleration physics, dynamic thresholds, multi-stops, custom ticks, and sectors.
+  * **Labels & Dynamic Containers**: Advanced custom label indicators with custom icons, alignment, conditional visibility, and custom formatting.
+
+---
+
+## 🧩 Architecture Overview
+
+The core plugin initializes a container with structural layered rules (`Z-Index` configuration):
+
+| Layer Level | Variable Constant | Description |
+| :--- | :--- | :--- |
+| **0** | `BG_NATIVE` | Main native card container base |
+| **100** | `BG_STATIC` | Background pseudo-element layers (`::before`) |
+| **500** | `LAYOUT_GRID` | Primary card structure & flex layout |
+| **700** | `ELM_BASE` | Overlay base elements & SVG render targets |
+| **800** | `ELM_STATIC` | Standard button overlays, icons, ticks |
+| **900** | `ELM_DYNAMIC` | High-priority interactive/animated overlay elements |
+
+---
+
+## 🔧 Module Ecosystem
+
+The plugin includes the following modules:
+
+### 1. `core` Module
+* **Primary Entity Handling**: Select a main entity and optional attribute to monitor state changes.
+* **Global Alias Entities**: Add and manage arbitrary global entities (`global_entities`) referenced across gauges, progress bars, and color conditions.
+* **Shape & Sizing**: Toggle between `rectangle` and `pill` layouts, fine-tune `border-radius`, and manage responsiveness or fixed pixel/percentage dimensions.
+
+### 2. `color` Module
+* Render dynamic background overlays and color animations.
+* **Supported Modes**: Solid, Linear, Radial, Solid Gradient (calculated dynamically based on entity numerical states), and Vector Fluid.
+* **Fluid Engine**: Renders inline animated SVGs using filter effects (`gooey`, `smoke`, `aurora`, `particles`).
+* **Effects & Animations**: `pulse`, `pump`, `ripple`, `waves`, `wobble_radial`, `wobble_linear`, and `fluid`.
+
+### 3. `progressbar` Module
+* Renders highly customizable progress indicators into card slots.
+* **Orientations**: Linear (Horizontal / Vertical) and Circular (Donut, Speedo, Half-circle).
+* **Feature Highlights**: Advanced tick/subtick generators, glassmorphism indicator pills (Liquid, Gooey, Clean Frost, Lens), bounce easing, custom color stops, and text rotation.
+
+### 4. `layout` Module
+* A fully interactive grid editor providing flexible multi-row and multi-cell structural placement.
+* **Visual Canvas Editor**: Includes an inline trackpad canvas with grid-snapping capabilities to drag and resize elements directly.
+* **Debug Mode**: Visualizes layout boundaries and element positions with real-time indicators.
+
+### 5. `gauge` Module
+* Scalable SVG gauge dials with interactive physical pointer physics (`spring`, `overshoot`, `elastic`).
+* Supports custom sector fills, multi-stop threshold gradients, dynamic auto-range scaling ($k, M, G$), sub-ticks, and alert threshold pulsing.
+
+### 6. `labels` Module
+* Insert dynamic text elements, unit badges, or custom status pills inside any grid cell.
+* **Conditional Visibility**: Show or hide labels based on active state matching (e.g., `on`, `open`, `home`).
+
+---
+
+## ⚙️ Configuration Example (YAML)
+
+Below is an example of standard card configuration syntax in Home Assistant Lovelace UI:
+
+```yaml
 type: custom:supercard-core
 entity: sensor.living_room_temperature
 supercard:
@@ -49,82 +84,24 @@ supercard:
   border_radius: 16
   enable_click: true
   card_height_responsive: true
-
-  # Global Alias Entities
+  
+  # Global Alias Entities for usage across modules
   global_entities:
     - id: ge_humidity
       alias: Humidity
       entity: sensor.living_room_humidity
-    - id: ge_power
-      alias: Power Usage
-      entity: sensor.current_power_usage
+      attribute: ""
 
-  # Color & Background Configuration
-  color_active: true
-  color_mode: fluid
-  fluid_effect: aurora
-  gpu_accelerated: true
-
-  # Progressbar Configuration
+  # Active Modules Configuration
   progressbar_active: true
   progressbars:
     - global_id: ge_humidity
       orientation: horizontal
       height: "12px"
-      fill_color: "var(--sc-state-normal)"
+      fill_color: "#03a9f4"
       show_indicator: true
+      indicator_value: true
       indicator_glass_effect: glass_gooey
 
-  # Gauge Configuration
-  gauge_active: true
-  gauges:
-    - global_id: ge_power
-      type: semi_270
-      physics: spring
-      min: 0
-      max: 3500
-      ticks: 5
-💻 Developer API: Custom Module Registration
-Attach custom modules to the global SupercardModules window object:
-JavaScript
-window.SupercardModules = window.SupercardModules || {};
-
-window.SupercardModules.customModule = {
-  // Triggered on card update cycle
-  update({ stateObj, stateVal, val, isNum, config, hass }) {
-    return {
-      cssVars: {
-        "--sc-custom-color": "rgba(255, 255, 255, 0.1)"
-      },
-      litHtml: html`<div class="custom-slot">Value: ${stateVal}</div>`
-    };
-  },
-
-  // Event binding with event propagation prevention
-  bindEvents(element) {
-    element.addEventListener('touchstart', (e) => {
-      e.stopPropagation(); // Prevents touch event bubbling to parent card
-      // Module touch logic
-    }, { passive: true });
-  },
-
-  // Called after DOM rendering completes
-  onAfterRender(root, config, options) {
-    // Shadow DOM interactions
-  },
-
-  // Custom CSS injection
-  initCSS() {
-    return css`
-      .custom-slot {
-        background: var(--sc-custom-color);
-        color: var(--sc-state-normal);
-      }
-    `;
-  },
-
-  // UI Editor configuration controls
-  renderCustomBlock(commitFn, hass, slot) {
-    return html`<!-- Custom Editor Controls -->`;
-  }
-};
+  gauge_active: false
+  layout_active: false
