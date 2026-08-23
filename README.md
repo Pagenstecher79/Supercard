@@ -38,6 +38,7 @@ Dynamic Range: Auto-scaling (k,M,G), multi-stop threshold gradients, custom sect
 Multi-Cell Grid System: Includes an inline trackpad canvas with grid-snapping capabilities for precise element placing in slots.
 Debug Visualizer: Overlays visual slot borders and element boundaries for real-time layout alignment.
 6. Dynamic Labels Module (labels)
+Conditional status pills, unit badges, and dynamic icons with customizable alignment and visibility triggers matching entity states (on, off, warning).6. Dynamic Labels Module (labels)
 Conditional status pills, unit badges, and dynamic icons with customizable alignment and visibility triggers matching entity states (on, off, warning).
 📝 YAML Configuration Example
 YAML
