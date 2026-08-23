@@ -1,3 +1,4 @@
+<img width="557" height="864" alt="Bildschirmfoto 2026-08-23 um 19 07 21" src="https://github.com/user-attachments/assets/eb839ac4-0531-4212-8273-637358f25e4c" />
 # Supercard Core (`supercard-core`)
 **A High-Performance, Modular LitElement Custom Card for Home Assistant Dashboard**
 
