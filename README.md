@@ -4,14 +4,10 @@
 `supercard-core` is a modular, highly customizable dashboard card component built with LitElement. It features responsive CSS scaling, advanced CSS layered pipeline backgrounds, dynamic color patterns, integrated fluid mesh animations, custom vector layouts, custom gauges, and multi-progressbar support.
 
 <img width="557" height="864" alt="Bildschirmfoto 2026-08-23 um 19 07 21" src="https://github.com/user-attachments/assets/eb839ac4-0531-4212-8273-637358f25e4c" />
-<img width="557" height="295" alt="Bildschirmfoto 2026-08-23 um 19 06 55" src="https://github.com/user-attachments/assets/529a5314-0e0f-4e87-a2a2-d4300b287846" />
 <img width="549" height="517" alt="Bildschirmfoto 2026-08-23 um 19 06 20" src="https://github.com/user-attachments/assets/150cd720-31be-4260-b20d-7d24623c81c7" />
-
-
-https://github.com/user-attachments/assets/655ebcb6-8c4f-460a-9e92-cde598487ab1
-
-
 <img width="540" height="462" alt="Bildschirmfoto 2026-08-23 um 19 07 17" src="https://github.com/user-attachments/assets/ca1ab253-2c5b-4c02-9f4c-0ab286f8912d" />
+<img width="557" height="295" alt="Bildschirmfoto 2026-08-23 um 19 06 55" src="https://github.com/user-attachments/assets/529a5314-0e0f-4e87-a2a2-d4300b287846" />
+<img width="605" height="235" alt="Bildschirmfoto 2026-09-07 um 22 20 37" src="https://github.com/user-attachments/assets/ff90fde0-9f9c-45af-80ab-837066c23d03" />
 
 
 ---
