@@ -56,6 +56,28 @@ function contrastColor(hex) {
   catch { return '#ffffff'; }
 }
 
+// True only when a colour is certainly fully opaque. Anything we cannot resolve
+// here (var(), named colours, color-mix) counts as translucent, so the caller
+// keeps whatever it would have drawn.
+function isOpaqueColor(c) {
+  if (!c) return false;
+  const s = String(c).trim().toLowerCase();
+  if (s === 'transparent' || s.startsWith('var(')) return false;
+  const hex = s.match(/^#([0-9a-f]{3,8})$/);
+  if (hex) {
+    const h = hex[1];
+    if (h.length === 4) return h[3] === 'f';
+    if (h.length === 8) return h.slice(6) === 'ff';
+    return h.length === 3 || h.length === 6;
+  }
+  const fn = s.match(/^(?:rgba?|hsla?)\(([^)]*)\)$/);
+  if (fn) {
+    const parts = fn[1].split(/[\s,\/]+/).filter(Boolean);
+    return parts.length < 4 || parseFloat(parts[3]) >= 1;
+  }
+  return false;
+}
+
 function getBounceEase(intensity) {
   if (!intensity || intensity <= 0) return 'cubic-bezier(0.4, 0, 0.2, 1)'; 
   const amount = intensity / 100;
@@ -318,7 +340,11 @@ class ScProgressbar extends LitElement {
     
     const oldGlassBool = this._get('indicator_value_glass', false);
     const glassEffect = this._get('indicator_glass_effect', oldGlassBool ? 'glass_gooey' : 'none');
-    const isGooey = glassEffect === 'glass_gooey';
+    // The goo filter exists to merge the pill into the fill, and it re-rasterises
+    // the whole fill layer on every animation frame. Without a pill there is
+    // nothing to merge, so it would be paid for an effect nobody can see.
+    const isGooey = glassEffect === 'glass_gooey'
+      && showInd && this._get('indicator_value', false);
 
     if (showInd) {
       const indColor = this._get('indicator_color', '#ffffff');
@@ -340,17 +366,31 @@ class ScProgressbar extends LitElement {
          const pOp = safeFloat(this._get('indicator_value_opacity', 100), 100);
          const finalBg = `color-mix(in srgb, ${pBgRaw} ${pOp}%, transparent)`;
          
+         // backdrop-filter is one of the most expensive things a moving element can
+         // carry: the backdrop is re-sampled and re-blurred on every animation
+         // frame. It is only ever visible through a translucent pill, so when the
+         // pill's own background covers it completely we drop it and draw exactly
+         // the same pixels for a fraction of the cost.
+         const bgIsOpaque = pOp >= 100 && isOpaqueColor(pBgRaw);
+         const blurCSS = px => bgIsOpaque
+           ? ''
+           : `backdrop-filter: blur(${px}px); -webkit-backdrop-filter: blur(${px}px); `;
+         // glass_dark paints its own rgba() background, so only the opacity counts.
+         const darkBlurCSS = pOp >= 100
+           ? ''
+           : `backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); `;
+
          let glassCSS = '';
          if (glassEffect === 'glass_gooey') {
-           glassCSS = `backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); box-shadow: ${glassShadow}; border: 1px solid rgba(255, 255, 255, 0.3);`;
+           glassCSS = `${blurCSS(4)}box-shadow: ${glassShadow}; border: 1px solid rgba(255, 255, 255, 0.3);`;
          } else if (glassEffect === 'glass_clear') {
            glassCSS = `box-shadow: ${glassShadow}; border: 1px solid rgba(255, 255, 255, 0.3);`;
          } else if (glassEffect === 'glass_clean') {
-           glassCSS = `backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 4px 10px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.4);`;
+           glassCSS = `${blurCSS(6)}border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 4px 10px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.4);`;
          } else if (glassEffect === 'glass_lens') {
-           glassCSS = `backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: inset 0 -4px 8px rgba(0,0,0,0.4), inset 0 4px 8px rgba(255,255,255,0.8), 0 4px 12px rgba(0,0,0,0.4);`;
+           glassCSS = `${blurCSS(4)}border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: inset 0 -4px 8px rgba(0,0,0,0.4), inset 0 4px 8px rgba(255,255,255,0.8), 0 4px 12px rgba(0,0,0,0.4);`;
          } else if (glassEffect === 'glass_dark') {
-           glassCSS = `backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); background: rgba(0,0,0,${pOp / 100}) !important; border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 0 4px 8px rgba(0,0,0,0.5); color: #ffffff !important;`;
+           glassCSS = `${darkBlurCSS}background: rgba(0,0,0,${pOp / 100}) !important; border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 0 4px 8px rgba(0,0,0,0.5); color: #ffffff !important;`;
          } else {
            glassCSS = `box-shadow: 0 2px 2px rgba(0,0,0,0.25); border: none;`;
          }
@@ -800,6 +840,7 @@ class ScProgressbar extends LitElement {
     return html`
       <style>:host { ${hostCSS} --pb-anim-dur: ${animDur}s; }</style>
       
+      ${isGooey ? html`
       <svg style="position: absolute; width: 0; height: 0;" aria-hidden="true">
         <defs>
           <filter id="sc-goo-filter">
@@ -808,7 +849,7 @@ class ScProgressbar extends LitElement {
             <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
           </filter>
         </defs>
-      </svg>
+      </svg>` : ''}
       
       <div class="sc-pb-wrap">
         <div class="sc-liquid-layer ${isGooey ? 'gooey' : ''}">
