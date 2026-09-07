@@ -1,7 +1,9 @@
-# Supercard Core (`supercard-core`)
-**A High-Performance, Modular LitElement Custom Card for Home Assistant Dashboard**
+# Supercard (`supercard-core`)
+**Gauges and progress bars for your Home Assistant dashboard — built in the card editor, not in YAML.**
 
-`supercard-core` is a modular, highly customizable dashboard card component built with LitElement. It features responsive CSS scaling, advanced CSS layered pipeline backgrounds, dynamic color patterns, integrated fluid mesh animations, custom vector layouts, custom gauges, and multi-progressbar support.
+Supercard puts custom gauges and progress bars onto a single card and lets you arrange them yourself. The gauges are SVG dials with pointer physics, thresholds, sectors and auto-scaling ranges; the progress bars come in linear and circular shapes with glassmorphism indicator pills. Around them you get a grid editor for placing elements, dynamic labels, animated backgrounds and per-element tap, hold and double-tap actions.
+
+Everything is configured visually — no YAML required — and the card scales its contents to whatever space it is given, so one configuration works in a wide desktop column and in a narrow phone view alike.
 
 <img width="557" height="864" alt="Bildschirmfoto 2026-08-23 um 19 07 21" src="https://github.com/user-attachments/assets/eb839ac4-0531-4212-8273-637358f25e4c" />
 <img width="549" height="517" alt="Bildschirmfoto 2026-08-23 um 19 06 20" src="https://github.com/user-attachments/assets/150cd720-31be-4260-b20d-7d24623c81c7" />
@@ -68,7 +70,7 @@ Once installed, add a card to any dashboard and pick **Supercard** from the card
 
 ## 🧩 Architecture Overview
 
-The core plugin initializes a container with structural layered rules (`Z-Index` configuration):
+The card is a LitElement component. Modules register themselves on `window.SupercardModules` and contribute rendering, editor fields and CSS variables; the core initializes a container with structural layered rules (`Z-Index` configuration):
 
 | Layer Level | Variable Constant | Description |
 | :--- | :--- | :--- |
