@@ -1,6 +1,6 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
-// --- NEUES UI ELEMENT: X/Y SHADOW PAD (Lichtquelle) ---
+// --- NEW UI ELEMENT: X/Y SHADOW PAD (light source) ---
 class ScShadowPad extends LitElement {
   static get properties() {
     return {
@@ -70,7 +70,7 @@ class ScShadowPad extends LitElement {
     let r = Math.sqrt(dx*dx + dy*dy);
     if (r > maxR) r = maxR;
     let distance = (r / maxR) * this.maxDistance;
-    
+
     if (distance < (this.maxDistance * 0.05)) { distance = 0; shadowAngle = this.angle; }
 
     this.angle = Math.round(shadowAngle);
@@ -92,9 +92,9 @@ class ScShadowPad extends LitElement {
 }
 if (!customElements.get('sc-shadow-pad')) customElements.define('sc-shadow-pad', ScShadowPad);
 
-// --- HILFSFUNKTIONEN FÜR DIE ZIEL-AUSWAHL ---
+// --- HELPER FUNCTIONS FOR TARGET SELECTION ---
 function getAvailableElements(slot) {
-  const elements = { 'empty': 'Leer', 'icon': 'Icon', 'name': 'Entitäts-Name', 'state': 'Zustand (Wert)' };
+  const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
   const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
   for (let i = 0; i < gaugeCount; i++) elements[`gauge_${i}`] = `Gauge ${i + 1}`;
   const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
@@ -112,16 +112,16 @@ function getAvailableElements(slot) {
 
 function getTargets(slot) {
   const groups = {
-    general: { label: 'Allgemein', items: [ { id: 'none', label: '— Bitte Ziel wählen —' }, { id: 'main', label: 'Hauptkarte (Gesamter Hintergrund)' } ]},
-    cells: { label: 'Layout-Zellen (Container)', items: [] },
-    elements: { label: 'Direkte Elemente (Passgenau)', items: [] }
+    general: { label: 'General', items: [ { id: 'none', label: '— Please select a target —' }, { id: 'main', label: 'Main card (entire background)' } ]},
+    cells: { label: 'Layout cells (containers)', items: [] },
+    elements: { label: 'Direct elements (exact fit)', items: [] }
   };
   const els = getAvailableElements(slot);
   if (Array.isArray(slot.layout_rows)) {
     slot.layout_rows.forEach((row, rIdx) => {
       row.cells.forEach((cell, cIdx) => {
-        const typeLabel = els[cell.content] || 'Leer';
-        groups.cells.items.push({ id: `r${rIdx}c${cIdx}`, label: `Zelle Z${rIdx+1}C${cIdx+1} (${typeLabel})` });
+        const typeLabel = els[cell.content] || 'Empty';
+        groups.cells.items.push({ id: `r${rIdx}c${cIdx}`, label: `Cell R${rIdx+1}C${cIdx+1} (${typeLabel})` });
       });
     });
   }
@@ -131,7 +131,7 @@ function getTargets(slot) {
   return groups;
 }
 
-// --- DER EDITOR ---
+// --- THE EDITOR ---
 class ScFxGlassEditor extends LitElement {
   static get properties() {
     return {
@@ -186,7 +186,7 @@ class ScFxGlassEditor extends LitElement {
 
   render() {
     if (!this.slot) return html``;
-    
+
     let patterns = Array.isArray(this.slot.fx_glass_patterns) ? this.slot.fx_glass_patterns : [];
     if (patterns.length === 0 && this.slot.fx_glass && this.slot.fx_glass.enabled) {
         patterns = [{ id: Date.now(), target: 'main', padding_unit: 'px', ...this.slot.fx_glass }];
@@ -200,7 +200,7 @@ class ScFxGlassEditor extends LitElement {
         const found = group.items.find(t => t.id === targetId);
         if (found) return found.label;
       }
-      return 'Unbekanntes Ziel';
+      return 'Unknown target';
     };
 
     return html`
@@ -210,8 +210,8 @@ class ScFxGlassEditor extends LitElement {
           ${patterns.map((pat, idx) => {
             const isExp = !!this._expanded[pat.id];
             let targetLabel = getLabelForTarget(pat.target);
-            if (pat.target === 'none') targetLabel = 'Nicht zugewiesen';
-            
+            if (pat.target === 'none') targetLabel = 'Not assigned';
+
             const isDirectElement = pat.target && pat.target.startsWith('elm_');
             const showManualControls = !isDirectElement || pat.manual_override;
 
@@ -236,66 +236,66 @@ class ScFxGlassEditor extends LitElement {
                   <div>
                     <span class="drag-handle" @mousedown=${e => { e.stopPropagation(); e.target.closest('.pattern-card').setAttribute('draggable', 'true'); }} @mouseup=${e => { e.stopPropagation(); e.target.closest('.pattern-card').removeAttribute('draggable'); }} @mouseleave=${e => e.target.closest('.pattern-card').removeAttribute('draggable')}>⋮⋮</span>
                     <span class="toggle-icon">${isExp ? '▼' : '▶'}</span>
-                    <span style="color:${pat.enabled ? 'var(--primary-text-color)' : 'var(--secondary-text-color)'}">Glass Effekt ${idx + 1}</span>
+                    <span style="color:${pat.enabled ? 'var(--primary-text-color)' : 'var(--secondary-text-color)'}">Glass effect ${idx + 1}</span>
                     <span style="font-size:10px;color:${pat.target === 'none' ? '#f44' : 'var(--secondary-text-color)'};margin-left:8px;font-weight:normal;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom;">(${targetLabel})</span>
                   </div>
                   <div style="display:flex;align-items:center;gap:8px">
                     <ha-switch .checked=${!!pat.enabled} @click=${e => e.stopPropagation()} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].enabled = e.target.checked; this._commit(n); }}></ha-switch>
-                    <button type="button" title="Klonen" @click=${e => { e.preventDefault(); e.stopPropagation(); const n = JSON.parse(JSON.stringify(patterns)); const clone = JSON.parse(JSON.stringify(pat)); clone.id = Date.now(); clone.target = 'none'; n.splice(idx + 1, 0, clone); this._commit(n); this.requestUpdate(); }} style="background:none;border:none;color:var(--primary-color);cursor:pointer;padding:4px;font-size:14px;">⧉</button>
-                    <button type="button" title="Löschen" @click=${e => { e.preventDefault(); e.stopPropagation(); const n = [...patterns]; n.splice(idx, 1); this._commit(n); }} style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">✕</button>
+                    <button type="button" title="Clone" @click=${e => { e.preventDefault(); e.stopPropagation(); const n = JSON.parse(JSON.stringify(patterns)); const clone = JSON.parse(JSON.stringify(pat)); clone.id = Date.now(); clone.target = 'none'; n.splice(idx + 1, 0, clone); this._commit(n); this.requestUpdate(); }} style="background:none;border:none;color:var(--primary-color);cursor:pointer;padding:4px;font-size:14px;">⧉</button>
+                    <button type="button" title="Delete" @click=${e => { e.preventDefault(); e.stopPropagation(); const n = [...patterns]; n.splice(idx, 1); this._commit(n); }} style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">✕</button>
                   </div>
                 </div>
 
                 ${isExp ? html`
                   <div class="pattern-content">
                     <div class="row">
-                      <label>Ziel / Element</label>
+                      <label>Target / element</label>
                       <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].target = e.target.value; this._commit(n); }}>
                         ${Object.values(targetGroups).map(group => html`
                           <optgroup label="${group.label}">
                             ${group.items.map(t => {
                               const isLocked = t.id !== 'none' && t.id !== pat.target && usedTargets.includes(t.id);
-                              return html`<option value=${t.id} ?selected=${pat.target === t.id} ?disabled=${isLocked}>${t.label} ${isLocked ? '(Belegt)' : ''}</option>`;
+                              return html`<option value=${t.id} ?selected=${pat.target === t.id} ?disabled=${isLocked}>${t.label} ${isLocked ? '(In use)' : ''}</option>`;
                             })}
                           </optgroup>
                         `)}
                       </select>
                     </div>
 
-                    <div class="section-title">📏 Dimensionen & Form</div>
-                    
+                    <div class="section-title">📏 Dimensions & Shape</div>
+
                     ${isDirectElement ? html`
                       <div class="auto-magic-box">
                         <div style="display:flex; gap:8px; align-items:center;">
                           <span style="font-size:16px">🪄</span>
-                          <div><b>Auto-Maskierung (Container Queries aktiv):</b> Der Effekt passt sich unverzerrt an die kleinste Containerseite (cqmin) an.</div>
+                          <div><b>Auto-masking (container queries active):</b> the effect adapts to the smallest container side (cqmin) without distortion.</div>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid rgba(3,169,244,0.3); padding-top:8px;">
-                          <label>Manuelle Korrektur (Regler anzeigen)</label>
+                          <label>Manual correction (show sliders)</label>
                           <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].manual_override = e.target.checked; this._commit(n); }}></ha-switch>
                         </div>
                       </div>
                     ` : ''}
 
                     <div class="row" style="background: rgba(244,67,54,0.1); padding: 8px; border-radius: 6px; border: 1px dashed rgba(244,67,54,0.3);">
-                      <label style="color:#f44336; font-weight:bold;">🛠 Debug-Modus (Boxen anzeigen)<br><span style="font-size:10px; font-weight:normal;">Zeigt den Container grün und das Glas pink gestrichelt.</span></label>
+                      <label style="color:#f44336; font-weight:bold;">🛠 Debug mode (show boxes)<br><span style="font-size:10px; font-weight:normal;">Shows the container in green and the glass in dashed pink.</span></label>
                       <ha-switch style="--switch-checked-button-color: #f44336; --switch-checked-track-color: rgba(244,67,54,0.5);" .checked=${pat.debug_mask ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].debug_mask = e.target.checked; this._commit(n); }}></ha-switch>
                     </div>
 
                     ${showManualControls ? html`
                       <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;">
-                        <label style="color:var(--primary-color)">Form sperren (1:1 Aspect Ratio)<br><span style="font-size:10px;color:var(--secondary-text-color)">Erzwingt ein perfektes Quadrat/Kreis (cqmin).</span></label>
+                        <label style="color:var(--primary-color)">Lock shape (1:1 aspect ratio)<br><span style="font-size:10px;color:var(--secondary-text-color)">Forces a perfect square/circle (cqmin).</span></label>
                         <ha-switch .checked=${pat.force_square ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].force_square = e.target.checked; this._commit(n); }}></ha-switch>
                       </div>
                       <div class="row">
-                        <label>Randabstand (Inset / Padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negativer Wert macht Glas größer</span></label>
+                        <label>Edge distance (inset / padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
                         <div style="display:flex; align-items:center; width:60%; gap:8px">
-                          <input type="range" 
-                            min=${(pat.padding_unit || 'px') === '%' ? '-100' : '-50'} 
-                            max=${(pat.padding_unit || 'px') === '%' ? '100' : '50'} 
-                            step="1" 
-                            style="flex:1" 
-                            .value=${pat.padding ?? 0} 
+                          <input type="range"
+                            min=${(pat.padding_unit || 'px') === '%' ? '-100' : '-50'}
+                            max=${(pat.padding_unit || 'px') === '%' ? '100' : '50'}
+                            step="1"
+                            style="flex:1"
+                            .value=${pat.padding ?? 0}
                             @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].padding = parseInt(e.target.value); this._commit(n); }}>
                           <span style="font-size:11px; min-width:24px; text-align:right;">${pat.padding ?? 0}</span>
                           <select style="width:60px" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].padding_unit = e.target.value; this._commit(n); }}>
@@ -305,7 +305,7 @@ class ScFxGlassEditor extends LitElement {
                         </div>
                       </div>
                       <div class="row">
-                        <label>Eckradius (Border-Radius)</label>
+                        <label>Corner radius (border-radius)</label>
                         <div style="display:flex;width:60%;gap:4px">
                           <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} placeholder="Auto" @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].border_radius = e.target.value; this._commit(n); }}>
                           <select style="width:60px" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].border_radius_unit = e.target.value; this._commit(n); }}>
@@ -316,57 +316,57 @@ class ScFxGlassEditor extends LitElement {
                       </div>
                     ` : ''}
 
-                    <div class="section-title">🍩 Ring- / Donut-Maske</div>
+                    <div class="section-title">🍩 Ring / Donut Mask</div>
                     <div class="row">
-                      <label style="color:var(--primary-color)">Zentrum ausblenden (Harte Kante)<br><span style="font-size:10px;color:var(--secondary-text-color)">Blur & Farbe wirken exakt nur auf dem Rand.</span></label>
+                      <label style="color:var(--primary-color)">Hide center (hard edge)<br><span style="font-size:10px;color:var(--secondary-text-color)">Blur & color only affect the edge exactly.</span></label>
                       <ha-switch .checked=${pat.ring_effect ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].ring_effect = e.target.checked; this._commit(n); }}></ha-switch>
                     </div>
                     ${pat.ring_effect ? html`
                       <div class="row" style="padding-top: 4px;">
-                        <label>Eigene Masken-Dicke verwenden<br><span style="font-size:10px;color:var(--secondary-text-color)">Aus = Dicke entspricht exakt der Fasen-Breite (${pat.bevel_width ?? pat.bevel_size ?? 2}px)</span></label>
+                        <label>Use custom mask thickness<br><span style="font-size:10px;color:var(--secondary-text-color)">Off = thickness matches the bevel width exactly (${pat.bevel_width ?? pat.bevel_size ?? 2}px)</span></label>
                         <ha-switch .checked=${pat.use_custom_ring_width ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].use_custom_ring_width = e.target.checked; this._commit(n); }}></ha-switch>
                       </div>
                       ${pat.use_custom_ring_width ? html`
-                        <div class="row"><label>Masken-Dicke (px)</label>
+                        <div class="row"><label>Mask thickness (px)</label>
                           <input type="range" min="1" max="50" step="0.5" style="width:60%" .value=${pat.ring_width ?? 5} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].ring_width = parseFloat(e.target.value); this._commit(n); }}>
                         </div>
                       ` : ''}
-                      <div class="row"><label>Effekt-Stärke im Zentrum (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Blur & Farbe komplett hohl</span></label>
+                      <div class="row"><label>Effect strength in center (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = blur & color completely hollow</span></label>
                         <input type="range" min="0" max="100" style="width:60%" .value=${pat.ring_center_opacity ?? 0} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].ring_center_opacity = parseInt(e.target.value); this._commit(n); }}>
                       </div>
                     ` : ''}
-                    
-                    <div class="section-title">🔍 Optik (Lupe & Wölbung)</div>
-                    <div class="row"><label>Inhalt Vergrößern (Zoom)</label>
+
+                    <div class="section-title">🔍 Optics (Magnifier & Curvature)</div>
+                    <div class="row"><label>Magnify content (zoom)</label>
                       <input type="range" step="0.01" min="1" max="1.5" style="width:60%" .value=${pat.zoom ?? 1} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].zoom = parseFloat(e.target.value); this._commit(n); }}>
                     </div>
-                    <div class="row"><label>Konvexer 3D-Glanz (%)</label>
+                    <div class="row"><label>Convex 3D shine (%)</label>
                       <input type="range" min="0" max="100" style="width:60%" .value=${pat.glare ?? 0} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].glare = parseInt(e.target.value); this._commit(n); }}>
                     </div>
 
-                    <div class="section-title">💧 Glas & Blur</div>
-                    <div class="row"><label>Blur-Stärke (px)</label>
+                    <div class="section-title">💧 Glass & Blur</div>
+                    <div class="row"><label>Blur strength (px)</label>
                       <input type="range" step="0.01" min="0" max="2" style="width:60%" .value=${pat.blur ?? 10} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].blur = parseFloat(e.target.value); this._commit(n); }}>
                     </div>
-                    <div class="row"><label>Hintergrund-Deckkraft (%)</label>
+                    <div class="row"><label>Background opacity (%)</label>
                       <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 10} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].opacity = parseInt(e.target.value); this._commit(n); }}>
                     </div>
-                    <div class="row"><label>Farbe (Hex-Picker)</label>
+                    <div class="row"><label>Color (hex picker)</label>
                       <input type="color" .value=${pat.bg_rgb || '#ffffff'} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].bg_rgb = e.target.value; this._commit(n); }}>
                     </div>
 
-                    <div class="section-title">🌒 Lichtbrechung & Fase (Physik)</div>
-                    <div class="row"><label>Glas-Stil</label>
+                    <div class="section-title">🌒 Light Refraction & Bevel (Physics)</div>
+                    <div class="row"><label>Glass style</label>
                       <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].shadow_style = e.target.value; this._commit(n); }}>
-                        <option value="none" ?selected=${pat.shadow_style === 'none'}>Flach (Keine Kanten)</option>
-                        <option value="frosted" ?selected=${pat.shadow_style === 'frosted'}>Frosted (Weiche Kanten)</option>
-                        <option value="liquid" ?selected=${pat.shadow_style === 'liquid'}>Liquid (Physikalische Brechung)</option>
+                        <option value="none" ?selected=${pat.shadow_style === 'none'}>Flat (no edges)</option>
+                        <option value="frosted" ?selected=${pat.shadow_style === 'frosted'}>Frosted (soft edges)</option>
+                        <option value="liquid" ?selected=${pat.shadow_style === 'liquid'}>Liquid (physical refraction)</option>
                       </select>
                     </div>
 
                     ${pat.shadow_style !== 'none' ? html`
                       <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px dashed var(--divider-color, #444); display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 8px 0;">
-                        <label style="align-self: flex-start; margin-bottom: -4px;">Lichtquelle (Sonne)</label>
+                        <label style="align-self: flex-start; margin-bottom: -4px;">Light source (sun)</label>
                         <sc-shadow-pad
                           .angle=${pat.shadow_angle ?? 90}
                           .distance=${pat.shadow_distance ?? 1}
@@ -379,22 +379,22 @@ class ScFxGlassEditor extends LitElement {
                           }}
                         ></sc-shadow-pad>
                         <div style="display: flex; gap: 16px; font-size: 11px; color: var(--secondary-text-color);">
-                          <span>Winkel: <b style="color:var(--primary-color)">${pat.shadow_angle ?? 90}°</b></span>
-                          <span>Distanz-Offset: <b style="color:var(--primary-color)">${pat.shadow_distance ?? 1}x</b></span>
+                          <span>Angle: <b style="color:var(--primary-color)">${pat.shadow_angle ?? 90}°</b></span>
+                          <span>Distance offset: <b style="color:var(--primary-color)">${pat.shadow_distance ?? 1}x</b></span>
                         </div>
                       </div>
 
-                      <div class="row"><label>Fasen-Breite (px)<br><span style="font-size:10px;color:var(--secondary-text-color)">Ausdehnung der Kante nach innen</span></label>
+                      <div class="row"><label>Bevel width (px)<br><span style="font-size:10px;color:var(--secondary-text-color)">Extent of the edge inward</span></label>
                         <input type="range" step="0.1" min="0" max="30" style="width:60%" .value=${pat.bevel_width ?? pat.bevel_size ?? 2}
                           @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].bevel_width = parseFloat(e.target.value); this._commit(n); }}>
                       </div>
-                      
-                      <div class="row"><label>Glas-Dicke (Tiefe)<br><span style="font-size:10px;color:var(--secondary-text-color)">Kontrolliert die Steilheit & Refraktion</span></label>
+
+                      <div class="row"><label>Glass thickness (depth)<br><span style="font-size:10px;color:var(--secondary-text-color)">Controls the steepness & refraction</span></label>
                         <input type="range" step="0.5" min="0" max="20" style="width:60%" .value=${pat.glass_thickness ?? 5}
                           @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].glass_thickness = parseFloat(e.target.value); this._commit(n); }}>
                       </div>
 
-                      <div class="row"><label>Basis-Helligkeit (Licht)</label>
+                      <div class="row"><label>Base brightness (light)</label>
                         <input type="range" step="0.001" min="0" max="1" style="width:60%" .value=${pat.light_brightness ?? 0.4}
                           @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].light_brightness = parseFloat(e.target.value); this._commit(n); }}>
                       </div>
@@ -404,7 +404,7 @@ class ScFxGlassEditor extends LitElement {
               </div>
             `;
           })}
-          
+
           <button type="button" class="add-btn" @click=${(e) => {
             e.preventDefault(); e.stopPropagation();
             const n = JSON.parse(JSON.stringify(patterns));
@@ -420,7 +420,7 @@ class ScFxGlassEditor extends LitElement {
             this._commit(n);
             this._expanded = { ...this._expanded, [newId]: true };
             this.requestUpdate();
-          }}>＋ Neuen Glas-Effekt hinzufügen</button>
+          }}>＋ Add new glass effect</button>
         </div>
       </details>
     `;
@@ -430,7 +430,7 @@ class ScFxGlassEditor extends LitElement {
 if (!customElements.get('sc-fx-glass-editor')) customElements.define('sc-fx-glass-editor', ScFxGlassEditor);
 ScFxGlassEditor._expandedCache = {};
 
-// --- DAS MODUL ---
+// --- THE MODULE ---
 window.SupercardModules['fx_glass'] = (() => {
 
   function getElementSelector(targetId) {
@@ -465,10 +465,10 @@ window.SupercardModules['fx_glass'] = (() => {
 
       const layerZ = isMain ? 300 : 1400;
 
-      // --- 1. Manuelle Werte auslesen ---
+      // --- 1. Read manual values ---
       let padVal = 0, padUnit = 'px';
       let brValue = '', brUnit = 'px';
-      
+
       if (!isDirectElement || pat.manual_override) {
           padVal = pat.padding ?? 0;
           padUnit = pat.padding_unit ?? 'px';
@@ -478,8 +478,8 @@ window.SupercardModules['fx_glass'] = (() => {
 
       let autoRadiusFallback = 'inherit';
       let computedForceSquare = pat.force_square ?? false;
-      let scaleFactor = 100; 
-      
+      let scaleFactor = 100;
+
       let isGaugeResponsive = false;
       let gaugeSizePx = 60;
 
@@ -497,23 +497,23 @@ window.SupercardModules['fx_glass'] = (() => {
           computedForceSquare = false;
         } else if (pat.target.startsWith('elm_gauge_')) {
           autoRadiusFallback = '50%'; computedForceSquare = true;
-          
+
           const gIdx = parseInt(pat.target.split('_')[2]);
           const gConf = (Array.isArray(config.gauges) && config.gauges[gIdx]) ? config.gauges[gIdx] : config;
-          
+
           isGaugeResponsive = !!gConf.gauge_size_responsive;
           gaugeSizePx = gConf.gauge_size_px ?? 60;
-          
+
           let scaleVal = gConf.gauge_scale ?? gConf.scale;
           if (scaleVal !== undefined) {
             let parsed = parseFloat(String(scaleVal).replace('%', '').trim());
             scaleFactor = (!isNaN(parsed) && parsed > 0 && parsed <= 5) ? parsed * 100 : parsed;
           } else {
-            scaleFactor = 90; 
+            scaleFactor = 90;
           }
         } else if (pat.target === 'elm_icon') {
           autoRadiusFallback = '50%'; computedForceSquare = true;
-          isGaugeResponsive = true; 
+          isGaugeResponsive = true;
         }
       } else if (isDirectElement && pat.manual_override) {
         computedForceSquare = pat.force_square ?? false;
@@ -521,9 +521,9 @@ window.SupercardModules['fx_glass'] = (() => {
         isGaugeResponsive = true;
       }
 
-      // --- DYNAMISCHER EINHEITEN-ÜBERSETZER ---
+      // --- DYNAMIC UNIT TRANSLATOR ---
       const sf = scaleFactor / 100;
-      
+
       const u = (val, unit = 'px') => {
         if (val === 0) return '0px';
         if (unit === '%') return `${val}%`;
@@ -533,46 +533,46 @@ window.SupercardModules['fx_glass'] = (() => {
       const computedInset = u(padVal, padUnit);
       const borderRadius = (brValue !== '') ? u(parseFloat(brValue), brUnit) : autoRadiusFallback;
 
-      // --- 2. Radien & Positionierung ---
+      // --- 2. Radii & positioning ---
       let positioningCSS = '';
-      let parentContainerCSS = ''; 
+      let parentContainerCSS = '';
 
       if (computedForceSquare) {
         let padSubtract = padVal !== 0 ? ` - (${u(padVal, padUnit)} * 2)` : '';
-        
+
         if (isGaugeResponsive) {
           positioningCSS = `
-            inset: 0 !important; 
-            margin: auto !important; 
-            width: calc((100cqmin * ${sf})${padSubtract}) !important; 
+            inset: 0 !important;
+            margin: auto !important;
+            width: calc((100cqmin * ${sf})${padSubtract}) !important;
             height: calc((100cqmin * ${sf})${padSubtract}) !important;
           `;
           parentContainerCSS = 'container-type: size !important;';
         } else {
           positioningCSS = `
-            inset: 0 !important; 
-            margin: auto !important; 
-            width: calc((${gaugeSizePx}px * ${sf})${padSubtract}) !important; 
+            inset: 0 !important;
+            margin: auto !important;
+            width: calc((${gaugeSizePx}px * ${sf})${padSubtract}) !important;
             height: calc((${gaugeSizePx}px * ${sf})${padSubtract}) !important;
           `;
         }
       } else {
         positioningCSS = `
-          inset: ${computedInset} !important; 
-          margin: auto !important; 
-          width: calc(100% - (${computedInset} * 2)) !important; 
+          inset: ${computedInset} !important;
+          margin: auto !important;
+          width: calc(100% - (${computedInset} * 2)) !important;
           height: calc(100% - (${computedInset} * 2)) !important;
         `;
       }
 
-      // --- DEBUG MODUS ---
+      // --- DEBUG MODE ---
       let debugPseudoCSS = '';
       if (pat.debug_mask) {
          parentContainerCSS += ` outline: 2px solid #00ff00 !important; background-color: rgba(0, 255, 0, 0.15) !important;`;
          debugPseudoCSS = `outline: 2px dashed #ff00ff !important; outline-offset: 2px; background-color: rgba(255, 0, 255, 0.25) !important;`;
       }
 
-      // --- 3. Styling Werte ---
+      // --- 3. Styling values ---
       const blur = pat.blur !== undefined ? parseFloat(pat.blur) : 10;
       const opacity = (pat.opacity ?? 10) / 100;
       const zoom = pat.zoom !== undefined ? parseFloat(pat.zoom) : 1;
@@ -591,17 +591,17 @@ window.SupercardModules['fx_glass'] = (() => {
         backgroundCSS = `radial-gradient(ellipse at 30% 25%, rgba(255, 255, 255, ${glare}) 0%, rgba(${rgbString}, ${opacity}) 60%)`;
       }
 
-      // --- 4. Physikalische Lichtberechnung & Refraktion-Fake (Komplett ohne Border-Bug!) ---
+      // --- 4. Physical light calculation & refraction fake (entirely without the border bug!) ---
       const shadowStyle = pat.shadow_style || 'frosted';
-      
+
       const bWidth = pat.bevel_width ?? pat.bevel_size ?? 2;
       const gThick = pat.glass_thickness ?? 5;
       const lBright = pat.light_brightness ?? 0.4;
-      
+
       const sAngle = pat.shadow_angle ?? 90;
       const sDist = pat.shadow_distance ?? 1;
       const sRad = sAngle * Math.PI / 180;
-      
+
       const shadowX = sDist * Math.cos(sRad);
       const shadowY = sDist * Math.sin(sRad);
       const lightX = -shadowX;
@@ -614,9 +614,9 @@ window.SupercardModules['fx_glass'] = (() => {
       let mainShadow = 'none';
       if (shadowStyle === 'frosted') {
         const s1 = bWidth - 0.5 < 0 ? 0 : bWidth - 0.5;
-        // Die harten border-Befehle wurden entfernt und durch ein weiches Inset-Shadowing ersetzt
+        // The hard border rules were removed and replaced with a soft inset shadow
         mainShadow = `
-          inset ${u(lightX * s1)} ${u(lightY * s1)} ${u(bWidth)} 0px rgba(255, 255, 255, ${edgeLight}), 
+          inset ${u(lightX * s1)} ${u(lightY * s1)} ${u(bWidth)} 0px rgba(255, 255, 255, ${edgeLight}),
           inset ${u(shadowX * bWidth)} ${u(shadowY * bWidth)} ${u(bWidth + 1)} 0px rgba(0, 0, 0, ${edgeShadow * 0.5}),
           inset 0 0 0 ${u(bWidth)} rgba(255, 255, 255, 0.05)
         `;
@@ -629,10 +629,10 @@ window.SupercardModules['fx_glass'] = (() => {
         `;
       }
 
-      // Der Chrome-BugFix: Niemals physische Rahmen verwenden, wenn Blur aktiv ist!
+      // The Chrome bug fix: never use physical borders when blur is active!
       const faseCSS = 'border: none !important;';
 
-      // --- 5. Maske (Ring-Effekt dynamisch skaliert) ---
+      // --- 5. Mask (ring effect dynamically scaled) ---
       let maskCSS = '';
       if (pat.ring_effect) {
         const useCustom = pat.use_custom_ring_width ?? false;
@@ -647,9 +647,9 @@ window.SupercardModules['fx_glass'] = (() => {
 
       const applyContentZoom = !isDirectElement || (!pat.target.startsWith('elm_gauge_') && !pat.target.startsWith('elm_progressbar_') && pat.target !== 'elm_icon');
 
-      // --- 6. Content Z-Index Korrektur ---
+      // --- 6. Content z-index correction ---
       let childZIndexCSS = '';
-      
+
       if (isMain) {
         childZIndexCSS = `
           ha-card .supercard-container {
@@ -675,9 +675,9 @@ window.SupercardModules['fx_glass'] = (() => {
         `;
       }
 
-      // --- 7. CSS Generierung ---
+      // --- 7. CSS generation ---
       const repaintAnim = `sc-glass-awake-${pat.id}-${Math.random().toString(36).substring(2,7)}`;
-      
+
       styleStr += `
         @keyframes ${repaintAnim} {
           0% { opacity: 0.99; }
@@ -689,7 +689,7 @@ window.SupercardModules['fx_glass'] = (() => {
         ${!isMain ? `
         ${selector} {
           position: relative ${isDirectElement ? '!important' : ''};
-          isolation: isolate !important; 
+          isolation: isolate !important;
           ${parentContainerCSS}
         }
         ` : ''}
@@ -708,11 +708,11 @@ window.SupercardModules['fx_glass'] = (() => {
           box-shadow: ${mainShadow} !important;
           ${faseCSS}
           ${debugPseudoCSS}
-          
+
           animation: ${repaintAnim} 0.5s infinite alternate !important;
           transform: translateZ(0) !important;
           -webkit-transform: translateZ(0) !important;
-          
+
           -webkit-backdrop-filter: blur(${u(blur)}) !important;
           backdrop-filter: blur(${u(blur)}) !important;
           ${maskCSS}

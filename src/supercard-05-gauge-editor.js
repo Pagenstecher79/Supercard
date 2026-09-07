@@ -8,202 +8,202 @@ Object.assign(window.SupercardModules['gauge'], (() => {
 function editorFields() {}
 
 const STYLE_FIELDS = [
-  { id: '_section_shape',      label: '── Form & Position',    type: 'section' },
-  { id: 'gauge_type',          label: 'Gauge-Typ',             type: 'select', options: [ { value: 'full', label: 'Full 360°' }, { value: 'semi', label: 'Semi 270°' } ] },
-  { id: 'gauge_start_angle',   label: 'Start-Position (0-Punkt)', type: 'select', options: [ { value: '-90', label: 'Oben (12 Uhr)' }, { value: '90', label: 'Unten (6 Uhr)' }, { value: '180', label: 'Links (9 Uhr)' }, { value: '0', label: 'Rechts (3 Uhr)' } ], showIf: { field: 'gauge_type', value: 'full' } },
-  { id: 'gauge_scale',         label: 'Skalierung',            type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1'  },
-  
-  { id: 'gauge_position_mode', label: 'Ankerpunkt / Position', type: '9-sector' },
-  { id: 'gauge_size_responsive', label: 'Responsive Größe (Auto-Skalierung)', type: 'checkbox' },
-  { id: 'gauge_size_px',         label: 'Größe (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', showIf: { field: 'gauge_size_responsive', notValue: true } },
+  { id: '_section_shape',      label: '── Shape & Position',    type: 'section' },
+  { id: 'gauge_type',          label: 'Gauge type',             type: 'select', options: [ { value: 'full', label: 'Full 360°' }, { value: 'semi', label: 'Semi 270°' } ] },
+  { id: 'gauge_start_angle',   label: 'Start position (0-point)', type: 'select', options: [ { value: '-90', label: 'Top (12 o’clock)' }, { value: '90', label: 'Bottom (6 o’clock)' }, { value: '180', label: 'Left (9 o’clock)' }, { value: '0', label: 'Right (3 o’clock)' } ], showIf: { field: 'gauge_type', value: 'full' } },
+  { id: 'gauge_scale',         label: 'Scale',            type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1'  },
+
+  { id: 'gauge_position_mode', label: 'Anchor point / position', type: '9-sector' },
+  { id: 'gauge_size_responsive', label: 'Responsive size (auto scaling)', type: 'checkbox' },
+  { id: 'gauge_size_px',         label: 'Size (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', showIf: { field: 'gauge_size_responsive', notValue: true } },
   { id: 'gauge_offset_x',      label: 'Offset X (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
   { id: 'gauge_offset_y',      label: 'Offset Y (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
-  
-  { id: '_section_frame',           label: '── Rahmen-Ring',               type: 'section'  },
-  { id: 'frame_ring_active',        label: 'Rahmen aktiv',                 type: 'checkbox' },
-  { id: 'frame_ring_closed',        label: 'Geschlossener Kreis',          type: 'checkbox', showIf: { field: 'frame_ring_active', value: true } },
-  { id: 'frame_ring_width',         label: 'Breite',                       type: 'range',    min: 0, max: 3, step: 0.1,  placeholder: '1.5', showIf: { field: 'frame_ring_active', value: true } },
-  { id: 'frame_ring_gap',           label: 'Abstand zum Gradientenring',   type: 'range',    min: 0, max: 3, step: 0.1,  placeholder: '1.5', showIf: { field: 'frame_ring_active', value: true } },
-  { id: 'frame_ring_color_type',    label: 'Farb-Modus',                   type: 'select',   options: [ { value: 'fixed', label: 'Fix' }, { value: 'adaptive', label: 'Adaptiv' } ], showIf: { field: 'frame_ring_active', value: true } },
-  { id: 'frame_ring_color',         label: 'Farbe (Fix)',                  type: 'color',    showIf: [{ field: 'frame_ring_active', value: true }, { field: 'frame_ring_color_type', notValue: 'adaptive' }] },
-  { id: 'frame_ring_opacity',       label: 'Deckkraft',                    type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1.0', showIf: { field: 'frame_ring_active', value: true } },
 
-  { id: '_section_bg',           label: '── Hintergrund',             type: 'section' },
-  { id: 'bg_mode',               label: 'Hintergrund-Modus',          type: 'select', options: [ { value: 'none', label: 'Keiner' }, { value: 'adaptive', label: 'Adaptiv (Theme)' }, { value: 'solid', label: 'Einfarbig' }, { value: 'linear', label: 'Linearer Verlauf' }, { value: 'radial', label: 'Radialer Verlauf' } ] },
-  { id: 'bg_gradient_preset',    label: 'Verlaufstyp',                type: 'select', options: [ { value: 'classic', label: 'Klassisch (2 Farben)' }, { value: 'manual', label: 'Manuell (Liste)' } ], showIf: { field: 'bg_mode', value: ['linear','radial'] } },
-  { id: 'bg_threshold_unit',     label: 'Schwellen-Einheit',          type: 'select', options: [ { value: 'percent', label: 'Prozent (%)' }, { value: 'absolute', label: 'Absolut' } ], showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', value: 'manual' }] },
-  { id: 'bg_opacity',            label: 'Deckkraft',                  type: 'range',    min: 0, max: 1, step: 0.01, placeholder: '1.0' },
-  { id: 'bg_color1',             label: 'Farbe 1 (Innen / Start)',    type: 'color',  showIf: [{ field: 'bg_mode', value: ['solid','linear','radial'] }, { field: 'bg_gradient_preset', notValue: 'manual' }] },
-  { id: 'bg_color2',             label: 'Farbe 2 (Außen / Ende)',     type: 'color',  showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', notValue: 'manual' }] },
+  { id: '_section_frame',           label: '── Frame Ring',               type: 'section'  },
+  { id: 'frame_ring_active',        label: 'Frame active',                 type: 'checkbox' },
+  { id: 'frame_ring_closed',        label: 'Closed circle',          type: 'checkbox', showIf: { field: 'frame_ring_active', value: true } },
+  { id: 'frame_ring_width',         label: 'Width',                       type: 'range',    min: 0, max: 3, step: 0.1,  placeholder: '1.5', showIf: { field: 'frame_ring_active', value: true } },
+  { id: 'frame_ring_gap',           label: 'Gap to gradient ring',   type: 'range',    min: 0, max: 3, step: 0.1,  placeholder: '1.5', showIf: { field: 'frame_ring_active', value: true } },
+  { id: 'frame_ring_color_type',    label: 'Color mode',                   type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ], showIf: { field: 'frame_ring_active', value: true } },
+  { id: 'frame_ring_color',         label: 'Color (fixed)',                  type: 'color',    showIf: [{ field: 'frame_ring_active', value: true }, { field: 'frame_ring_color_type', notValue: 'adaptive' }] },
+  { id: 'frame_ring_opacity',       label: 'Opacity',                    type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1.0', showIf: { field: 'frame_ring_active', value: true } },
+
+  { id: '_section_bg',           label: '── Background',             type: 'section' },
+  { id: 'bg_mode',               label: 'Background mode',          type: 'select', options: [ { value: 'none', label: 'None' }, { value: 'adaptive', label: 'Adaptive (theme)' }, { value: 'solid', label: 'Solid color' }, { value: 'linear', label: 'Linear gradient' }, { value: 'radial', label: 'Radial gradient' } ] },
+  { id: 'bg_gradient_preset',    label: 'Gradient type',                type: 'select', options: [ { value: 'classic', label: 'Classic (2 colors)' }, { value: 'manual', label: 'Manual (list)' } ], showIf: { field: 'bg_mode', value: ['linear','radial'] } },
+  { id: 'bg_threshold_unit',     label: 'Threshold unit',          type: 'select', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', value: 'manual' }] },
+  { id: 'bg_opacity',            label: 'Opacity',                  type: 'range',    min: 0, max: 1, step: 0.01, placeholder: '1.0' },
+  { id: 'bg_color1',             label: 'Color 1 (inner / start)',    type: 'color',  showIf: [{ field: 'bg_mode', value: ['solid','linear','radial'] }, { field: 'bg_gradient_preset', notValue: 'manual' }] },
+  { id: 'bg_color2',             label: 'Color 2 (outer / end)',     type: 'color',  showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', notValue: 'manual' }] },
   { id: 'bg_balance',            label: 'Balance (%)',                type: 'range',    min: 0, max: 100, step: 0.1, placeholder: '50', showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', notValue: 'manual' }] },
-  { id: 'bg_gradient_angle',     label: 'Winkel (° nur Linear)',      type: 'range',    min: 0, max: 360, step: 1, placeholder: '135', showIf: { field: 'bg_mode', value: 'linear' } },
+  { id: 'bg_gradient_angle',     label: 'Angle (° linear only)',      type: 'range',    min: 0, max: 360, step: 1, placeholder: '135', showIf: { field: 'bg_mode', value: 'linear' } },
   { id: 'bg_manual_stops',       type: 'bg_manual_stops', showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', value: 'manual' }] },
 
-  { id: '_section_bg_threshold',          label: '── Hintergrund-Farbe (Schwellwert)', type: 'subsection' },
-  { id: 'bg_color_threshold_active',      label: 'Schwellwert aktiv',            type: 'checkbox' },
-  { id: 'bg_color_threshold_operator',    label: 'Operator',                     type: 'select', options: [ { value: '>', label: '> Größer' }, { value: '<', label: '< Kleiner' }, { value: '>=', label: '>= Größer gleich' }, { value: '<=', label: '<= Kleiner gleich' }, { value: '==', label: '== Gleich' } ], showIf: { field: 'bg_color_threshold_active', value: true } },
-  { id: 'bg_color_threshold_value',       label: 'Schwellwert',                  type: 'number',  placeholder: '80', showIf: { field: 'bg_color_threshold_active', value: true } },
-  { id: 'bg_color_threshold_hysteresis',  label: 'Hysterese (%)',                type: 'range', min: 0, max: 10, step: 0.1, placeholder: '5', showIf: { field: 'bg_color_threshold_active', value: true } },
-  { id: 'bg_color_threshold_color',       label: 'Neue Hintergrundfarbe',        type: 'color', showIf: { field: 'bg_color_threshold_active', value: true } },
-  
-  { id: '_section_threshold_anim',          label: '── Threshold-Animation',           type: 'subsection'  },
-  { id: 'bg_threshold_anim_active',         label: 'Animation aktiv',                  type: 'checkbox' },
-  { id: 'bg_threshold_anim_operator',       label: 'Operator',                         type: 'select',   options: [ { value: '>', label: '> Größer' }, { value: '<', label: '< Kleiner' }, { value: '>=', label: '>= Größer gleich' }, { value: '<=', label: '<= Kleiner gleich' }, { value: '==', label: '== Gleich' } ], showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_value',          label: 'Schwellwert',                      type: 'number',   placeholder: '80',  showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_hysteresis',     label: 'Hysterese (%)',                    type: 'range',    min: 0, max: 10, step: 0.5, placeholder: '5', showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_type',           label: 'Animationstyp',                    type: 'select',   options: [ { value: 'pulse_bg', label: 'Puls — Hintergrund' }, { value: 'pulse_frame', label: 'Puls — Rahmenring' }, { value: 'ripple', label: 'Ripple — Wasserwelle' }, { value: 'waves', label: 'Wellen (Linear wandernd)' }, { value: 'wobble_radial', label: 'Wassertropfen (Radial ausklingend)' }, { value: 'wobble_linear', label: 'Schockwelle (Linear ausklingend)' } ], showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_color',          label: 'Animationsfarbe (C1)',             type: 'color',    showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_color2',         label: 'Animationsfarbe 2 (Tal)',          type: 'color',    showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_anim_duration',       label: 'Dauer (s)',                        type: 'number',   step: 0.1, placeholder: '1.5', showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_wave_count',          label: 'Anzahl (Dichte)',                  type: 'range',    min: 1, max: 20, step: 1, placeholder: '3', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_wave_balance',        label: 'Balance (Hügel vs Tal)',           type: 'range',    min: 5, max: 95, step: 1, placeholder: '50', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_gradient_angle',      label: 'Winkel (°)',                       type: 'range',    min: 0, max: 360, step: 1, placeholder: '90', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_linear'] }] },
-  { id: 'bg_threshold_wobble_amplitude',    label: 'Start-Amplitude (Kontrast)',       type: 'range',    min: 1, max: 100, step: 1, placeholder: '100', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_wobble_freq',         label: 'Reichweite (Ausbreitung)',         type: 'range',    min: 1, max: 10, step: 1, placeholder: '4', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_wobble_pause',        label: 'Pause nach Effekt (Sek.)',         type: 'range',    min: 0, max: 10, step: 0.5, placeholder: '2', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_anim_ripple_multi',   label: 'Mehrere Ripple-Ringe (3×)',        type: 'checkbox', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: 'ripple' }] },
-  { id: 'bg_threshold_anim_ripple_inv',     label: 'Implosion (Richtung umkehren)',    type: 'checkbox', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['ripple', 'waves'] }] },
+  { id: '_section_bg_threshold',          label: '── Background Color (Threshold)', type: 'subsection' },
+  { id: 'bg_color_threshold_active',      label: 'Threshold active',            type: 'checkbox' },
+  { id: 'bg_color_threshold_operator',    label: 'Operator',                     type: 'select', options: [ { value: '>', label: '> Greater than' }, { value: '<', label: '< Less than' }, { value: '>=', label: '>= Greater or equal' }, { value: '<=', label: '<= Less or equal' }, { value: '==', label: '== Equal' } ], showIf: { field: 'bg_color_threshold_active', value: true } },
+  { id: 'bg_color_threshold_value',       label: 'Threshold',                  type: 'number',  placeholder: '80', showIf: { field: 'bg_color_threshold_active', value: true } },
+  { id: 'bg_color_threshold_hysteresis',  label: 'Hysteresis (%)',                type: 'range', min: 0, max: 10, step: 0.1, placeholder: '5', showIf: { field: 'bg_color_threshold_active', value: true } },
+  { id: 'bg_color_threshold_color',       label: 'New background color',        type: 'color', showIf: { field: 'bg_color_threshold_active', value: true } },
 
-  { id: '_section_data',        label: '── Daten & Skalierung',  type: 'section' },
-  { id: 'min',                  label: 'Min-Wert',               type: 'number', placeholder: '0'   },
-  { id: 'max',                  label: 'Max-Wert',               type: 'number', placeholder: '100' },
-  { id: 'value_autorange',      label: 'Auto-Range',             type: 'checkbox' },
-  { id: 'value_autoscale',      label: 'Auto-Scale k/M/G',       type: 'checkbox' },
-  { id: 'dynamic_max_scale',    label: 'Dynamischer Max',        type: 'checkbox' },
-  { id: 'autoscale_hysteresis', label: 'Hysterese (%)',          type: 'number', placeholder: '10'  },
+  { id: '_section_threshold_anim',          label: '── Threshold Animation',           type: 'subsection'  },
+  { id: 'bg_threshold_anim_active',         label: 'Animation active',                  type: 'checkbox' },
+  { id: 'bg_threshold_anim_operator',       label: 'Operator',                         type: 'select',   options: [ { value: '>', label: '> Greater than' }, { value: '<', label: '< Less than' }, { value: '>=', label: '>= Greater or equal' }, { value: '<=', label: '<= Less or equal' }, { value: '==', label: '== Equal' } ], showIf: { field: 'bg_threshold_anim_active', value: true } },
+  { id: 'bg_threshold_anim_value',          label: 'Threshold',                      type: 'number',   placeholder: '80',  showIf: { field: 'bg_threshold_anim_active', value: true } },
+  { id: 'bg_threshold_anim_hysteresis',     label: 'Hysteresis (%)',                    type: 'range',    min: 0, max: 10, step: 0.5, placeholder: '5', showIf: { field: 'bg_threshold_anim_active', value: true } },
+  { id: 'bg_threshold_anim_type',           label: 'Animation type',                    type: 'select',   options: [ { value: 'pulse_bg', label: 'Pulse — background' }, { value: 'pulse_frame', label: 'Pulse — frame ring' }, { value: 'ripple', label: 'Ripple — water wave' }, { value: 'waves', label: 'Waves (linear traveling)' }, { value: 'wobble_radial', label: 'Water drop (radial fade-out)' }, { value: 'wobble_linear', label: 'Shockwave (linear fade-out)' } ], showIf: { field: 'bg_threshold_anim_active', value: true } },
+  { id: 'bg_threshold_anim_color',          label: 'Animation color (C1)',             type: 'color',    showIf: { field: 'bg_threshold_anim_active', value: true } },
+  { id: 'bg_threshold_anim_color2',         label: 'Animation color 2 (trough)',          type: 'color',    showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_radial', 'wobble_linear'] }] },
+  { id: 'bg_threshold_anim_duration',       label: 'Duration (s)',                        type: 'number',   step: 0.1, placeholder: '1.5', showIf: { field: 'bg_threshold_anim_active', value: true } },
+  { id: 'bg_threshold_wave_count',          label: 'Count (density)',                  type: 'range',    min: 1, max: 20, step: 1, placeholder: '3', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_radial', 'wobble_linear'] }] },
+  { id: 'bg_threshold_wave_balance',        label: 'Balance (peak vs. trough)',           type: 'range',    min: 5, max: 95, step: 1, placeholder: '50', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_radial', 'wobble_linear'] }] },
+  { id: 'bg_threshold_gradient_angle',      label: 'Angle (°)',                       type: 'range',    min: 0, max: 360, step: 1, placeholder: '90', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_linear'] }] },
+  { id: 'bg_threshold_wobble_amplitude',    label: 'Start amplitude (contrast)',       type: 'range',    min: 1, max: 100, step: 1, placeholder: '100', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['wobble_radial', 'wobble_linear'] }] },
+  { id: 'bg_threshold_wobble_freq',         label: 'Range (spread)',         type: 'range',    min: 1, max: 10, step: 1, placeholder: '4', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['wobble_radial', 'wobble_linear'] }] },
+  { id: 'bg_threshold_wobble_pause',        label: 'Pause after effect (sec.)',         type: 'range',    min: 0, max: 10, step: 0.5, placeholder: '2', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['wobble_radial', 'wobble_linear'] }] },
+  { id: 'bg_threshold_anim_ripple_multi',   label: 'Multiple ripple rings (3×)',        type: 'checkbox', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: 'ripple' }] },
+  { id: 'bg_threshold_anim_ripple_inv',     label: 'Implosion (reverse direction)',    type: 'checkbox', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['ripple', 'waves'] }] },
 
-  { id: '_section_color',    label: '── Farbe & Gradient',   type: 'section' },
-  { id: 'stroke_width',        label: 'Ring-Dicke',            type: 'range',    min: 0, max: 5, step: 0.01,  placeholder: '3'    },
-  { id: 'gradient_preset',   label: 'Farbmodus',             type: 'select', options: [ { value: 'manual', label: 'Manuell (Liste)' }, { value: 'symmetriccustom', label: 'Symmetrisch (Custom)' }, { value: 'symmetric', label: 'Symmetrisch (Standard)' }, { value: 'linear', label: 'Linear Ampel' } ] },
+  { id: '_section_data',        label: '── Data & Scaling',  type: 'section' },
+  { id: 'min',                  label: 'Min value',               type: 'number', placeholder: '0'   },
+  { id: 'max',                  label: 'Max value',               type: 'number', placeholder: '100' },
+  { id: 'value_autorange',      label: 'Auto-range',             type: 'checkbox' },
+  { id: 'value_autoscale',      label: 'Auto-scale k/M/G',       type: 'checkbox' },
+  { id: 'dynamic_max_scale',    label: 'Dynamic max',        type: 'checkbox' },
+  { id: 'autoscale_hysteresis', label: 'Hysteresis (%)',          type: 'number', placeholder: '10'  },
 
-  { id: 'gradient_mode',     label: 'Verlaufstyp',           type: 'select', options: [ { value: 'smooth', label: 'Smooth' }, { value: 'stepped', label: 'Stepped' } ], showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
-  { id: 'gradient_resolution', label: 'Gradientenauflösung', type: 'select', options: [ { value: 'auto', label: 'Automatisch (Größenabhängig)' }, { value: 'coarse', label: 'Grob (1× Farbzonen)' }, { value: 'medium', label: 'Mittel (12× Farbzonen)' }, { value: 'fine', label: 'Fein (24×) — Standard' }, { value: 'superfine', label: 'Superfein (48×)' }, { value: 'ultrafine', label: 'Ultrafein (96×)' }, { value: 'megafine', label: 'Megafein (192×)' }  ]},
+  { id: '_section_color',    label: '── Color & Gradient',   type: 'section' },
+  { id: 'stroke_width',        label: 'Ring thickness',            type: 'range',    min: 0, max: 5, step: 0.01,  placeholder: '3'    },
+  { id: 'gradient_preset',   label: 'Color mode',             type: 'select', options: [ { value: 'manual', label: 'Manual (list)' }, { value: 'symmetriccustom', label: 'Symmetric (custom)' }, { value: 'symmetric', label: 'Symmetric (default)' }, { value: 'linear', label: 'Linear traffic light' } ] },
 
-  { id: 'threshold_unit',    label: 'Schwellen-Einheit',     type: 'select', options: [ { value: 'percent', label: 'Prozent (%)' }, { value: 'absolute', label: 'Absolut' } ], showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
-  { id: 'gradient_start',    label: 'Gradient-Start',        type: 'number', placeholder: 'auto', showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
-  { id: 'gradient_end',      label: 'Gradient-Ende',         type: 'number', placeholder: 'auto', showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
+  { id: 'gradient_mode',     label: 'Gradient type',           type: 'select', options: [ { value: 'smooth', label: 'Smooth' }, { value: 'stepped', label: 'Stepped' } ], showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
+  { id: 'gradient_resolution', label: 'Gradient resolution', type: 'select', options: [ { value: 'auto', label: 'Automatic (size-dependent)' }, { value: 'coarse', label: 'Coarse (1× color zones)' }, { value: 'medium', label: 'Medium (12× color zones)' }, { value: 'fine', label: 'Fine (24×) — default' }, { value: 'superfine', label: 'Superfine (48×)' }, { value: 'ultrafine', label: 'Ultrafine (96×)' }, { value: 'megafine', label: 'Megafine (192×)' }  ]},
+
+  { id: 'threshold_unit',    label: 'Threshold unit',     type: 'select', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
+  { id: 'gradient_start',    label: 'Gradient start',        type: 'number', placeholder: 'auto', showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
+  { id: 'gradient_end',      label: 'Gradient end',         type: 'number', placeholder: 'auto', showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
 
   { id: 'manual_stops',      type: 'manual_stops', showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
 
-  { id: 'color1',     label: 'Farbe Außen',    type: 'color',  showIf: { field: 'gradient_preset', value: ['symmetric','symmetriccustom'] } },
-  { id: 'color2',     label: 'Farbe Mitte',    type: 'color',  showIf: { field: 'gradient_preset', value: ['symmetric','symmetriccustom'] } },
-  { id: 'color3',     label: 'Farbe Zentrum',  type: 'color',  showIf: { field: 'gradient_preset', value: ['symmetric','symmetriccustom'] } },
-  { id: 'threshold1', label: 'Übergang Zentrum→Mitte (%)', type: 'range', min: 0, max: 98, step: 1, placeholder: '40', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
-  { id: 'threshold2', label: 'Übergang Mitte→Außen (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '75', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
-  { id: 'threshold3', label: 'Gradient-Breite Übergang 1 (%)', type: 'range', min: 0.5, max: 30, step: 0.5, placeholder: '8', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
-  { id: 'threshold4', label: 'Gradient-Breite Übergang 2 (%)', type: 'range', min: 0.5, max: 30, step: 0.5, placeholder: '8', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
+  { id: 'color1',     label: 'Outer color',    type: 'color',  showIf: { field: 'gradient_preset', value: ['symmetric','symmetriccustom'] } },
+  { id: 'color2',     label: 'Middle color',    type: 'color',  showIf: { field: 'gradient_preset', value: ['symmetric','symmetriccustom'] } },
+  { id: 'color3',     label: 'Center color',  type: 'color',  showIf: { field: 'gradient_preset', value: ['symmetric','symmetriccustom'] } },
+  { id: 'threshold1', label: 'Transition center→middle (%)', type: 'range', min: 0, max: 98, step: 1, placeholder: '40', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
+  { id: 'threshold2', label: 'Transition middle→outer (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '75', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
+  { id: 'threshold3', label: 'Gradient width transition 1 (%)', type: 'range', min: 0.5, max: 30, step: 0.5, placeholder: '8', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
+  { id: 'threshold4', label: 'Gradient width transition 2 (%)', type: 'range', min: 0.5, max: 30, step: 0.5, placeholder: '8', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
 
-  { id: 'color1',     label: 'Farbe Start',    type: 'color',  showIf: { field: 'gradient_preset', value: 'linear' } },
-  { id: 'color2',     label: 'Farbe Mitte',    type: 'color',  showIf: { field: 'gradient_preset', value: 'linear' } },
-  { id: 'color3',     label: 'Farbe Ende',     type: 'color',  showIf: { field: 'gradient_preset', value: 'linear' } },
-  { id: 'threshold1', label: 'Start-Spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '20', showIf: { field: 'gradient_preset', value: 'linear' } },
-  { id: 'threshold2', label: 'Mid-Spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '60', showIf: { field: 'gradient_preset', value: 'linear' } },
-  
-  { id: '_section_pointer',       label: '── Zeiger',                  type: 'section' },
-  { id: 'pointer_type',           label: 'Zeiger-Form',                type: 'select',  options: [ { value: 'needle', label: 'Nadel' }, { value: 'triangle', label: 'Dreieck' } ] },
-  { id: 'pointer_width',          label: 'Zeiger-Breite',              type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '2'   },
-  { id: 'pointer_length',         label: 'Zeiger-Länge',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10'  },
-  { id: 'pointer_offset',         label: 'Zeiger-Offset vom Ring',     type: 'range',    min: -10, max: 10, step: 0.1,  placeholder: '2'   },
-  { id: 'pointer_center_radius',  label: 'Mittelpunkt-Größe',          type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '2'   },
-  { id: 'pivot_offset_x',         label: 'Pivot Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'   },
-  { id: 'pivot_offset_y',         label: 'Pivot Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'  },
-  { id: 'pointer_color_type',     label: 'Zeiger-Farb-Modus',          type: 'select',  options: [ { value: 'fixed', label: 'Fix' }, { value: 'adaptive', label: 'Adaptiv' } ] },
-  { id: 'pointer_color',          label: 'Zeiger-Farbe (Fix)',         type: 'color',   showIf: { field: 'pointer_color_type', notValue: 'adaptive' } },
-  { id: 'pointer_3d_effect',      label: '3D-Effekt (Plastisch)',      type: 'checkbox' },
-  { id: 'pointer_dot_color_type', label: 'Punkt-Farb-Modus',           type: 'select',  options: [ { value: 'fixed', label: 'Fix' }, { value: 'adaptive', label: 'Adaptiv' } ] },
-  { id: 'pointer_dot_color',      label: 'Punkt-Farbe (Fix)',          type: 'color',   showIf: { field: 'pointer_dot_color_type', notValue: 'adaptive' } },
-  { id: 'pointer_shadow_type',    label: 'Zeiger-Schatten',            type: 'select',  options: [ { value: 'none', label: 'Kein' }, { value: 'fixed', label: 'Fix' }, { value: 'adaptive', label: 'Adaptiv' } ] },
-  { id: 'pointer_shadow_color',   label: 'Schatten-Farbe',             type: 'color',   showIf: { field: 'pointer_shadow_type', value: 'fixed' } },
-  { id: 'pointer_shadow_blur',     label: 'Schatten-Weichzeichnung',   type: 'range', min: 0,  max: 1, step: 0.01,  placeholder: '0.8', showIf: { field: 'pointer_shadow_type', notValue: 'none' } },
-  { id: 'pointer_shadow_offset_y', label: 'Schatten-Abstand Y',        type: 'range', min: -5, max: 5, step: 0.1,  placeholder: '0.3', showIf: { field: 'pointer_shadow_type', notValue: 'none' } },
-  { id: 'pointer_shadow_opacity',  label: 'Schatten-Deckkraft',        type: 'range', min: 0,  max: 1, step: 0.05, placeholder: '0.4', showIf: { field: 'pointer_shadow_type', notValue: 'none' } },
-  { id: 'animation_duration',     label: 'Animations-Dauer (s)',       type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '0.8', showIf: { field: 'animation_easing', notValue: 'spring' } },
-  { id: 'animation_spring_duration', label: 'Feder-Animations-Dauer (s)', type: 'range', min: 0.1, max: 10, step: 0.1, placeholder: '1.5', showIf: { field: 'animation_easing', value: 'spring' } },
-  { id: 'animation_dynamic_speed',label: 'Dynamische Zeigerbeschleunigung', type: 'checkbox' },
-  { id: 'animation_dynamic_speed_invert', label: 'Beschleunigung invertieren (Lange Wege schnell)', type: 'checkbox', showIf: { field: 'animation_dynamic_speed', value: true } },
-  { id: 'animation_easing',       label: 'Zeiger-Einpendeln (Easing)', type: 'select', options: [
-    { value: 'smooth', label: 'Weich (Standard)' },
-    { value: 'overshoot_light', label: 'Leichtes Überschwingen' },
-    { value: 'overshoot_medium', label: 'Mittleres Überschwingen' },
-    { value: 'overshoot_heavy', label: 'Starkes Überschwingen' },
-    { value: 'elastic', label: 'Elastisch (Gummiband)' },
-    { value: 'spring', label: 'Physikalische Feder (Multi-Bounce)' }
+  { id: 'color1',     label: 'Start color',    type: 'color',  showIf: { field: 'gradient_preset', value: 'linear' } },
+  { id: 'color2',     label: 'Middle color',    type: 'color',  showIf: { field: 'gradient_preset', value: 'linear' } },
+  { id: 'color3',     label: 'End color',     type: 'color',  showIf: { field: 'gradient_preset', value: 'linear' } },
+  { id: 'threshold1', label: 'Start spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '20', showIf: { field: 'gradient_preset', value: 'linear' } },
+  { id: 'threshold2', label: 'Mid spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '60', showIf: { field: 'gradient_preset', value: 'linear' } },
+
+  { id: '_section_pointer',       label: '── Pointer',                  type: 'section' },
+  { id: 'pointer_type',           label: 'Pointer shape',                type: 'select',  options: [ { value: 'needle', label: 'Needle' }, { value: 'triangle', label: 'Triangle' } ] },
+  { id: 'pointer_width',          label: 'Pointer width',              type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '2'   },
+  { id: 'pointer_length',         label: 'Pointer length',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10'  },
+  { id: 'pointer_offset',         label: 'Pointer offset from ring',     type: 'range',    min: -10, max: 10, step: 0.1,  placeholder: '2'   },
+  { id: 'pointer_center_radius',  label: 'Center point size',          type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '2'   },
+  { id: 'pivot_offset_x',         label: 'Pivot offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'   },
+  { id: 'pivot_offset_y',         label: 'Pivot offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'  },
+  { id: 'pointer_color_type',     label: 'Pointer color mode',          type: 'select',  options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
+  { id: 'pointer_color',          label: 'Pointer color (fixed)',         type: 'color',   showIf: { field: 'pointer_color_type', notValue: 'adaptive' } },
+  { id: 'pointer_3d_effect',      label: '3D effect (plastic)',      type: 'checkbox' },
+  { id: 'pointer_dot_color_type', label: 'Dot color mode',           type: 'select',  options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
+  { id: 'pointer_dot_color',      label: 'Dot color (fixed)',          type: 'color',   showIf: { field: 'pointer_dot_color_type', notValue: 'adaptive' } },
+  { id: 'pointer_shadow_type',    label: 'Pointer shadow',            type: 'select',  options: [ { value: 'none', label: 'None' }, { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
+  { id: 'pointer_shadow_color',   label: 'Shadow color',             type: 'color',   showIf: { field: 'pointer_shadow_type', value: 'fixed' } },
+  { id: 'pointer_shadow_blur',     label: 'Shadow blur',   type: 'range', min: 0,  max: 1, step: 0.01,  placeholder: '0.8', showIf: { field: 'pointer_shadow_type', notValue: 'none' } },
+  { id: 'pointer_shadow_offset_y', label: 'Shadow offset Y',        type: 'range', min: -5, max: 5, step: 0.1,  placeholder: '0.3', showIf: { field: 'pointer_shadow_type', notValue: 'none' } },
+  { id: 'pointer_shadow_opacity',  label: 'Shadow opacity',        type: 'range', min: 0,  max: 1, step: 0.05, placeholder: '0.4', showIf: { field: 'pointer_shadow_type', notValue: 'none' } },
+  { id: 'animation_duration',     label: 'Animation duration (s)',       type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '0.8', showIf: { field: 'animation_easing', notValue: 'spring' } },
+  { id: 'animation_spring_duration', label: 'Spring animation duration (s)', type: 'range', min: 0.1, max: 10, step: 0.1, placeholder: '1.5', showIf: { field: 'animation_easing', value: 'spring' } },
+  { id: 'animation_dynamic_speed',label: 'Dynamic pointer acceleration', type: 'checkbox' },
+  { id: 'animation_dynamic_speed_invert', label: 'Invert acceleration (long paths fast)', type: 'checkbox', showIf: { field: 'animation_dynamic_speed', value: true } },
+  { id: 'animation_easing',       label: 'Pointer settling (easing)', type: 'select', options: [
+    { value: 'smooth', label: 'Smooth (default)' },
+    { value: 'overshoot_light', label: 'Light overshoot' },
+    { value: 'overshoot_medium', label: 'Medium overshoot' },
+    { value: 'overshoot_heavy', label: 'Heavy overshoot' },
+    { value: 'elastic', label: 'Elastic (rubber band)' },
+    { value: 'spring', label: 'Physical spring (multi-bounce)' }
   ] },
-  { id: 'animation_spring_bounces', label: 'Anzahl der Überschwinger', type: 'range', min: 1, max: 10, step: 1, placeholder: '3', showIf: { field: 'animation_easing', value: 'spring' } },
-  { id: 'animation_spring_amplitude', label: 'Feder-Amplitude (Intensität %)', type: 'range', min: 0, max: 100, step: 1, placeholder: '50', showIf: { field: 'animation_easing', value: 'spring' } },
+  { id: 'animation_spring_bounces', label: 'Number of overshoots', type: 'range', min: 1, max: 10, step: 1, placeholder: '3', showIf: { field: 'animation_easing', value: 'spring' } },
+  { id: 'animation_spring_amplitude', label: 'Spring amplitude (intensity %)', type: 'range', min: 0, max: 100, step: 1, placeholder: '50', showIf: { field: 'animation_easing', value: 'spring' } },
 
   { id: '_section_ticks',           label: '── Ticks',                    type: 'section' },
-  { id: 'tick_count',               label: 'Tick-Anzahl',                 type: 'range',    min: 0, max: 50, step: 1,   placeholder: '0'   },
-  { id: 'tick_length',              label: 'Tick-Länge',                  type: 'range',    min: 0, max: 6, step: 0.1,   placeholder: '3'   },
-  { id: 'tick_width',               label: 'Tick-Breite',                 type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '1'   },
-  { id: 'tick_offset',              label: 'Tick-Offset vom Ring',        type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
-  { id: 'tick_color_type',          label: 'Tick-Farb-Modus',             type: 'select',   options: [ { value: 'fixed', label: 'Fix' }, { value: 'adaptive', label: 'Adaptiv' } ] },
-  { id: 'tick_color',               label: 'Tick-Farbe (Fix)',            type: 'color',   showIf: { field: 'tick_color_type', notValue: 'adaptive' } },
-  
-  { id: '_section_sub_ticks',       label: '── SubTicks',                 type: 'subsection' },
-  { id: 'sub_tick_count',           label: 'Sub-Tick Anzahl (dazwischen)',type: 'range',    min: 0, max: 10, step: 1,   placeholder: '0'   },
-  { id: 'sub_tick_length',          label: 'Sub-Tick Länge',              type: 'range',    min: 0, max: 3, step: 0.1,   placeholder: '1.5' },
-  { id: 'sub_tick_width',           label: 'Sub-Tick Breite',             type: 'range',    min: 0, max: 3, step: 0.1,   placeholder: '0.5' },
-  { id: 'sub_tick_offset',          label: 'Sub-Tick Offset vom Ring',    type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
-  { id: 'sub_tick_color_type',      label: 'Sub-Tick Farb-Modus',         type: 'select',   options: [ { value: 'fixed', label: 'Fix' }, { value: 'adaptive', label: 'Adaptiv' } ] },
-  { id: 'sub_tick_color',           label: 'Sub-Tick Farbe (Fix)',        type: 'color',    showIf: { field: 'sub_tick_color_type', notValue: 'adaptive' } },
-  
-  { id: '_section_ticks_label',     label: '── Tick Label',               type: 'subsection'},
-  { id: 'show_tick_labels',         label: 'Tick-Labels anzeigen',        type: 'checkbox' },
-  { id: 'tick_label_step',          label: 'Label-Intervall',             type: 'range',    min: 0, max: 10, step: 1,   placeholder: '1',  showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'multiplier_divide_ticks',  label: 'Tick-Labels durch Multiplikator teilen', type: 'checkbox', showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_decimals',      label: 'Label-Dezimalstellen',        type: 'range',    min: 0, max: 6, step: 1,   placeholder: '0',  showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_font_size',     label: 'Label-Schriftgröße',          type: 'range',    min: 0, max: 20, step: 0.5, placeholder: '7',  showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_offset',        label: 'Label-Abstand vom Ring',      type: 'range',    min: -15, max: 15, step: 0.1,  placeholder: '-8', showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_spread',        label: 'Spreizung (Kollisionsschutz)', type: 'range',    min: 0, max: 10, step: 0.1,  placeholder: '0'   },
-  { id: 'tick_label_extra_length',  label: 'Label-Tick Extra-Länge',      type: 'range',    min: 0, max: 4, step: 0.1,   placeholder: '0',  showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_color_type',    label: 'Label-Farb-Modus',            type: 'select',   options: [ { value: 'adaptive', label: 'Adaptiv' }, { value: 'fixed', label: 'Fix' } ], showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_color',         label: 'Label-Farbe (Fix)',           type: 'color',    showIf: [{ field: 'show_tick_labels', value: true }, { field: 'tick_label_color_type', notValue: 'adaptive' }] },
-  { id: 'tick_label_inherit_color', label: 'Farbe von Tick erben',        type: 'checkbox', showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_crossfade_dur', label: 'Überblendungs-Dauer (s)',     type: 'range',    min: 0, max: 3, step: 0.1, placeholder: '0.4', showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_count',               label: 'Tick count',                 type: 'range',    min: 0, max: 50, step: 1,   placeholder: '0'   },
+  { id: 'tick_length',              label: 'Tick length',                  type: 'range',    min: 0, max: 6, step: 0.1,   placeholder: '3'   },
+  { id: 'tick_width',               label: 'Tick width',                 type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '1'   },
+  { id: 'tick_offset',              label: 'Tick offset from ring',        type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
+  { id: 'tick_color_type',          label: 'Tick color mode',             type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
+  { id: 'tick_color',               label: 'Tick color (fixed)',            type: 'color',   showIf: { field: 'tick_color_type', notValue: 'adaptive' } },
 
-  { id: '_section_custom_ticks',    label: '── Eigene Ticks (Fixpunkte)', type: 'subsection' },
+  { id: '_section_sub_ticks',       label: '── SubTicks',                 type: 'subsection' },
+  { id: 'sub_tick_count',           label: 'Sub-tick count (between)',type: 'range',    min: 0, max: 10, step: 1,   placeholder: '0'   },
+  { id: 'sub_tick_length',          label: 'Sub-tick length',              type: 'range',    min: 0, max: 3, step: 0.1,   placeholder: '1.5' },
+  { id: 'sub_tick_width',           label: 'Sub-tick width',             type: 'range',    min: 0, max: 3, step: 0.1,   placeholder: '0.5' },
+  { id: 'sub_tick_offset',          label: 'Sub-tick offset from ring',    type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
+  { id: 'sub_tick_color_type',      label: 'Sub-tick color mode',         type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
+  { id: 'sub_tick_color',           label: 'Sub-tick color (fixed)',        type: 'color',    showIf: { field: 'sub_tick_color_type', notValue: 'adaptive' } },
+
+  { id: '_section_ticks_label',     label: '── Tick Label',               type: 'subsection'},
+  { id: 'show_tick_labels',         label: 'Show tick labels',        type: 'checkbox' },
+  { id: 'tick_label_step',          label: 'Label interval',             type: 'range',    min: 0, max: 10, step: 1,   placeholder: '1',  showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'multiplier_divide_ticks',  label: 'Divide tick labels by multiplier', type: 'checkbox', showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_label_decimals',      label: 'Label decimal places',        type: 'range',    min: 0, max: 6, step: 1,   placeholder: '0',  showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_label_font_size',     label: 'Label font size',          type: 'range',    min: 0, max: 20, step: 0.5, placeholder: '7',  showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_label_offset',        label: 'Label distance from ring',      type: 'range',    min: -15, max: 15, step: 0.1,  placeholder: '-8', showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_label_spread',        label: 'Spread (collision protection)', type: 'range',    min: 0, max: 10, step: 0.1,  placeholder: '0'   },
+  { id: 'tick_label_extra_length',  label: 'Label tick extra length',      type: 'range',    min: 0, max: 4, step: 0.1,   placeholder: '0',  showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_label_color_type',    label: 'Label color mode',            type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_label_color',         label: 'Label color (fixed)',           type: 'color',    showIf: [{ field: 'show_tick_labels', value: true }, { field: 'tick_label_color_type', notValue: 'adaptive' }] },
+  { id: 'tick_label_inherit_color', label: 'Inherit color from tick',        type: 'checkbox', showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_label_crossfade_dur', label: 'Crossfade duration (s)',     type: 'range',    min: 0, max: 3, step: 0.1, placeholder: '0.4', showIf: { field: 'show_tick_labels', value: true } },
+
+  { id: '_section_custom_ticks',    label: '── Custom Ticks (Fixed Points)', type: 'subsection' },
   { id: 'custom_ticks',             type: 'custom_ticks' },
 
-  { id: '_section_sectors',         label: '── Sektoren (Flächen)',       type: 'section' },
+  { id: '_section_sectors',         label: '── Sectors (Areas)',       type: 'section' },
   { id: 'sectors',                  type: 'sectors' },
 
-  { id: '_section_labels',        label: '── Wert & Labels',           type: 'section' },
-  { id: 'show_value',             label: 'Wert anzeigen',              type: 'checkbox' },
-  { id: 'value_font_size',        label: 'Wert-Schriftgröße',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  showIf: { field: 'show_value', value: true } },
-  { id: 'value_offset_y',         label: 'Wert-Offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  showIf: { field: 'show_value', value: true } },
-  { id: 'value_color_type',       label: 'Wert-Farb-Modus',            type: 'select',  options: [ { value: 'adaptive', label: 'Adaptiv' }, { value: 'fixed', label: 'Fix' } ], showIf: { field: 'show_value', value: true } },
-  { id: 'value_color',            label: 'Wert-Farbe (Fix)',           type: 'color',   showIf: [{ field: 'show_value', value: true }, { field: 'value_color_type', notValue: 'adaptive' }] },
-  { id: 'value_decimals',         label: 'Dezimalstellen',             type: 'range',    min: 0, max: 6, step: 1, placeholder: '0',   showIf: { field: 'show_value', value: true } },
-  { id: 'value_show_raw_unit',    label: 'Einheit anzeigen',           type: 'checkbox', showIf: { field: 'show_value', value: true } },
-  { id: 'value_replace_unit',     label: 'Original-Einheit ersetzen',  type: 'checkbox', showIf: [{ field: 'show_value', value: true }, { field: 'value_show_raw_unit', value: true }] },
-  { id: 'value_custom_unit',      label: 'Eigene Einheit (Suffix)',    type: 'text',     placeholder: 'z.B. W', showIf: [{ field: 'show_value', value: true }, { field: 'value_show_raw_unit', value: true }, { field: 'value_replace_unit', value: true }] },
-  
-  { id: 'show_scale_label',       label: 'Skalierungs-Label anzeigen', type: 'checkbox' },
-  { id: 'scale_label_font_size',  label: 'Label-Schriftgröße',         type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '10',  showIf: { field: 'show_scale_label', value: true } },
-  { id: 'scale_label_offset_y',   label: 'Label-Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', showIf: { field: 'show_scale_label', value: true } },
-  { id: 'scale_label_color_type', label: 'Label-Farb-Modus',           type: 'select',  options: [ { value: 'adaptive', label: 'Adaptiv' }, { value: 'fixed', label: 'Fix' } ], showIf: { field: 'show_scale_label', value: true } },
-  { id: 'scale_label_color',      label: 'Label-Farbe (Fix)',          type: 'color',   showIf: [{ field: 'show_scale_label', value: true }, { field: 'scale_label_color_type', notValue: 'adaptive' }] },
-  { id: 'show_multiplier_label',  label: 'Multiplikator anzeigen',     type: 'checkbox' },
-  { id: 'multiplier_divide_ticks',  label: 'Tick-Labels durch Multiplikator teilen', type: 'checkbox', showIf: { field: 'show_tick_labels', value: true } },
-  
-  { id: 'multiplier_prepend',     label: 'Prefix (z.B. x)',            type: 'text',    placeholder: 'x',   showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_decimals',    label: 'Dezimalstellen',             type: 'number',  placeholder: '0',   showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_font_size',   label: 'Schriftgröße',               type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '10',  showIf: { field: 'show_multiplier_label', value: true } },
+  { id: '_section_labels',        label: '── Value & Labels',           type: 'section' },
+  { id: 'show_value',             label: 'Show value',              type: 'checkbox' },
+  { id: 'value_font_size',        label: 'Value font size',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  showIf: { field: 'show_value', value: true } },
+  { id: 'value_offset_y',         label: 'Value offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  showIf: { field: 'show_value', value: true } },
+  { id: 'value_color_type',       label: 'Value color mode',            type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'show_value', value: true } },
+  { id: 'value_color',            label: 'Value color (fixed)',           type: 'color',   showIf: [{ field: 'show_value', value: true }, { field: 'value_color_type', notValue: 'adaptive' }] },
+  { id: 'value_decimals',         label: 'Decimal places',             type: 'range',    min: 0, max: 6, step: 1, placeholder: '0',   showIf: { field: 'show_value', value: true } },
+  { id: 'value_show_raw_unit',    label: 'Show unit',           type: 'checkbox', showIf: { field: 'show_value', value: true } },
+  { id: 'value_replace_unit',     label: 'Replace original unit',  type: 'checkbox', showIf: [{ field: 'show_value', value: true }, { field: 'value_show_raw_unit', value: true }] },
+  { id: 'value_custom_unit',      label: 'Custom unit (suffix)',    type: 'text',     placeholder: 'e.g. W', showIf: [{ field: 'show_value', value: true }, { field: 'value_show_raw_unit', value: true }, { field: 'value_replace_unit', value: true }] },
+
+  { id: 'show_scale_label',       label: 'Show scale label', type: 'checkbox' },
+  { id: 'scale_label_font_size',  label: 'Label font size',         type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '10',  showIf: { field: 'show_scale_label', value: true } },
+  { id: 'scale_label_offset_y',   label: 'Label offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', showIf: { field: 'show_scale_label', value: true } },
+  { id: 'scale_label_color_type', label: 'Label color mode',           type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'show_scale_label', value: true } },
+  { id: 'scale_label_color',      label: 'Label color (fixed)',          type: 'color',   showIf: [{ field: 'show_scale_label', value: true }, { field: 'scale_label_color_type', notValue: 'adaptive' }] },
+  { id: 'show_multiplier_label',  label: 'Show multiplier',     type: 'checkbox' },
+  { id: 'multiplier_divide_ticks',  label: 'Divide tick labels by multiplier', type: 'checkbox', showIf: { field: 'show_tick_labels', value: true } },
+
+  { id: 'multiplier_prepend',     label: 'Prefix (e.g. x)',            type: 'text',    placeholder: 'x',   showIf: { field: 'show_multiplier_label', value: true } },
+  { id: 'multiplier_decimals',    label: 'Decimal places',             type: 'number',  placeholder: '0',   showIf: { field: 'show_multiplier_label', value: true } },
+  { id: 'multiplier_font_size',   label: 'Font size',               type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '10',  showIf: { field: 'show_multiplier_label', value: true } },
   { id: 'multiplier_offset_x',    label: 'Offset X',                   type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',   showIf: { field: 'show_multiplier_label', value: true } },
   { id: 'multiplier_offset_y',    label: 'Offset Y',                   type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_color_type',  label: 'Farb-Modus',                 type: 'select',  options: [ { value: 'adaptive', label: 'Adaptiv' }, { value: 'fixed', label: 'Fix' } ], showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_color',       label: 'Farbe (Fix)',                type: 'color',   showIf: [{ field: 'show_multiplier_label', value: true }, { field: 'multiplier_color_type', notValue: 'adaptive' }] },
+  { id: 'multiplier_color_type',  label: 'Color mode',                 type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'show_multiplier_label', value: true } },
+  { id: 'multiplier_color',       label: 'Color (fixed)',                type: 'color',   showIf: [{ field: 'show_multiplier_label', value: true }, { field: 'multiplier_color_type', notValue: 'adaptive' }] },
 
   { id: '_section_gauge_label',    label: '── Gauge Label',       type: 'section' },
-  { id: 'gauge_label_active',      label: 'Label aktiv',          type: 'checkbox' },
-  { id: 'gauge_label_text',        label: 'Label Text',           type: 'text',     placeholder: 'Gauge',  showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_font_size',   label: 'Schriftgröße',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_font_weight', label: 'Gewichtung',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], showIf: { field: 'gauge_label_active', value: true } },
+  { id: 'gauge_label_active',      label: 'Label active',          type: 'checkbox' },
+  { id: 'gauge_label_text',        label: 'Label text',           type: 'text',     placeholder: 'Gauge',  showIf: { field: 'gauge_label_active', value: true } },
+  { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   showIf: { field: 'gauge_label_active', value: true } },
+  { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], showIf: { field: 'gauge_label_active', value: true } },
   { id: 'gauge_label_offset_x',    label: 'Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  showIf: { field: 'gauge_label_active', value: true } },
   { id: 'gauge_label_offset_y',    label: 'Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_color_type',  label: 'Farb-Modus',           type: 'select',   options: [ { value: 'adaptive', label: 'Adaptiv' }, { value: 'fixed', label: 'Fix' } ], showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_color',       label: 'Farbe Fix',            type: 'color',    showIf: { field: 'gauge_label_color_type', value: 'fixed' } }
+  { id: 'gauge_label_color_type',  label: 'Color mode',           type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'gauge_label_active', value: true } },
+  { id: 'gauge_label_color',       label: 'Color (fixed)',            type: 'color',    showIf: { field: 'gauge_label_color_type', value: 'fixed' } }
 ];
 
 class ScGaugeEditor extends LitElement {
@@ -303,7 +303,7 @@ class ScGaugeEditor extends LitElement {
             <div style="display:flex;flex-direction:column;gap:8px;">
               ${gauges.map((entry, idx) => this._renderGaugePanel(entry, idx, gauges))}
               <button class="add-btn" @click=${() => this._addGauge(gauges)}>
-                ＋ Gauge hinzufügen
+                ＋ Add gauge
               </button>
             </div>
           ` : ''}
@@ -351,7 +351,7 @@ class ScGaugeEditor extends LitElement {
   }
 
   _renderGaugePanel(entry, idx, gauges) {
-    // --- ALIAS TITEL VORSCHAU ---
+    // --- ALIAS TITLE PREVIEW ---
     let title = entry.name || '';
     let resolvedEntity = entry.entity;
     let isAlias = false;
@@ -375,7 +375,7 @@ class ScGaugeEditor extends LitElement {
         title = s.attributes.friendly_name || resolvedEntity;
       }
     } else if (!title) {
-      title = isAlias ? `[${aliasObj.alias || 'Alias'}] ${resolvedEntity || 'Unbenannt'}` : `Gauge ${idx + 1}`;
+      title = isAlias ? `[${aliasObj.alias || 'Alias'}] ${resolvedEntity || 'Unnamed'}` : `Gauge ${idx + 1}`;
     }
     
     const stateKey = `gauge_${idx}`;
@@ -422,8 +422,8 @@ class ScGaugeEditor extends LitElement {
         <summary>
           <span style="display:flex;align-items:center;">
             <span 
-              style="cursor: grab; padding: 0 12px 0 0; color: var(--secondary-text-color, #aaa); font-size: 16px; user-select: none;" 
-              title="Gauge verschieben"
+              style="cursor: grab; padding: 0 12px 0 0; color: var(--secondary-text-color, #aaa); font-size: 16px; user-select: none;"
+              title="Move gauge"
               @mousedown=${(e) => e.target.closest('details').setAttribute('draggable', 'true')}
               @mouseup=${(e) => e.target.closest('details').removeAttribute('draggable')}
             >⋮⋮</span>
@@ -432,33 +432,33 @@ class ScGaugeEditor extends LitElement {
 
           ${gauges.length > 1 ? html`
             <div style="display:flex; gap:12px; align-items:center;" @click=${e => e.stopPropagation()}>
-              <button title="Nach oben" ?disabled=${idx === 0} style="background:none;border:none;cursor:${idx === 0 ? 'default' : 'pointer'};font-size:14px;color:${idx === 0 ? 'var(--divider-color,#555)' : 'var(--primary-text-color)'};padding:0;" @click=${(e) => {
+              <button title="Move up" ?disabled=${idx === 0} style="background:none;border:none;cursor:${idx === 0 ? 'default' : 'pointer'};font-size:14px;color:${idx === 0 ? 'var(--divider-color,#555)' : 'var(--primary-text-color)'};padding:0;" @click=${(e) => {
                 e.preventDefault();
                 if (idx === 0) return;
                 const n = JSON.parse(JSON.stringify(gauges));
                 const temp = n[idx-1]; n[idx-1] = n[idx]; n[idx] = temp;
                 this.commitFn('gauges', n);
               }}>▲</button>
-              <button title="Nach unten" ?disabled=${idx === gauges.length - 1} style="background:none;border:none;cursor:${idx === gauges.length - 1 ? 'default' : 'pointer'};font-size:14px;color:${idx === gauges.length - 1 ? 'var(--divider-color,#555)' : 'var(--primary-text-color)'};padding:0;" @click=${(e) => {
+              <button title="Move down" ?disabled=${idx === gauges.length - 1} style="background:none;border:none;cursor:${idx === gauges.length - 1 ? 'default' : 'pointer'};font-size:14px;color:${idx === gauges.length - 1 ? 'var(--divider-color,#555)' : 'var(--primary-text-color)'};padding:0;" @click=${(e) => {
                 e.preventDefault();
                 if (idx === gauges.length - 1) return;
                 const n = JSON.parse(JSON.stringify(gauges));
                 const temp = n[idx+1]; n[idx+1] = n[idx]; n[idx] = temp;
                 this.commitFn('gauges', n);
               }}>▼</button>
-              <button title="Entfernen" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);padding:0;" @click=${(e) => { e.preventDefault(); this._removeGauge(idx, gauges); }}>🗑</button>
+              <button title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);padding:0;" @click=${(e) => { e.preventDefault(); this._removeGauge(idx, gauges); }}>🗑</button>
             </div>
           ` : ''}
         </summary>
         
         <div class="inner-content">
           <div class="entity-row" style="margin-bottom: 8px;">
-            <label>Datenquelle</label>
+            <label>Data source</label>
             <select style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color);" @change=${e => updateEntry('global_id', e.target.value)}>
-              <option value="manual" ?selected=${entry.global_id === 'manual' || !entry.global_id}>Manuelle Auswahl</option>
+              <option value="manual" ?selected=${entry.global_id === 'manual' || !entry.global_id}>Manual selection</option>
               ${(this.slot?.global_entities || []).map(ge => {
                 const stateObj = ge.entity ? this.hass.states[ge.entity] : null;
-                const name = ge.alias || stateObj?.attributes?.friendly_name || ge.entity || 'Unbenannt';
+                const name = ge.alias || stateObj?.attributes?.friendly_name || ge.entity || 'Unnamed';
                 let val = stateObj ? stateObj.state : '-';
                 if (stateObj && ge.attribute && stateObj.attributes[ge.attribute] !== undefined) {
                   val = stateObj.attributes[ge.attribute];
@@ -475,7 +475,7 @@ class ScGaugeEditor extends LitElement {
           ${(!entry.global_id || entry.global_id === 'manual') ? html`
             <div style="background:rgba(0,0,0,0.15); padding:10px; border-radius:8px; border:1px solid var(--divider-color,#333); margin-bottom:8px;">
               <div class="entity-row" style="margin-bottom: 8px;">
-                <label>Quelle</label>
+                <label>Source</label>
                 <ha-entity-picker
                   .hass=${this.hass}
                   .allowCustomEntity=${false}
@@ -485,7 +485,7 @@ class ScGaugeEditor extends LitElement {
               </div>
 
               <div class="entity-row">
-                <label>Attribut</label>
+                <label>Attribute</label>
                 <ha-selector
                   .hass=${this.hass}
                   .selector=${{ attribute: { entity_id: entry.entity || this.slot?.entity || '' } }}
@@ -498,7 +498,7 @@ class ScGaugeEditor extends LitElement {
 
           ${gauges.length > 1 ? html`
             <div class="row" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--divider-color,#444);">
-              <label>Alles kopieren von...</label>
+              <label>Copy everything from...</label>
               <select style="width: 60%" @change=${e => {
                 const srcIdx = parseInt(e.target.value);
                 if (isNaN(srcIdx)) return;
@@ -509,9 +509,9 @@ class ScGaugeEditor extends LitElement {
                 const currentLabel = n[idx].gauge_label_text;
                 n[idx] = { ...src, entity: currentEntity, gauge_attribute: currentAttr, gauge_label_text: currentLabel };
                 this.commitFn('gauges', n);
-                e.target.value = ""; 
+                e.target.value = "";
               }}>
-                <option value="" selected disabled>Bitte wählen...</option>
+                <option value="" selected disabled>Please select...</option>
                 ${gauges.map((g, i) => {
                   if (i === idx) return '';
                   const gName = g.gauge_label_text ? g.gauge_label_text : (g.entity ? g.entity.split('.')[1] : '');
@@ -554,22 +554,22 @@ class ScGaugeEditor extends LitElement {
             const n = JSON.parse(JSON.stringify(mStops));
             n.forEach(t => t._isOpen = false);
 
-            // Dynamische Standard-Farbe (Sichere Palette)
+            // Dynamic default color (safe palette)
             const palette = ['#4caf50', '#fdd835', '#fb8c00', '#f44336', '#9c27b0', '#03a9f4'];
             const newColor = palette[n.length % palette.length];
 
-            // Wert-Logik
+            // Value logic
             let newVal = 0;
             if (n.length > 0) {
               newVal = isAbsolute ? Math.max(...n.map(s => parseFloat(s.value) || 0)) : 100;
             }
             n.push({ value: newVal, color: newColor, _isOpen: true });
             onUpdate(n);
-          }}>＋ Farbsprung hinzufügen</button>
-          
-          <button type="button" style="flex:1; padding:6px; border-radius:6px; border:1px dashed var(--divider-color,#555); background:none; color:var(--primary-text-color); cursor:pointer; font-size:12px; opacity: ${mStops.length > 1 ? '1' : '0.4'};" 
+          }}>＋ Add color stop</button>
+
+          <button type="button" style="flex:1; padding:6px; border-radius:6px; border:1px dashed var(--divider-color,#555); background:none; color:var(--primary-text-color); cursor:pointer; font-size:12px; opacity: ${mStops.length > 1 ? '1' : '0.4'};"
             ?disabled=${mStops.length < 2}
-            title="Verteilt die Farben (für Grob: Blöcke, für andere: Verlaufspunkte)"
+            title="Distributes the colors (for coarse: blocks, for others: gradient points)"
             @click=${(e) => {
             e.preventDefault();
             if (mStops.length < 2) return;
@@ -580,22 +580,22 @@ class ScGaugeEditor extends LitElement {
 
             if (!isAbsolute) {
               if (isCoarse) {
-                // FORMEL FÜR "GROB": Jeder Block bekommt den gleichen Platz (100 / Anzahl)
-                // Beispiel 5 Farben: 0, 20, 40, 60, 80
+                // FORMULA FOR "COARSE": Each block gets equal space (100 / count)
+                // Example with 5 colors: 0, 20, 40, 60, 80
                 const step = 100 / n.length;
                 n.forEach((st, i) => {
                   st.value = Math.round((i * step) * 10) / 10;
                 });
               } else {
-                // DEINE FORMEL FÜR ALLES ANDERE: Start 0, Ende 100 (100 / (Anzahl - 1))
-                // Beispiel 5 Farben: 0, 25, 50, 75, 100
+                // FORMULA FOR EVERYTHING ELSE: start 0, end 100 (100 / (count - 1))
+                // Example with 5 colors: 0, 25, 50, 75, 100
                 const step = 100 / (n.length - 1);
                 n.forEach((st, i) => {
                   st.value = Math.round((i * step) * 10) / 10;
                 });
               }
             } else {
-              // Absolut-Modus bleibt bei der Verteilung zwischen den aktuellen Extremwerten
+              // Absolute mode keeps distributing between the current extreme values
               n.sort((a, b) => (parseFloat(a.value) || 0) - (parseFloat(b.value) || 0));
               const start = parseFloat(n[0].value) || 0;
               const end = parseFloat(n[n.length - 1].value) || 0;
@@ -607,7 +607,7 @@ class ScGaugeEditor extends LitElement {
               }
             }
             onUpdate(n);
-          }}>⬌ Gleichmäßig verteilen</button>
+          }}>⬌ Distribute evenly</button>
         </div>
 
         ${mStops.map((st, sIdx) => {
@@ -651,18 +651,18 @@ class ScGaugeEditor extends LitElement {
             >
               <summary style="padding:10px 12px; display:flex; justify-content:space-between; align-items:center;">
                 <div style="font-weight:600;color:var(--primary-color,#03a9f4); flex:1; display:flex; align-items:center;">
-                  <span 
-                    style="cursor: grab; padding: 0 12px 0 0; color: var(--secondary-text-color, #aaa); font-size: 16px; user-select: none;" 
-                    title="Stop verschieben"
+                  <span
+                    style="cursor: grab; padding: 0 12px 0 0; color: var(--secondary-text-color, #aaa); font-size: 16px; user-select: none;"
+                    title="Move stop"
                     @mousedown=${(e) => e.target.closest('details').setAttribute('draggable', 'true')}
                     @mouseup=${(e) => e.target.closest('details').removeAttribute('draggable')}
                   >⋮⋮</span>
-                  Stop ${sIdx+1} 
-                  <span style="font-weight:normal;color:var(--secondary-text-color,#aaa);font-size:11px; margin-left:6px;">[Wert: ${st.value ?? 0}]</span>
+                  Stop ${sIdx+1}
+                  <span style="font-weight:normal;color:var(--secondary-text-color,#aaa);font-size:11px; margin-left:6px;">[Value: ${st.value ?? 0}]</span>
                   <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${st.color ?? '#03a9f4'}; margin-left:8px; box-shadow: 0 0 2px rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2);"></span>
                 </div>
                 <div style="display:flex; gap:12px; align-items:center;" @click=${e => e.stopPropagation()}>
-                  <button title="Entfernen" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);padding:0;" @click=${(e) => {
+                  <button title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);padding:0;" @click=${(e) => {
                     e.preventDefault();
                     const n = JSON.parse(JSON.stringify(mStops));
                     n.splice(sIdx, 1);
@@ -673,16 +673,16 @@ class ScGaugeEditor extends LitElement {
               <div class="inner-content" style="padding-top:4px; gap:8px;">
                 ${isAbsolute ? html`
                   <div class="row">
-                    <label>Schwellwert (Absolut)</label>
+                    <label>Threshold (absolute)</label>
                     <input type="number" step="any" style="width:50%" .value=${st.value ?? ''} @input=${e => { const n = JSON.parse(JSON.stringify(mStops)); n[sIdx].value = parseFloat(e.target.value); onUpdate(n); }}>
                   </div>
                 ` : html`
                   <div class="col">
-                    <label>Schwellwert (%) <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${st.value ?? 0}</span></label>
+                    <label>Threshold (%) <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${st.value ?? 0}</span></label>
                     <input type="range" min="0" max="100" step="1" .value=${st.value ?? 0} @input=${e => { const n = JSON.parse(JSON.stringify(mStops)); n[sIdx].value = parseFloat(e.target.value); onUpdate(n); }}>
                   </div>
                 `}
-                <div class="col"><label>Farbe</label>
+                <div class="col"><label>Color</label>
                   <div class="color-row">
                     <input type="color" .value=${st.color ?? '#03a9f4'} @input=${e => { const n = JSON.parse(JSON.stringify(mStops)); n[sIdx].color = e.target.value; onUpdate(n); }}>
                     <input type="text" .value=${st.color ?? '#03a9f4'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = JSON.parse(JSON.stringify(mStops)); n[sIdx].color = e.target.value; onUpdate(n); } }}>
@@ -719,7 +719,7 @@ class ScGaugeEditor extends LitElement {
     });
 
     const renderItems = (items) => items.map(f => this._renderLitField(f, entry, idx, gauges));
-    const cloneableSections = ['Hintergrund', 'Farbe & Gradient', 'Zeiger', 'Ticks', 'Sektoren (Flächen)', 'Wert & Labels'];
+    const cloneableSections = ['Background', 'Color & Gradient', 'Pointer', 'Ticks', 'Sectors (Areas)', 'Value & Labels'];
 
     return rootSections.map(sec => {
       if (sec.isRoot) {
@@ -734,7 +734,7 @@ class ScGaugeEditor extends LitElement {
               <span style="flex: 1;">${sec.title}</span>
               ${cloneableSections.includes(sec.title) && gauges.length > 1 ? html`
                 <select style="width: auto; max-width: 140px; padding: 2px 4px; font-size: 11px; margin-right: 8px; border: 1px solid var(--divider-color, #444); border-radius: 4px; background: rgba(0,0,0,0.2); color: var(--primary-text-color);" @click=${e => e.stopPropagation()} @change=${e => this._cloneSection(idx, parseInt(e.target.value), sec, gauges, e.target)}>
-                  <option value="" disabled selected>Kopieren von...</option>
+                  <option value="" disabled selected>Copy from...</option>
                   ${gauges.map((g, i) => i !== idx ? html`<option value="${i}">Gauge ${i+1}</option>` : '')}
                 </select>
               ` : ''}
@@ -791,7 +791,7 @@ class ScGaugeEditor extends LitElement {
         content = html`
           <div class="col" style="gap:8px;">
             <div style="font-size:12px;color:var(--secondary-text-color,#aaa);margin-bottom:4px;line-height:1.3;">
-              Tipp: Die Schwellwerte können absolut oder in % angegeben werden.
+              Tip: thresholds can be given as absolute values or in %.
             </div>
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
               const n = JSON.parse(JSON.stringify(gauges));
@@ -862,7 +862,7 @@ class ScGaugeEditor extends LitElement {
                       Tick ${ctIdx+1}
                     </div>
                     <div @click=${e => e.stopPropagation()}>
-                      <button title="Entfernen" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);" @click=${() => {
+                      <button title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);" @click=${() => {
                         const n = JSON.parse(JSON.stringify(gauges));
                         n[idx].custom_ticks.splice(ctIdx, 1);
                         this.commitFn('gauges', n);
@@ -871,7 +871,7 @@ class ScGaugeEditor extends LitElement {
                   </summary>
                   <div class="inner-content" style="padding-top:4px; gap:8px;">
                   <div class="row">
-                    <label>Wert auf Skala</label>
+                    <label>Value on scale</label>
                     <input type="text" style="width:50%" .value=${ct.value ?? ''} @input=${e => {
                         const val = e.target.value.replace(',', '.'); 
                         clearTimeout(this._timeouts['ct_' + idx + '_' + ctIdx]);
@@ -882,18 +882,18 @@ class ScGaugeEditor extends LitElement {
                         }, 500);
                     }}>
                   </div>
-                    <div class="row"><label>Länge</label><input type="range" min="0" max="10" step="0.1" style="width:50%" .value=${ct.length ?? 4} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].length = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Breite</label><input type="range" min="0" max="2" step="0.1" style="width:50%" .value=${ct.width ?? 1} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].width = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Offset vom Ring</label><input type="range" min="-15" max="0" step="0.1" style="width:50%" .value=${ct.offset ?? 0} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="col"><label>Farbe</label>
+                    <div class="row"><label>Length</label><input type="range" min="0" max="10" step="0.1" style="width:50%" .value=${ct.length ?? 4} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].length = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Width</label><input type="range" min="0" max="2" step="0.1" style="width:50%" .value=${ct.width ?? 1} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].width = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Offset from ring</label><input type="range" min="-15" max="0" step="0.1" style="width:50%" .value=${ct.offset ?? 0} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="col"><label>Color</label>
                       <div class="color-row">
                         <input type="color" .value=${ct.color ?? '#ff0000'} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); }}>
                         <input type="text" .value=${ct.color ?? '#ff0000'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
                       </div>
                     </div>
-                    <div class="row"><label>Label Text</label><input type="text" style="width:50%" .value=${ct.label ?? ''} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].label = e.target.value; this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Label Offset</label><input type="range" min="-15" max="4" step="0.1" style="width:50%" .value=${ct.label_offset ?? 10} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].label_offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Label Größe</label><input type="range" min="1" max="20" step="0.1" style="width:50%" .value=${ct.label_font_size ?? 7} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].label_font_size = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Label text</label><input type="text" style="width:50%" .value=${ct.label ?? ''} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].label = e.target.value; this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Label offset</label><input type="range" min="-15" max="4" step="0.1" style="width:50%" .value=${ct.label_offset ?? 10} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].label_offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Label size</label><input type="range" min="1" max="20" step="0.1" style="width:50%" .value=${ct.label_font_size ?? 7} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].label_font_size = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
                   </div>
                 </details>
               `;
@@ -903,7 +903,7 @@ class ScGaugeEditor extends LitElement {
               if (!n[idx].custom_ticks) n[idx].custom_ticks = [];
               n[idx].custom_ticks.push({ value: 0, length: 4, width: 1, offset: 0, color: '#ff0000', label: '', _isOpen: true });
               this.commitFn('gauges', n);
-            }}>＋ Custom Tick hinzufügen</button>
+            }}>＋ Add custom tick</button>
           </div>
         `;
         break;
@@ -956,10 +956,10 @@ class ScGaugeEditor extends LitElement {
                         @mousedown=${(e) => e.target.closest('details').setAttribute('draggable', 'true')}
                         @mouseup=${(e) => e.target.closest('details').removeAttribute('draggable')}
                       >⋮⋮</span>
-                      Sektor ${sIdx+1}
+                      Sector ${sIdx+1}
                     </div>
                     <div @click=${e => e.stopPropagation()}>
-                      <button title="Entfernen" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);" @click=${() => {
+                      <button title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);" @click=${() => {
                         const n = JSON.parse(JSON.stringify(gauges));
                         n[idx].sectors.splice(sIdx, 1);
                         this.commitFn('gauges', n);
@@ -968,14 +968,14 @@ class ScGaugeEditor extends LitElement {
                   </summary>
                   <div class="inner-content" style="padding-top:4px; gap:8px;">
                     <div class="row"><label>Start (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.start_percent ?? 75} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].start_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Länge (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.length_percent ?? 25} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].length_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Innen-Radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.inner_radius ?? 12} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].inner_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Außen-Radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.outer_radius ?? 22} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].outer_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Deckkraft</label><input type="range" min="0" max="1" step="0.05" style="width:50%" .value=${sec.opacity ?? 0.85} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].opacity = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    
+                    <div class="row"><label>Length (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.length_percent ?? 25} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].length_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Inner radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.inner_radius ?? 12} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].inner_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Outer radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.outer_radius ?? 22} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].outer_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Opacity</label><input type="range" min="0" max="1" step="0.05" style="width:50%" .value=${sec.opacity ?? 0.85} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].opacity = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+
                     <div style="border-top:1px dashed var(--divider-color,#444); margin:4px 0;"></div>
-                    
-                    <div class="col"><label>Farbe (Start)</label>
+
+                    <div class="col"><label>Color (start)</label>
                       <div class="color-row">
                         <input type="color" .value=${sec.color ?? '#dc3232'} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); }}>
                         <input type="text" .value=${sec.color ?? '#dc3232'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
@@ -983,21 +983,21 @@ class ScGaugeEditor extends LitElement {
                     </div>
 
                     <div class="row">
-                      <label>Verlauf (Gradient)</label>
+                      <label>Gradient</label>
                       <select @change=${e => {
                         const n = JSON.parse(JSON.stringify(gauges));
                         n[idx].sectors[sIdx].gradient_preset = e.target.value;
                         n[idx].sectors[sIdx].use_gradient = (e.target.value === 'classic');
                         this.commitFn('gauges', n);
                       }}>
-                        <option value="none" ?selected=${secPreset === 'none'}>Einzelne Farbe</option>
-                        <option value="classic" ?selected=${secPreset === 'classic'}>Klassisch (2 Farben)</option>
-                        <option value="manual" ?selected=${secPreset === 'manual'}>Manuell (Liste)</option>
+                        <option value="none" ?selected=${secPreset === 'none'}>Single color</option>
+                        <option value="classic" ?selected=${secPreset === 'classic'}>Classic (2 colors)</option>
+                        <option value="manual" ?selected=${secPreset === 'manual'}>Manual (list)</option>
                       </select>
                     </div>
 
                     ${secPreset === 'classic' ? html`
-                      <div class="col"><label>Farbe (Ende)</label>
+                      <div class="col"><label>Color (end)</label>
                         <div class="color-row">
                           <input type="color" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); }}>
                           <input type="text" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); } }}>
@@ -1007,7 +1007,7 @@ class ScGaugeEditor extends LitElement {
 
                     ${secPreset !== 'none' ? html`
                       <div class="row" style="margin-top:4px;">
-                        <label>Auto-Auflösung (dynamisch)</label>
+                        <label>Auto resolution (dynamic)</label>
                         <label class="toggle">
                           <input type="checkbox" .checked=${sec.resolution_auto !== false} @change=${e => {
                             const n = JSON.parse(JSON.stringify(gauges));
@@ -1020,13 +1020,13 @@ class ScGaugeEditor extends LitElement {
 
                       ${sec.resolution_auto === false ? html`
                         <div class="row">
-                          <label>Manuelle Feinheit (Grad)</label>
-                          <input type="range" min="0.1" max="5" step="0.1" style="width:50%" 
-                            .value=${sec.resolution ?? 1.5} 
-                            @input=${e => { 
-                              const n = JSON.parse(JSON.stringify(gauges)); 
-                              n[idx].sectors[sIdx].resolution = parseFloat(e.target.value); 
-                              this.commitFn('gauges', n); 
+                          <label>Manual precision (degrees)</label>
+                          <input type="range" min="0.1" max="5" step="0.1" style="width:50%"
+                            .value=${sec.resolution ?? 1.5}
+                            @input=${e => {
+                              const n = JSON.parse(JSON.stringify(gauges));
+                              n[idx].sectors[sIdx].resolution = parseFloat(e.target.value);
+                              this.commitFn('gauges', n);
                             }}>
                         </div>
                       ` : ''}
@@ -1034,14 +1034,14 @@ class ScGaugeEditor extends LitElement {
 
                     ${secPreset === 'manual' ? html`
                       <div class="row">
-                        <label>Schwellen-Einheit</label>
+                        <label>Threshold unit</label>
                         <select @change=${e => {
                           const n = JSON.parse(JSON.stringify(gauges));
                           n[idx].sectors[sIdx].threshold_unit = e.target.value;
                           this.commitFn('gauges', n);
                         }}>
-                          <option value="percent" ?selected=${(sec.threshold_unit || 'percent') === 'percent'}>Prozent (%)</option>
-                          <option value="absolute" ?selected=${(sec.threshold_unit || 'percent') === 'absolute'}>Absolut</option>
+                          <option value="percent" ?selected=${(sec.threshold_unit || 'percent') === 'percent'}>Percent (%)</option>
+                          <option value="absolute" ?selected=${(sec.threshold_unit || 'percent') === 'absolute'}>Absolute</option>
                         </select>
                       </div>
                       ${this._renderStopsEditor(sec.manual_stops, (sec.threshold_unit || 'percent') === 'absolute', (newStops) => {
@@ -1060,7 +1060,7 @@ class ScGaugeEditor extends LitElement {
               if (!n[idx].sectors) n[idx].sectors = [];
               n[idx].sectors.push({ start_percent: 75, length_percent: 25, inner_radius: 12, outer_radius: 22, opacity: 0.85, color: '#dc3232', _isOpen: true });
               this.commitFn('gauges', n);
-            }}>＋ Sektor hinzufügen</button>
+            }}>＋ Add sector</button>
           </div>
         `;
         break;

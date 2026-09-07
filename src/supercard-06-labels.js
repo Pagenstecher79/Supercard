@@ -52,8 +52,8 @@ class ScLabelsEditor extends LitElement {
   _getLabelTitle(item) {
     let name = item.label_text || '';
     let valStr = '';
-    
-    // --- ALIAS ERKENNUNG IM HEADER ---
+
+    // --- ALIAS DETECTION IN HEADER ---
     let resolvedEntity = item.entity;
     let resolvedAttribute = item.attribute;
     let isAlias = false;
@@ -72,7 +72,7 @@ class ScLabelsEditor extends LitElement {
     if (item.use_entity && resolvedEntity && this.hass?.states[resolvedEntity]) {
       const s = this.hass.states[resolvedEntity];
       let val = resolvedAttribute ? s.attributes[resolvedAttribute] : s.state;
-      
+
       if (item.decimals !== undefined && item.decimals !== null && val !== undefined && val !== null && val !== '') {
         const parsed = parseFloat(val);
         if (!isNaN(parsed)) val = parsed.toFixed(item.decimals);
@@ -80,8 +80,8 @@ class ScLabelsEditor extends LitElement {
 
       const uom = (!resolvedAttribute && s.attributes.unit_of_measurement) ? ` ${s.attributes.unit_of_measurement}` : '';
       valStr = `${val}${uom}`;
-      
-      if (!name) { 
+
+      if (!name) {
         if (isAlias) {
            name = `[${aliasObj.alias || 'Alias'}] ${s.attributes.friendly_name || resolvedEntity}`;
            if (resolvedAttribute) name += ` (${resolvedAttribute})`;
@@ -91,16 +91,16 @@ class ScLabelsEditor extends LitElement {
       }
     } else if (!name) {
       if (isAlias) {
-        name = `[${aliasObj.alias || 'Alias'}] ${resolvedEntity || 'Unbenannt'}`;
+        name = `[${aliasObj.alias || 'Alias'}] ${resolvedEntity || 'Unnamed'}`;
       } else {
         name = `Label ${item.id.toString().slice(-3)}`;
       }
     }
-    
+
     const iconPrev = item.use_icon && item.icon
       ? html`<ha-icon icon=${item.icon} style="--mdc-icon-size:14px;opacity:0.7;margin-right:4px;"></ha-icon>`
       : '';
-      
+
     return html`
       <span class="toggle-icon">${this._expanded[item.id] ? '▼' : '▶'}</span>
       <div style="display:flex;align-items:center;">
@@ -117,11 +117,11 @@ class ScLabelsEditor extends LitElement {
 
     return html`
       <details class="inner-section" ?open=${this._outerOpen} @toggle=${e => this._outerOpen = e.target.open}>
-        <summary>── Labels &amp; Zusatztexte <span style="font-size:10px;">▼</span></summary>
+        <summary>── Labels &amp; Extra Texts <span style="font-size:10px;">▼</span></summary>
         <div class="inner-content">
           ${list.map((item, idx) => {
-            
-            // --- Helper für die Indikator State Datalist ---
+
+            // --- Helper for the indicator state datalist ---
             let mainResolvedEntity = item.entity;
             if (item.global_id && item.global_id !== 'manual') {
               const foundAlias = (this.slot?.global_entities || []).find(g => g.id === item.global_id);
@@ -155,13 +155,13 @@ class ScLabelsEditor extends LitElement {
                 <div class="label-content">
 
                   <div class="col">
-                    <label>Manueller Text / Label</label>
-                    <input type="text" .value=${item.label_text || ''} placeholder="z.B. Temperatur"
+                    <label>Manual text / label</label>
+                    <input type="text" .value=${item.label_text || ''} placeholder="e.g. Temperature"
                       @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].label_text = e.target.value; this._commit(n); }}>
                   </div>
 
                   <div class="row">
-                    <label>Entität verknüpfen</label>
+                    <label>Link entity</label>
                     <ha-switch .checked=${!!item.use_entity}
                       @change=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].use_entity = e.target.checked; this._commit(n); }}>
                     </ha-switch>
@@ -169,16 +169,16 @@ class ScLabelsEditor extends LitElement {
 
                   ${item.use_entity ? html`
                     <div class="col" style="margin-top: 4px; margin-bottom: 4px;">
-                      <label>Datenquelle</label>
+                      <label>Data source</label>
                       <select style="width: 100%;" @change=${e => {
                           const n = JSON.parse(JSON.stringify(list));
                           n[idx].global_id = e.target.value;
                           this._commit(n);
                         }}>
-                        <option value="manual" ?selected=${item.global_id === 'manual' || !item.global_id}>Manuelle Auswahl</option>
+                        <option value="manual" ?selected=${item.global_id === 'manual' || !item.global_id}>Manual selection</option>
                         ${(this.slot.global_entities || []).map(ge => {
                           const stateObj = ge.entity ? this.hass.states[ge.entity] : null;
-                          const name = ge.alias || stateObj?.attributes?.friendly_name || ge.entity || 'Unbenannt';
+                          const name = ge.alias || stateObj?.attributes?.friendly_name || ge.entity || 'Unnamed';
                           let val = stateObj ? stateObj.state : '-';
                           if (stateObj && ge.attribute && stateObj.attributes[ge.attribute] !== undefined) {
                             val = stateObj.attributes[ge.attribute];
@@ -186,7 +186,7 @@ class ScLabelsEditor extends LitElement {
                           const uom = (!ge.attribute && stateObj?.attributes?.unit_of_measurement) ? ` ${stateObj.attributes.unit_of_measurement}` : '';
                           const attrLabel = ge.attribute ? ` (${ge.attribute})` : '';
                           const label = `[${ge.alias || 'Alias'}] ${name}${attrLabel}: ${val}${uom}`;
-                          
+
                           return html`<option value=${ge.id} ?selected=${item.global_id === ge.id}>${label}</option>`;
                         })}
                       </select>
@@ -195,39 +195,39 @@ class ScLabelsEditor extends LitElement {
                     ${(!item.global_id || item.global_id === 'manual') ? html`
                       <div style="background:rgba(0,0,0,0.15); padding:10px; border-radius:8px; border:1px solid var(--divider-color,#333); margin-bottom:8px;">
                         <div class="col" style="margin-bottom:8px;">
-                          <label>Entität</label>
+                          <label>Entity</label>
                           <ha-entity-picker .hass=${this.hass} .allowCustomEntity=${false} .value=${item.entity || ''}
                             @value-changed=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].entity = e.detail.value; this._commit(n); }}>
                           </ha-entity-picker>
                         </div>
                         <div class="col">
-                          <label>Attribut</label>
+                          <label>Attribute</label>
                           <div style="display:flex; align-items:center; gap:8px;">
                             <ha-selector style="flex:1;" .hass=${this.hass} .selector=${{ attribute: { entity_id: item.entity || this.slot?.entity } }} .value=${item.attribute || ''}
                               @value-changed=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].attribute = e.detail.value; this._commit(n); }}>
                             </ha-selector>
-                            <button title="Leeren" class="clear-btn" @click=${() => { const n = JSON.parse(JSON.stringify(list)); n[idx].attribute = ''; this._commit(n); }}>✕</button>
+                            <button title="Clear" class="clear-btn" @click=${() => { const n = JSON.parse(JSON.stringify(list)); n[idx].attribute = ''; this._commit(n); }}>✕</button>
                           </div>
                         </div>
                       </div>
                     ` : ''}
-                    
+
                     <div class="row">
-                      <label>Nachkommastellen</label>
+                      <label>Decimal places</label>
                       <input type="number" min="0" max="5" style="width:60px" placeholder="Auto"
                         .value=${item.decimals ?? ''}
                         @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].decimals = e.target.value === '' ? null : parseInt(e.target.value); this._commit(n); }}>
                     </div>
 
                     <div class="row">
-                      <label>Label / Entityname einblenden</label>
+                      <label>Show label / entity name</label>
                       <ha-switch .checked=${item.show_name !== false}
                         @change=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].show_name = e.target.checked; this._commit(n); }}>
                       </ha-switch>
                     </div>
                     ${item.show_name !== false ? html`
                       <div class="row">
-                        <label>Manuellen Text als Name nutzen (Override)</label>
+                        <label>Use manual text as name (override)</label>
                         <ha-switch .checked=${!!item.use_override}
                           @change=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].use_override = e.target.checked; this._commit(n); }}>
                         </ha-switch>
@@ -236,7 +236,7 @@ class ScLabelsEditor extends LitElement {
                   ` : ''}
 
                   <div class="row">
-                    <label>Text-Schatten (Glow/Shadow)</label>
+                    <label>Text shadow (glow/shadow)</label>
                     <ha-switch .checked=${!!item.text_shadow}
                       @change=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].text_shadow = e.target.checked; this._commit(n); }}>
                     </ha-switch>
@@ -244,7 +244,7 @@ class ScLabelsEditor extends LitElement {
 
                   <div class="section-title">Icon</div>
                   <div class="row">
-                    <label>Icon anzeigen</label>
+                    <label>Show icon</label>
                     <ha-switch .checked=${!!item.use_icon}
                       @change=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].use_icon = e.target.checked; this._commit(n); }}>
                     </ha-switch>
@@ -252,7 +252,7 @@ class ScLabelsEditor extends LitElement {
 
                   ${item.use_icon ? html`
                     <div class="col">
-                      <label>Icon auswählen</label>
+                      <label>Select icon</label>
                       <ha-icon-picker .hass=${this.hass} .value=${item.icon || ''}
                         @value-changed=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].icon = e.detail.value; this._commit(n); }}>
                       </ha-icon-picker>
@@ -266,40 +266,40 @@ class ScLabelsEditor extends LitElement {
                     <div class="row">
                       <label>Position</label>
                       <select style="width:55%" @change=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].icon_position = e.target.value; this._commit(n); }}>
-                        <option value="before" ?selected=${(item.icon_position || 'before') === 'before'}>Vor Text</option>
-                        <option value="after"  ?selected=${item.icon_position === 'after'}>Nach Text</option>
-                        <option value="only"   ?selected=${item.icon_position === 'only'}>Nur Icon (kein Text)</option>
+                        <option value="before" ?selected=${(item.icon_position || 'before') === 'before'}>Before text</option>
+                        <option value="after"  ?selected=${item.icon_position === 'after'}>After text</option>
+                        <option value="only"   ?selected=${item.icon_position === 'only'}>Icon only (no text)</option>
                       </select>
                     </div>
 
                     <div class="col">
-                      <label>Icon Farbe</label>
+                      <label>Icon color</label>
                       <div class="color-row">
                         <input type="color" .value=${item.icon_color || '#ffffff'}
                           @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].icon_color = e.target.value; this._commit(n); }}>
-                        <input type="text" .value=${item.icon_color || ''} placeholder="Leer = inherit"
+                        <input type="text" .value=${item.icon_color || ''} placeholder="Empty = inherit"
                           @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].icon_color = e.target.value; this._commit(n); }}>
                       </div>
                     </div>
 
                     <div class="row">
-                      <label>Icon Größe (CSS)</label>
+                      <label>Icon size (CSS)</label>
                       <input type="text" style="width:80px" placeholder="20px, 50cqmin"
                         .value=${item.icon_size || ''}
                         @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].icon_size = e.target.value; this._commit(n); }}>
                     </div>
 
                     <div class="row">
-                      <label>Abstand zum Text (px)</label>
+                      <label>Gap to text (px)</label>
                       <input type="number" style="width:60px" placeholder="4"
                         .value=${item.icon_gap || ''}
                         @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].icon_gap = parseInt(e.target.value) || null; this._commit(n); }}>
                     </div>
                   ` : ''}
 
-                  <div class="section-title">Indikator & Container</div>
+                  <div class="section-title">Indicator & Container</div>
                   <div class="row">
-                    <label>Als Indikator (Container) nutzen</label>
+                    <label>Use as indicator (container)</label>
                     <ha-switch .checked=${!!item.use_indicator}
                       @change=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].use_indicator = e.target.checked; this._commit(n); }}>
                     </ha-switch>
@@ -307,17 +307,17 @@ class ScLabelsEditor extends LitElement {
 
                   ${item.use_indicator ? html`
                     <div style="background:rgba(0,0,0,0.15); padding:10px; border-radius:8px; border:1px solid var(--divider-color,#333); margin-top: 4px;">
-                      
+
                       <div style="font-size: 11px; color: var(--secondary-text-color); margin-bottom: 12px; font-style: italic;">
-                        💡 Der Indikator nutzt automatisch die oben festgelegte Datenquelle als Trigger.
+                        💡 The indicator automatically uses the data source set above as its trigger.
                       </div>
 
                       <div class="row" style="margin-bottom: 8px;">
                         <div class="col" style="flex:1; margin-right:8px;">
-                          <label>Hintergrund-Form</label>
+                          <label>Background shape</label>
                           <select style="width: 100%; height:32px;" @change=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_shape = e.target.value; this._commit(n); }}>
-                            <option value="rect" ?selected=${item.indicator_shape !== 'circle'}>Rechteck</option>
-                            <option value="circle" ?selected=${item.indicator_shape === 'circle'}>Kreis</option>
+                            <option value="rect" ?selected=${item.indicator_shape !== 'circle'}>Rectangle</option>
+                            <option value="circle" ?selected=${item.indicator_shape === 'circle'}>Circle</option>
                           </select>
                         </div>
                         ${item.indicator_shape !== 'circle' ? html`
@@ -331,25 +331,25 @@ class ScLabelsEditor extends LitElement {
 
                       <div class="row" style="margin-bottom: 8px;">
                         <div class="col" style="flex:1;">
-                          <label>Aktiv-Zustand (Trigger)</label>
+                          <label>Active state (trigger)</label>
                           <div style="display:flex; align-items:center; gap:8px;">
-                            <input type="text" list=${datalistId} style="flex:1; height:32px;" .value=${item.indicator_state || ''} placeholder="z.B. on, open"
+                            <input type="text" list=${datalistId} style="flex:1; height:32px;" .value=${item.indicator_state || ''} placeholder="e.g. on, open"
                               @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_state = e.target.value; this._commit(n); }}>
                             <datalist id=${datalistId}>
                               ${availableStates.map(st => html`<option value="${st}"></option>`)}
                             </datalist>
-                            <button title="Leeren" class="clear-btn" @click=${() => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_state = ''; this._commit(n); }}>✕</button>
+                            <button title="Clear" class="clear-btn" @click=${() => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_state = ''; this._commit(n); }}>✕</button>
                           </div>
                         </div>
                       </div>
 
                       <div class="row">
                         <div class="col" style="flex:1;">
-                          <label>Sichtbarkeit</label>
+                          <label>Visibility</label>
                           <select style="width: 100%; height:32px;" @change=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_visibility = e.target.value; this._commit(n); }}>
-                            <option value="always" ?selected=${!item.indicator_visibility || item.indicator_visibility === 'always'}>Immer anzeigen</option>
-                            <option value="active_only" ?selected=${item.indicator_visibility === 'active_only'}>Nur anzeigen, wenn Zustand übereinstimmt</option>
-                            <option value="inactive_only" ?selected=${item.indicator_visibility === 'inactive_only'}>Ausblenden, wenn Zustand übereinstimmt</option>
+                            <option value="always" ?selected=${!item.indicator_visibility || item.indicator_visibility === 'always'}>Always show</option>
+                            <option value="active_only" ?selected=${item.indicator_visibility === 'active_only'}>Show only when state matches</option>
+                            <option value="inactive_only" ?selected=${item.indicator_visibility === 'inactive_only'}>Hide when state matches</option>
                           </select>
                         </div>
                       </div>
@@ -358,8 +358,8 @@ class ScLabelsEditor extends LitElement {
 
                     <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
                       <div style="background:rgba(255,255,255,0.02); padding:8px; border-radius:8px; border:1px solid var(--divider-color,#333);">
-                        <div style="font-size: 11px; font-weight: bold; color: var(--secondary-text-color); margin-bottom: 8px; text-transform: uppercase;">Standard (Aus)</div>
-                        
+                        <div style="font-size: 11px; font-weight: bold; color: var(--secondary-text-color); margin-bottom: 8px; text-transform: uppercase;">Default (off)</div>
+
                         <div class="col" style="margin-bottom: 8px;">
                           <label>Icon</label>
                           <ha-icon-picker .hass=${this.hass} .value=${item.indicator_icon_default || ''}
@@ -367,14 +367,14 @@ class ScLabelsEditor extends LitElement {
                           </ha-icon-picker>
                         </div>
                         <div class="col" style="margin-bottom: 8px;">
-                          <label>Hintergrundfarbe</label>
+                          <label>Background color</label>
                           <div class="color-row">
                             <input type="color" .value=${item.indicator_bg_default || '#333333'} @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_bg_default = e.target.value; this._commit(n); }}>
                             <input type="text" .value=${item.indicator_bg_default || ''} placeholder="transparent" @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_bg_default = e.target.value; this._commit(n); }}>
                           </div>
                         </div>
                         <div class="col">
-                          <label>Icon-/Textfarbe</label>
+                          <label>Icon/text color</label>
                           <div class="color-row">
                             <input type="color" .value=${item.indicator_color_default || '#ffffff'} @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_color_default = e.target.value; this._commit(n); }}>
                             <input type="text" .value=${item.indicator_color_default || ''} placeholder="inherit" @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_color_default = e.target.value; this._commit(n); }}>
@@ -383,8 +383,8 @@ class ScLabelsEditor extends LitElement {
                       </div>
 
                       <div style="background:rgba(3, 169, 244, 0.05); padding:8px; border-radius:8px; border:1px solid rgba(3, 169, 244, 0.2);">
-                        <div style="font-size: 11px; font-weight: bold; color: var(--primary-color); margin-bottom: 8px; text-transform: uppercase;">Aktiv (An)</div>
-                        
+                        <div style="font-size: 11px; font-weight: bold; color: var(--primary-color); margin-bottom: 8px; text-transform: uppercase;">Active (on)</div>
+
                         <div class="col" style="margin-bottom: 8px;">
                           <label>Icon</label>
                           <ha-icon-picker .hass=${this.hass} .value=${item.indicator_icon_active || ''}
@@ -392,14 +392,14 @@ class ScLabelsEditor extends LitElement {
                           </ha-icon-picker>
                         </div>
                         <div class="col" style="margin-bottom: 8px;">
-                          <label>Hintergrundfarbe</label>
+                          <label>Background color</label>
                           <div class="color-row">
                             <input type="color" .value=${item.indicator_bg_active || '#03a9f4'} @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_bg_active = e.target.value; this._commit(n); }}>
                             <input type="text" .value=${item.indicator_bg_active || ''} placeholder="transparent" @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_bg_active = e.target.value; this._commit(n); }}>
                           </div>
                         </div>
                         <div class="col">
-                          <label>Icon-/Textfarbe</label>
+                          <label>Icon/text color</label>
                           <div class="color-row">
                             <input type="color" .value=${item.indicator_color_active || '#ffffff'} @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_color_active = e.target.value; this._commit(n); }}>
                             <input type="text" .value=${item.indicator_color_active || ''} placeholder="inherit" @input=${e => { const n = JSON.parse(JSON.stringify(list)); n[idx].indicator_color_active = e.target.value; this._commit(n); }}>
@@ -427,7 +427,7 @@ class ScLabelsEditor extends LitElement {
             });
             this._commit(n);
             this._expanded = { ...this._expanded, [newId]: true };
-          }}>＋ Label hinzufügen</button>
+          }}>＋ Add label</button>
         </div>
       </details>
     `;
@@ -456,7 +456,7 @@ window.SupercardModules['labels'] = (() => {
       }
 
       let parsedIconSize = item.icon_size || '20px';
-      if (/^\d+$/.test(parsedIconSize)) parsedIconSize += 'px'; 
+      if (/^\d+$/.test(parsedIconSize)) parsedIconSize += 'px';
 
       const base = {
         id: `label_${idx}`,
@@ -476,7 +476,7 @@ window.SupercardModules['labels'] = (() => {
           name: item.icon || '',
           position: item.icon_position || 'before',
           color: item.icon_color || 'inherit',
-          size: parsedIconSize, 
+          size: parsedIconSize,
           gap: item.icon_gap != null ? item.icon_gap : 4
         }
       };
@@ -486,7 +486,7 @@ window.SupercardModules['labels'] = (() => {
       if (item.use_entity && resolvedEntity && hass?.states?.[resolvedEntity]) {
         const s = hass.states[resolvedEntity];
         let rawVal = resolvedAttribute ? s.attributes?.[resolvedAttribute] : s.state;
-        
+
         if (item.decimals !== undefined && item.decimals !== null && rawVal !== undefined && rawVal !== null && rawVal !== '') {
           const parsed = parseFloat(rawVal);
           if (!isNaN(parsed)) {
@@ -512,10 +512,10 @@ window.SupercardModules['labels'] = (() => {
         (base.text.value) ? 'value' :
         'name';
 
-      // --- INDIKATOR LOGIK ---
+      // --- INDICATOR LOGIC ---
       if (item.use_indicator) {
         let indActive = false;
-        
+
         if (resolvedEntity && hass?.states?.[resolvedEntity]) {
           const sObj = hass.states[resolvedEntity];
           const st = resolvedAttribute ? sObj.attributes[resolvedAttribute] : sObj.state;
@@ -523,7 +523,7 @@ window.SupercardModules['labels'] = (() => {
           indActive = targetStates.includes(String(st));
         }
 
-        // --- SICHTBARKEIT ---
+        // --- VISIBILITY ---
         const visMode = item.indicator_visibility || 'always';
         if (visMode === 'active_only' && !indActive) {
           base.enabled = false;
@@ -535,10 +535,10 @@ window.SupercardModules['labels'] = (() => {
         const defBg = item.indicator_bg_default || 'transparent';
         const actCol = item.indicator_color_active || 'var(--primary-color)';
         const defCol = item.indicator_color_default || 'inherit';
-        
+
         const actIcon = item.indicator_icon_active || item.icon || '';
         const defIcon = item.indicator_icon_default || item.icon || '';
-        
+
         const shape = item.indicator_shape || 'rect';
         const radius = shape === 'circle' ? '50%' : (item.indicator_radius || '8px');
 
@@ -551,10 +551,10 @@ window.SupercardModules['labels'] = (() => {
           color: indActive ? actCol : defCol
         };
 
-        base.icon.enabled = true; 
+        base.icon.enabled = true;
         base.icon.name = indActive ? actIcon : defIcon;
         base.icon.color = indActive ? actCol : defCol;
-        base.text.color = indActive ? actCol : defCol; 
+        base.text.color = indActive ? actCol : defCol;
       }
 
       return base;

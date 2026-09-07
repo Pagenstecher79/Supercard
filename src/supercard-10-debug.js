@@ -1,7 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
 // ==========================================
-// DIE NEUE LIT-ELEMENT KOMPONENTE
+// THE NEW LIT-ELEMENT COMPONENT
 // ==========================================
 class ScDebugPanel extends LitElement {
   static get properties() {
@@ -15,14 +15,14 @@ class ScDebugPanel extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    // Lese Daten aus der Window-Brücke für Above/Below String-Renders
+    // Read data from the window bridge for Above/Below string renders
     const uid = this.getAttribute('data-uid');
     if (uid && window[`_sc_debug_${uid}`]) {
       const data = window[`_sc_debug_${uid}`];
       this.config = data.config;
       this.stateObj = data.stateObj;
       this.stateVal = data.stateVal;
-      // Clean up, damit der Speicher nicht voll läuft
+      // Clean up so memory doesn't fill up
       delete window[`_sc_debug_${uid}`];
     }
   }
@@ -36,17 +36,17 @@ class ScDebugPanel extends LitElement {
         z-index: 9999;
       }
 
-      /* INSIDE (Overlay) - Float über der Karte, blockiert keine Klicks auf darunterliegende Buttons */
+      /* INSIDE (Overlay) - Floats above the card, doesn't block clicks on underlying buttons */
       :host([pos="inside"]) {
         position: absolute;
         inset: 0;
-        pointer-events: none; /* Klicks auf leeren Raum gehen durch zur Karte! */
+        pointer-events: none; /* Clicks on empty space pass through to the card! */
         display: flex;
         flex-direction: column;
-        justify-content: flex-end; /* Klebt das Panel an den unteren Rand */
+        justify-content: flex-end; /* Sticks the panel to the bottom edge */
       }
 
-      /* ABOVE / BELOW - Normaler Block im Layout-Fluss */
+      /* ABOVE / BELOW - Normal block in layout flow */
       :host([pos="above"]), :host([pos="below"]) {
         position: relative;
         pointer-events: auto;
@@ -61,22 +61,22 @@ class ScDebugPanel extends LitElement {
         padding: 8px;
         backdrop-filter: blur(4px);
         box-sizing: border-box;
-        
-        /* WICHTIG FÜR SCROLLEN: Nur das Panel selbst fängt Klicks und Swipes ab */
-        pointer-events: auto; 
+
+        /* IMPORTANT FOR SCROLLING: Only the panel itself captures clicks and swipes */
+        pointer-events: auto;
         overflow-y: auto;
         max-height: 100%;
-        
+
         border: 1px solid rgba(0, 255, 153, 0.3);
         box-shadow: 0 4px 12px rgba(0,0,0,0.5);
       }
 
-      /* Ecken je nach Position anpassen */
+      /* Adjust corners depending on position */
       :host([pos="inside"]) .panel { border-radius: 8px 8px 0 0; border-bottom: none; }
       :host([pos="above"]) .panel  { border-radius: 8px 8px 0 0; border-bottom: none; }
       :host([pos="below"]) .panel  { border-radius: 0 0 8px 8px; border-top: none; }
 
-      /* Schicke Custom-Scrollbars */
+      /* Nice custom scrollbars */
       .panel::-webkit-scrollbar { width: 6px; }
       .panel::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
       .panel::-webkit-scrollbar-thumb { background: rgba(0,255,153,0.4); border-radius: 3px; }
@@ -91,8 +91,8 @@ class ScDebugPanel extends LitElement {
         letter-spacing: 0.05em;
         text-align: center;
       }
-      
-      /* Native Einklapp-Sektionen */
+
+      /* Native collapsible sections */
       details {
         margin-bottom: 6px;
         border: 1px solid rgba(255, 255, 255, 0.15);
@@ -122,8 +122,8 @@ class ScDebugPanel extends LitElement {
       details[open] summary::before {
         transform: rotate(90deg);
       }
-      
-      /* Mehrspaltiges Layout */
+
+      /* Multi-column layout */
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -166,12 +166,12 @@ class ScDebugPanel extends LitElement {
 
     const stateObj = this.stateObj || {};
     const attrs = stateObj.attributes || {};
-    
+
     const activeMods = [];
     const modConfigs = {};
     const unassignedCfg = { ...this.config };
 
-    // 1. Identifiziere AKTIVE Module
+    // 1. Identify ACTIVE modules
     for (const key in this.config) {
       if (key.endsWith('_active') && this.config[key] === true) {
         const modName = key.replace('_active', '');
@@ -180,7 +180,7 @@ class ScDebugPanel extends LitElement {
       }
     }
 
-    // 2. Filtere alle Config-Werte den entsprechenden Modulen zu
+    // 2. Assign all config values to their corresponding modules
     for (const key in unassignedCfg) {
       for (const mod of activeMods) {
         if (key.startsWith(mod + '_') || key === mod + 's' || key === mod) {
@@ -211,7 +211,7 @@ class ScDebugPanel extends LitElement {
     return html`
       <div class="panel">
         <div class="title">🛠 Supercard Debug Pipeline</div>
-        
+
         <details open>
           <summary>Entity Core & State</summary>
           <div class="grid">
@@ -228,13 +228,13 @@ class ScDebugPanel extends LitElement {
 
         ${activeMods.map(mod => html`
           <details>
-            <summary>Modul: ${mod.toUpperCase()} <span class="badge">Aktiv</span></summary>
+            <summary>Module: ${mod.toUpperCase()} <span class="badge">Active</span></summary>
             ${renderGrid(modConfigs[mod])}
           </details>
         `)}
 
         <details>
-          <summary>General Config / Inaktive Module <span class="badge badge-inactive">${Object.keys(unassignedCfg).length}</span></summary>
+          <summary>General Config / Inactive Modules <span class="badge badge-inactive">${Object.keys(unassignedCfg).length}</span></summary>
           ${renderGrid(unassignedCfg)}
         </details>
       </div>
@@ -247,19 +247,19 @@ if (!customElements.get('sc-debug-panel')) {
 }
 
 // ==========================================
-// BRÜCKE ZUM CORE
+// BRIDGE TO CORE
 // ==========================================
 window.SupercardModules = window.SupercardModules || {};
 window.SupercardModules['debug'] = (() => {
   function update({ config, stateObj, stateVal }) {
     if (!config?.debug) return {};
-    
+
     const pos = config.debug_position || 'inside';
-    
-    // Lit Template (für das moderne Overlay/Inside)
+
+    // Lit template (for the modern Overlay/Inside)
     const litTag = html`<sc-debug-panel pos="${pos}" .config=${config} .stateObj=${stateObj} .stateVal=${stateVal}></sc-debug-panel>`;
 
-    // String Tag mit Window-Bridge (für Above/Below, die der Core als String erwartet)
+    // String tag with window bridge (for Above/Below, which the core expects as a string)
     const uid = Math.random().toString(36).substr(2, 9);
     window[`_sc_debug_${uid}`] = { config, stateObj, stateVal };
     const stringTag = `<sc-debug-panel pos="${pos}" data-uid="${uid}"></sc-debug-panel>`;
@@ -273,11 +273,11 @@ window.SupercardModules['debug'] = (() => {
 
   function editorFields() {
     return [
-      { id: 'debug',          label: 'Debug-Panel aktiv', type: 'checkbox' },
+      { id: 'debug',          label: 'Debug panel active', type: 'checkbox' },
       { id: 'debug_position', label: 'Position',          type: 'select', options: [
-          { value: 'inside', label: 'Innerhalb (als Overlay scrollbar)' },
-          { value: 'below',  label: 'Unterhalb der Karte' },
-          { value: 'above',  label: 'Oberhalb der Karte' },
+          { value: 'inside', label: 'Inside (scrollable overlay)' },
+          { value: 'below',  label: 'Below the card' },
+          { value: 'above',  label: 'Above the card' },
         ]
       },
     ];

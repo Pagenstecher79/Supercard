@@ -1,8 +1,8 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
-// --- HILFSFUNKTIONEN FÜR DIE ZIEL-AUSWAHL ---
+// --- HELPER FUNCTIONS FOR TARGET SELECTION ---
 function getAvailableElements(slot) {
-  const elements = { 'empty': 'Leer', 'icon': 'Icon', 'name': 'Entitäts-Name', 'state': 'Zustand (Wert)' };
+  const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
   const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
   for (let i = 0; i < gaugeCount; i++) elements[`gauge_${i}`] = `Gauge ${i + 1}`;
   if (Array.isArray(slot.labels_list)) {
@@ -15,40 +15,40 @@ function getAvailableElements(slot) {
 
 function getTargets(slot) {
   const targets = [
-    { id: 'none', label: '— Bitte Ziel wählen —', group: 'Allgemein' },
-    { id: 'main', label: 'Hauptkarte (Gesamter Hintergrund)', group: 'Allgemein' }
+    { id: 'none', label: '— Please select a target —', group: 'General' },
+    { id: 'main', label: 'Main card (entire background)', group: 'General' }
   ];
 
-  // Basis-Elemente
-  targets.push({ id: 'icon', label: 'Icon (Haupt-Entität)', group: 'Elemente (Basis)' });
-  targets.push({ id: 'name', label: 'Name (Haupt-Entität)', group: 'Elemente (Basis)' });
-  targets.push({ id: 'state', label: 'Zustand / Wert', group: 'Elemente (Basis)' });
+  // Basic elements
+  targets.push({ id: 'icon', label: 'Icon (main entity)', group: 'Elements (basic)' });
+  targets.push({ id: 'name', label: 'Name (main entity)', group: 'Elements (basic)' });
+  targets.push({ id: 'state', label: 'State / value', group: 'Elements (basic)' });
 
   // Gauges
   const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
-  for (let i = 0; i < gaugeCount; i++) targets.push({ id: `gauge_${i}`, label: `Gauge ${i + 1}`, group: 'Elemente (Gauges)' });
+  for (let i = 0; i < gaugeCount; i++) targets.push({ id: `gauge_${i}`, label: `Gauge ${i + 1}`, group: 'Elements (gauges)' });
 
   // Progressbars
   const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
-  for (let i = 0; i < pbCount; i++) targets.push({ id: `progressbar_${i}`, label: `Progressbar ${i + 1}`, group: 'Elemente (Progressbars)' });
+  for (let i = 0; i < pbCount; i++) targets.push({ id: `progressbar_${i}`, label: `Progressbar ${i + 1}`, group: 'Elements (progressbars)' });
 
   // Labels
   if (Array.isArray(slot.labels_list)) {
     slot.labels_list.forEach((l, idx) => {
-      targets.push({ id: `label_${idx}`, label: `Label ${idx + 1}: ${l.label_text || l.entity || ''}`, group: 'Elemente (Labels)' });
+      targets.push({ id: `label_${idx}`, label: `Label ${idx + 1}: ${l.label_text || l.entity || ''}`, group: 'Elements (labels)' });
     });
   }
 
-  // Layout Zellen
+  // Layout cells
   if (Array.isArray(slot.layout_rows)) {
     const els = getAvailableElements(slot);
     slot.layout_rows.forEach((row, rIdx) => {
       row.cells.forEach((cell, cIdx) => {
-        let typeLabel = els[cell.content] || 'Leer';
+        let typeLabel = els[cell.content] || 'Empty';
         if (cell.content !== 'empty') {
-            typeLabel = typeLabel.split(':')[0]; // Kürzt "Label: XY" auf "Label" im Grid ab
+            typeLabel = typeLabel.split(':')[0]; // Shortens "Label: XY" to "Label" in the grid
         }
-        targets.push({ id: `r${rIdx}c${cIdx}`, label: `Z${rIdx+1}C${cIdx+1} (${typeLabel})`, group: 'Layout Raster (Zellen)' });
+        targets.push({ id: `r${rIdx}c${cIdx}`, label: `R${rIdx+1}C${cIdx+1} (${typeLabel})`, group: 'Layout grid (cells)' });
       });
     });
   }
@@ -56,7 +56,7 @@ function getTargets(slot) {
   return targets;
 }
 
-// --- DER EDITOR ---
+// --- THE EDITOR ---
 class ScInteractionEditor extends LitElement {
   static get properties() {
     return {
@@ -93,7 +93,7 @@ class ScInteractionEditor extends LitElement {
       optgroup { color: var(--primary-color); font-weight: bold; font-style: normal; }
       optgroup option { color: var(--primary-text-color); font-weight: normal; }
       .action-box { background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-      
+
       .action-icon-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 4px; }
       .action-icon-btn {
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
@@ -127,28 +127,28 @@ class ScInteractionEditor extends LitElement {
     return html`
       <div class="action-box">
         <label style="font-weight:bold; color:var(--primary-text-color);">${label}</label>
-        
+
         <div class="action-icon-grid">
-          <div class="action-icon-btn ${actionType === 'none' ? 'active' : ''}" title="Keine Aktion" @click=${() => setAction('none')}>
-            <ha-icon icon="mdi:cancel"></ha-icon><span class="action-icon-label">Keine</span>
+          <div class="action-icon-btn ${actionType === 'none' ? 'active' : ''}" title="No action" @click=${() => setAction('none')}>
+            <ha-icon icon="mdi:cancel"></ha-icon><span class="action-icon-label">None</span>
           </div>
-          <div class="action-icon-btn ${actionType === 'toggle' ? 'active' : ''}" title="Umschalten (Toggle)" @click=${() => setAction('toggle')}>
+          <div class="action-icon-btn ${actionType === 'toggle' ? 'active' : ''}" title="Toggle" @click=${() => setAction('toggle')}>
             <ha-icon icon="mdi:toggle-switch-outline"></ha-icon><span class="action-icon-label">Toggle</span>
           </div>
-          <div class="action-icon-btn ${actionType === 'more-info' ? 'active' : ''}" title="Mehr Infos (More-Info)" @click=${() => setAction('more-info')}>
-            <ha-icon icon="mdi:information-outline"></ha-icon><span class="action-icon-label">Infos</span>
+          <div class="action-icon-btn ${actionType === 'more-info' ? 'active' : ''}" title="More info" @click=${() => setAction('more-info')}>
+            <ha-icon icon="mdi:information-outline"></ha-icon><span class="action-icon-label">Info</span>
           </div>
-          <div class="action-icon-btn ${actionType === 'call-service' ? 'active' : ''}" title="Dienst ausführen (Call Service)" @click=${() => setAction('call-service')}>
+          <div class="action-icon-btn ${actionType === 'call-service' ? 'active' : ''}" title="Call service" @click=${() => setAction('call-service')}>
             <ha-icon icon="mdi:lightning-bolt"></ha-icon><span class="action-icon-label">Service</span>
           </div>
-          <div class="action-icon-btn ${actionType === 'navigate' ? 'active' : ''}" title="Navigieren" @click=${() => setAction('navigate')}>
-            <ha-icon icon="mdi:arrow-right-top"></ha-icon><span class="action-icon-label">Pfad</span>
+          <div class="action-icon-btn ${actionType === 'navigate' ? 'active' : ''}" title="Navigate" @click=${() => setAction('navigate')}>
+            <ha-icon icon="mdi:arrow-right-top"></ha-icon><span class="action-icon-label">Path</span>
           </div>
         </div>
-        
+
         ${['toggle', 'more-info', 'call-service'].includes(actionType) ? html`
           <div class="col" style="margin-top:8px;">
-            <label>Ziel-Entität (Entity ID)</label>
+            <label>Target entity (Entity ID)</label>
             <ha-entity-picker .hass=${this.hass} .allowCustomEntity=${true} .value=${pat[`${prefix}_entity`] || ''}
               @value-changed=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx][`${prefix}_entity`] = e.detail.value; this._commit(n); }}>
             </ha-entity-picker>
@@ -157,12 +157,12 @@ class ScInteractionEditor extends LitElement {
 
         ${actionType === 'call-service' ? html`
           <div class="col" style="margin-top:8px;">
-            <label>Dienst (Service)</label>
+            <label>Service</label>
             <input type="text" placeholder="light.turn_on" .value=${pat[`${prefix}_service`] || ''}
               @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx][`${prefix}_service`] = e.target.value; this._commit(n); }}>
           </div>
           <div class="col" style="margin-top:8px;">
-            <label>Daten (JSON Optional)</label>
+            <label>Data (JSON, optional)</label>
             <input type="text" placeholder='{"brightness": 255}' .value=${pat[`${prefix}_data`] || ''}
               @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx][`${prefix}_data`] = e.target.value; this._commit(n); }}>
           </div>
@@ -170,7 +170,7 @@ class ScInteractionEditor extends LitElement {
 
         ${actionType === 'navigate' ? html`
           <div class="col" style="margin-top:8px;">
-            <label>Pfad</label>
+            <label>Path</label>
             <input type="text" placeholder="/lovelace/dashboard" .value=${pat[`${prefix}_nav`] || ''}
               @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx][`${prefix}_nav`] = e.target.value; this._commit(n); }}>
           </div>
@@ -181,19 +181,19 @@ class ScInteractionEditor extends LitElement {
 
   render() {
     if (!this.slot) return html``;
-    
+
     let patterns = Array.isArray(this.slot.interactions) ? this.slot.interactions : [];
     const targets = getTargets(this.slot);
     const usedTargets = patterns.map(p => p.target).filter(t => t !== 'none');
 
     return html`
       <details class="inner-section">
-        <summary>👆 Interaktionen & Aktionen <span style="font-size:10px">▼</span></summary>
+        <summary>👆 Interactions & Actions <span style="font-size:10px">▼</span></summary>
         <div class="inner-content">
           ${patterns.map((pat, idx) => {
             const isExp = !!this._expanded[pat.id];
-            let targetLabel = targets.find(t => t.id === pat.target)?.label || 'Unbekanntes Ziel';
-            if (pat.target === 'none') targetLabel = 'Nicht zugewiesen';
+            let targetLabel = targets.find(t => t.id === pat.target)?.label || 'Unknown target';
+            if (pat.target === 'none') targetLabel = 'Not assigned';
 
             return html`
               <div class="pattern-card"
@@ -231,7 +231,7 @@ class ScInteractionEditor extends LitElement {
                     >⋮⋮</span>
                     <span class="toggle-icon">${isExp ? '▼' : '▶'}</span>
                     <span style="color:${pat.enabled ? 'var(--primary-text-color)' : 'var(--secondary-text-color)'}">
-                      Interaktion ${idx + 1}
+                      Interaction ${idx + 1}
                     </span>
                     <span style="font-size:10px;color:${pat.target === 'none' ? '#f44' : 'var(--secondary-text-color)'};margin-left:8px;font-weight:normal">(${targetLabel})</span>
                   </div>
@@ -240,9 +240,9 @@ class ScInteractionEditor extends LitElement {
                       @click=${e => e.stopPropagation()}
                       @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].enabled = e.target.checked; this._commit(n); }}>
                     </ha-switch>
-                    
-                    <button type="button" title="Klonen" @click=${e => { 
-                      e.preventDefault(); e.stopPropagation(); 
+
+                    <button type="button" title="Clone" @click=${e => {
+                      e.preventDefault(); e.stopPropagation();
                       const n = JSON.parse(JSON.stringify(patterns));
                       const clone = JSON.parse(JSON.stringify(pat));
                       clone.id = Date.now(); clone.target = 'none';
@@ -251,9 +251,9 @@ class ScInteractionEditor extends LitElement {
                       this._expanded = { ...this._expanded, [clone.id]: true };
                     }} style="background:none;border:none;color:var(--primary-color);cursor:pointer;padding:4px;font-size:14px;">⧉</button>
 
-                    <button type="button" title="Löschen" @click=${e => { 
-                      e.preventDefault(); e.stopPropagation(); 
-                      const n = [...patterns]; n.splice(idx, 1); this._commit(n); 
+                    <button type="button" title="Delete" @click=${e => {
+                      e.preventDefault(); e.stopPropagation();
+                      const n = [...patterns]; n.splice(idx, 1); this._commit(n);
                     }} style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">✕</button>
                   </div>
                 </div>
@@ -261,12 +261,12 @@ class ScInteractionEditor extends LitElement {
                 ${isExp ? html`
                   <div class="pattern-content">
                     <div class="row">
-                      <label>Ziel-Element</label>
+                      <label>Target element</label>
                       <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].target = e.target.value; this._commit(n); }}>
                         ${(() => {
                           const groups = {};
                           targets.forEach(t => {
-                            const g = t.group || 'Allgemein';
+                            const g = t.group || 'General';
                             if (!groups[g]) groups[g] = [];
                             groups[g].push(t);
                           });
@@ -275,7 +275,7 @@ class ScInteractionEditor extends LitElement {
                               ${els.map(t => {
                                 const isLocked = t.id !== 'none' && t.id !== pat.target && usedTargets.includes(t.id);
                                 return html`<option value=${t.id} ?selected=${pat.target === t.id} ?disabled=${isLocked}>
-                                  ${t.label} ${isLocked ? '(Belegt)' : ''}
+                                  ${t.label} ${isLocked ? '(In use)' : ''}
                                 </option>`;
                               })}
                             </optgroup>
@@ -284,19 +284,19 @@ class ScInteractionEditor extends LitElement {
                       </select>
                     </div>
 
-                    <div class="section-title">⚡ Home Assistant Aktionen</div>
-                    ${this._renderActionBlock(pat, idx, patterns, 'tap', 'Einfacher Klick (Tap)')}
-                    ${this._renderActionBlock(pat, idx, patterns, 'double_tap', 'Doppelklick (Double Tap)')}
-                    ${this._renderActionBlock(pat, idx, patterns, 'hold', 'Gedrückt halten (Hold)')}
+                    <div class="section-title">⚡ Home Assistant Actions</div>
+                    ${this._renderActionBlock(pat, idx, patterns, 'tap', 'Tap')}
+                    ${this._renderActionBlock(pat, idx, patterns, 'double_tap', 'Double tap')}
+                    ${this._renderActionBlock(pat, idx, patterns, 'hold', 'Hold')}
 
-                    <div class="section-title">🎬 Optische Animationen (GPU)</div>
+                    <div class="section-title">🎬 Visual animations (GPU)</div>
                     <div class="row">
-                      <label>Klick-Tiefe (Scale)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Aus, 100 = Max. Einpresstiefe</span></label>
+                      <label>Click depth (scale)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Max. press depth</span></label>
                       <input type="range" min="0" max="100" style="width:60%" .value=${pat.scale_depth ?? 50}
                         @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].scale_depth = parseInt(e.target.value); this._commit(n); }}>
                     </div>
                     <div class="row">
-                      <label>Dauerhafte Rotation<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Aus, 100 = Sehr schnell</span></label>
+                      <label>Continuous rotation<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Very fast</span></label>
                       <input type="range" min="0" max="100" style="width:60%" .value=${pat.rotate_speed ?? 0}
                         @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].rotate_speed = parseInt(e.target.value); this._commit(n); }}>
                     </div>
@@ -305,19 +305,19 @@ class ScInteractionEditor extends LitElement {
               </div>
             `;
           })}
-          
+
           <button type="button" class="add-btn" @click=${(e) => {
             e.preventDefault(); e.stopPropagation();
             const n = JSON.parse(JSON.stringify(patterns));
             const newId = Date.now();
             n.push({
-              id: newId, enabled: true, target: 'none', 
+              id: newId, enabled: true, target: 'none',
               tap_action: 'none', double_tap_action: 'none', hold_action: 'none',
               scale_depth: 50, rotate_speed: 0
             });
             this._commit(n);
             this._expanded = { ...this._expanded, [newId]: true };
-          }}>＋ Neue Interaktion hinzufügen</button>
+          }}>＋ Add new interaction</button>
         </div>
       </details>
     `;
@@ -329,7 +329,7 @@ if (!customElements.get('sc-interaction-editor')) {
 }
 ScInteractionEditor._expandedCache = {};
 
-// --- DAS MODUL ---
+// --- THE MODULE ---
 window.SupercardModules['interaction'] = (() => {
 
   function getCssSelector(target) {
@@ -379,7 +379,7 @@ window.SupercardModules['interaction'] = (() => {
       }
 
       if (rotSpeed > 0) {
-        const dur = 200 / rotSpeed; 
+        const dur = 200 / rotSpeed;
         styleStr += `
           @keyframes sc-rot-${pat.id} { to { rotate: 360deg; } }
           ${selector} { animation: sc-rot-${pat.id} ${dur}s linear infinite !important; }
@@ -391,28 +391,28 @@ window.SupercardModules['interaction'] = (() => {
   }
 
   // --- HA ACTION EXECUTOR ---
-  // PATcH: Nimmt 'hass', 'config' und 'hostEl' (Hauptkarte) als Parameter entgegen, um 100% sicher zu triggern.
+  // Takes 'hass', 'config' and 'hostEl' (main card) as parameters to trigger 100% reliably.
   function executeAction(actionType, pat, hass, config, element, hostEl) {
     const type = pat[`${actionType}_action`] || 'none';
     let entity = pat[`${actionType}_entity`];
 
     if (type === 'none') return;
 
-    // Fallback auf die Hauptentität der Karte
+    // Fall back to the card's main entity
     if (!entity && config?.entity) {
       entity = config.entity;
     }
 
     if (type === 'toggle' && entity && hass) {
       const domain = entity.split('.')[0];
-      // Optimiere Toggle für bekannte schaltbare Domains
+      // Optimize toggle for known switchable domains
       if (['light', 'switch', 'input_boolean', 'fan', 'cover', 'lock'].includes(domain)) {
          hass.callService(domain, 'toggle', { entity_id: entity });
       } else {
          hass.callService('homeassistant', 'toggle', { entity_id: entity });
       }
     } else if (type === 'more-info' && entity) {
-      // Event IMMER von der Root-Karte feuern, damit es sicher das Shadow-DOM verlässt
+      // Always fire the event from the root card so it reliably leaves the Shadow DOM
       const ev = new CustomEvent('hass-more-info', { composed: true, bubbles: true, detail: { entityId: entity } });
       (hostEl || element).dispatchEvent(ev);
     } else if (type === 'navigate') {
@@ -433,12 +433,12 @@ window.SupercardModules['interaction'] = (() => {
     }
   }
 
-  // --- EVENT LISTENER INJEKTION ---
+  // --- EVENT LISTENER INJECTION ---
   function onAfterRender(shadow, config) {
     if (!Array.isArray(config.interactions)) return;
 
     const renderer = shadow.querySelector('sc-layout-renderer');
-    // Absolut sicherer HASS Zugriff über das Host-Element
+    // Absolutely safe HASS access via the host element
     const hass = shadow.host.hass || document.querySelector('home-assistant')?.hass;
 
     config.interactions.forEach(pat => {
@@ -473,9 +473,9 @@ window.SupercardModules['interaction'] = (() => {
       if (!el) return;
 
       el.style.cursor = 'pointer';
-      el.style.pointerEvents = 'auto'; 
+      el.style.pointerEvents = 'auto';
       el.style.webkitTapHighlightColor = 'transparent';
-      
+
       const compStyle = getComputedStyle(el);
       if (compStyle.display === 'inline' || compStyle.display === 'contents') {
         el.style.display = 'inline-block';
@@ -494,7 +494,7 @@ window.SupercardModules['interaction'] = (() => {
       const onPointerDown = (e) => {
         preventProp(e);
         isHeld = false;
-        
+
         const currentPat = config.interactions.find(i => i.id === pat.id);
         if (currentPat && currentPat.scale_depth > 0 && currentPat.target !== 'main') {
            el.style.transition = 'scale 0.15s cubic-bezier(0.2, 0, 0, 1)';
@@ -511,14 +511,14 @@ window.SupercardModules['interaction'] = (() => {
         preventProp(e);
         clearTimeout(holdTimer);
         resetScale();
-        
+
         if (isHeld) return;
 
         const currentPat = config.interactions.find(i => i.id === pat.id);
         if (!currentPat) return;
 
         const hasDoubleTap = currentPat.double_tap_action && currentPat.double_tap_action !== 'none';
-        
+
         if (hasDoubleTap) {
           if (clickTimer) {
             clearTimeout(clickTimer);
@@ -528,7 +528,7 @@ window.SupercardModules['interaction'] = (() => {
             clickTimer = setTimeout(() => {
               clickTimer = null;
               executeAction('tap', currentPat, hass, config, el, shadow.host);
-            }, 250); 
+            }, 250);
           }
         } else {
           executeAction('tap', currentPat, hass, config, el, shadow.host);
@@ -551,7 +551,7 @@ window.SupercardModules['interaction'] = (() => {
   let _cachedEditor = null;
   function renderCustomBlock(commitFn, hass, slot) {
     if (!_cachedEditor) _cachedEditor = document.createElement('sc-interaction-editor');
-    _cachedEditor.commitFn = commitFn; 
+    _cachedEditor.commitFn = commitFn;
     _cachedEditor.slot = slot;
     _cachedEditor.hass = hass;
     return _cachedEditor;

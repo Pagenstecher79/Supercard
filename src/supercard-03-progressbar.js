@@ -1,7 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
 // ==========================================
-// 1. HILFSFUNKTIONEN
+// 1. HELPER FUNCTIONS
 // ==========================================
 const safeFloat = (v, d) => { const f = parseFloat(v); return isNaN(f) ? d : f; };
 
@@ -96,7 +96,7 @@ function getBounceEase(intensity) {
 }
 
 // ==========================================
-// 2. DIE KOMPONENTE
+// 2. THE COMPONENT
 // ==========================================
 const ELM_BASE    = 700; 
 const ELM_STATIC  = 800; 
@@ -233,7 +233,7 @@ class ScProgressbar extends LitElement {
   render() {
     if (!this.config || !this.hass) return html``;
 
-    // --- ALIAS ERKENNUNG ---
+    // --- ALIAS DETECTION ---
     let resolvedEntity = this.config.entity;
     let resolvedAttribute = this.config.attribute;
     let resolvedAliasName = '';
@@ -320,7 +320,7 @@ class ScProgressbar extends LitElement {
     
     const fillStyle = `clip-path: ${fillClipPath}; background: ${fillColor}; transition: clip-path var(--pb-anim-dur) var(--pb-bounce-ease), background 0.1s linear;`;
     
-    // --- NEU: Globale Card-Edge-Indent Logik hochziehen ---
+    // --- NEW: Hoist global card-edge indent logic ---
     const rc = this.rootConfig || {};
     const hasCardRadius = rc.layout_shape === 'pill' || parseInt(rc.border_radius || '0') > 0;
     let edgeIndentStr = '0px';
@@ -329,7 +329,7 @@ class ScProgressbar extends LitElement {
     }
     
     // ==========================================
-    // PATCH: GHOST-PILL & TOP-PILL TRENNUNG
+    // PATCH: GHOST-PILL & TOP-PILL SEPARATION
     // ==========================================
     let indicatorGooeyHtml = '';
     let indicatorTopHtml = '';
@@ -378,12 +378,12 @@ class ScProgressbar extends LitElement {
          const pRot = (this._get('indicator_value_rotation', 'auto') === 'auto') ? (isHoriz ? -90 : 0) : parseInt(this._get('indicator_value_rotation'));
          const isVertRot = Math.abs(pRot) === 90;
          
-         // NEU: Dynamische Breitenberechnung basierend auf der Textlänge, damit die Pille nie überläuft
+         // NEW: Dynamic width calculation based on text length so the pill never overflows
          const halfWidth = `calc(${pSize} * (0.8 + ${indDisplayValue.length} * 0.3))`;
          const halfHeight = `calc(${pSize} * 1.1)`;
          const pClampBase = isHoriz ? (isVertRot ? halfHeight : halfWidth) : (isVertRot ? halfWidth : halfHeight);
          
-         // NEU: Smart Indent Add-on für die Pille
+         // NEW: Smart indent add-on for the pill
          let pClampMin = pClampBase;
          let pClampMax = pClampBase;
          if (isHoriz && hasCardRadius) {
@@ -395,13 +395,13 @@ class ScProgressbar extends LitElement {
            ? `left: clamp(${pClampMin}, calc(${targetPct} * 100%), calc(100% - ${pClampMax})); top: 50%; transform: translate(-50%, -50%) rotate(${pRot}deg) translateZ(0); will-change: left, transform; transition: left var(--pb-anim-dur) var(--pb-bounce-ease), background 0.1s linear, color 0.1s linear;` 
            : `bottom: clamp(${pClampBase}, calc(${targetPct} * 100%), calc(100% - ${pClampBase})); left: 50%; transform: translate(-50%, 50%) rotate(${pRot}deg) translateZ(0); will-change: bottom, transform; transition: bottom var(--pb-anim-dur) var(--pb-bounce-ease), background 0.1s linear, color 0.1s linear;`;
 
-         // 1. Die echte Schicht
+         // 1. The real layer
          realPillHtml = html`
             <div style="position:absolute; z-index:${ELM_FLOAT + 50}; background:${finalBg}; color:${pCol}; font-size:${pSize}; padding:0.3em 0.8em; border-radius:100px; font-weight:bold; display:flex; align-items:center; justify-content:center; ${glassCSS} ${pPosStyle}">
               ${indDisplayValue}
             </div>`;
 
-         // 2. Der Schleim-Klon
+         // 2. The goo clone
          if (isGooey) {
             indicatorGooeyHtml = html`
               <div style="position:absolute; z-index:${ELM_DYNAMIC}; background:${exactHexColor}; color:transparent; font-size:${pSize}; padding:0.3em 0.8em; border-radius:100px; display:flex; pointer-events:none; ${pPosStyle}">
@@ -525,7 +525,7 @@ class ScProgressbar extends LitElement {
         } 
       };
       
-      // NEU: Doppelt Adaptive Farben für Haupt-Ticks
+      // NEW: Dual-adaptive colors for main ticks
       const isTickAdaptive = this._get('tick_color_adaptive', false);
       const tColorEmpty = isTickAdaptive ? 'color-mix(in srgb, var(--primary-text-color) 40%, transparent)' : this._get('tick_color', 'rgba(255,255,255,0.3)');
       const tColorFilled = isTickAdaptive ? contrastColor(exactHexColor) : this._get('tick_color', 'rgba(255,255,255,0.3)');
@@ -544,7 +544,7 @@ class ScProgressbar extends LitElement {
       const rawSubLen = this._get('subtick_length', '50%'); 
       const subWidth = parseDim(this._get('subtick_width', 1), `1${u}`, u); 
       
-      // NEU: Doppelt Adaptive Farben für Subticks
+      // NEW: Dual-adaptive colors for subticks
       const isSubtickAdaptive = this._get('subtick_color_adaptive', false);
       const subColorEmpty = isSubtickAdaptive ? 'color-mix(in srgb, var(--primary-text-color) 25%, transparent)' : this._get('subtick_color', 'rgba(255,255,255,0.2)');
       const subColorFilled = isSubtickAdaptive ? contrastColor(exactHexColor) : this._get('subtick_color', 'rgba(255,255,255,0.2)');
@@ -649,7 +649,7 @@ class ScProgressbar extends LitElement {
           const shift = parseDim(this._get('tick_labels_shift', 0), `0${u}`, u); 
           const centerGapOffset = parseDim(this._get('tick_labels_center_gap_offset', 0), `0${u}`, u);
           
-          // NEU: Doppelt Adaptive Farben für Labels
+          // NEW: Dual-adaptive colors for labels
           const isTlAdaptive = this._get('tick_labels_color_adaptive', false);
           const tlColorEmpty = isTlAdaptive ? 'var(--primary-text-color)' : this._get('tick_labels_color', 'var(--secondary-text-color)');
           const tlColorFilled = isTlAdaptive ? contrastColor(exactHexColor) : this._get('tick_labels_color', 'var(--secondary-text-color)');
@@ -779,7 +779,7 @@ class ScProgressbar extends LitElement {
           const fvHh = `calc(${vSizeStr} * 0.6 + 2px)`; 
           const fvClampBase = isHoriz ? (fvVertRot ? fvHh : fvHw) : (fvVertRot ? fvHw : fvHh);
           
-          // NEU: Smart Indent Add-on für den Floating Text
+          // NEW: Smart indent add-on for the floating text
           let fvClampMin = fvClampBase;
           let fvClampMax = fvClampBase;
           if (isHoriz && hasCardRadius) {
@@ -859,184 +859,184 @@ class ScProgressbar extends LitElement {
 if (!customElements.get('sc-progressbar')) customElements.define('sc-progressbar', ScProgressbar);
 
 // ==========================================
-// 3. DER EDITOR KOMPONENTE
+// 3. THE EDITOR COMPONENT
 // ==========================================
 const isCirc = cfg => String(cfg.orientation).startsWith('circular');
 const isLin = cfg => !String(cfg.orientation).startsWith('circular');
 
 const STYLE_FIELDS = [
-  { id: '_section_shape',      label: '── Form & Position',    type: 'section' },
-  { id: 'orientation',         label: 'Ausrichtung / Layout',  type: 'select', options: [ 
-    { value: 'horizontal', label: '↔ Linear Horizontal' }, 
-    { value: 'vertical', label: '↕ Linear Vertikal' },
-    { value: 'circular_donut', label: '⭕ Zirkular: Donut (Vollkreis 360°)' },
-    { value: 'circular_speedo', label: '⏱️ Zirkular: Tacho (270° unten offen)' },
-    { value: 'circular_half', label: '🕳️ Zirkular: Halbkreis (180°)' }
+  { id: '_section_shape',      label: '── Shape & Position',    type: 'section' },
+  { id: 'orientation',         label: 'Orientation / Layout',  type: 'select', options: [
+    { value: 'horizontal', label: '↔ Linear horizontal' },
+    { value: 'vertical', label: '↕ Linear vertical' },
+    { value: 'circular_donut', label: '⭕ Circular: Donut (full circle 360°)' },
+    { value: 'circular_speedo', label: '⏱️ Circular: Speedo (270°, open at bottom)' },
+    { value: 'circular_half', label: '🕳️ Circular: Half circle (180°)' }
   ] },
-  { id: 'base_unit',           label: 'Globale Skalierungs-Einheit (Base Unit)', type: 'select', options: [
-    { value: 'auto', label: 'Auto (Linear: px, Zirkular: cqmin)' },
-    { value: 'px', label: 'px (Starr)' },
-    { value: 'cqmin', label: 'cqmin (Skaliert mit kleinster Kante)' },
-    { value: 'cqw', label: 'cqw (Skaliert mit Breite)' },
-    { value: 'cqh', label: 'cqh (Skaliert mit Höhe)' }
+  { id: 'base_unit',           label: 'Global scaling unit (base unit)', type: 'select', options: [
+    { value: 'auto', label: 'Auto (linear: px, circular: cqmin)' },
+    { value: 'px', label: 'px (fixed)' },
+    { value: 'cqmin', label: 'cqmin (scales with smallest edge)' },
+    { value: 'cqw', label: 'cqw (scales with width)' },
+    { value: 'cqh', label: 'cqh (scales with height)' }
   ] },
-  { id: 'circular_start_position', label: 'Startposition (Uhrzeit)', type: 'select', options: [
-    { value: '0', label: '12 Uhr (Oben)' },
-    { value: '90', label: '3 Uhr (Rechts)' },
-    { value: '180', label: '6 Uhr (Unten)' },
-    { value: '-90', label: '9 Uhr (Links)' }
+  { id: 'circular_start_position', label: 'Start position (clock)', type: 'select', options: [
+    { value: '0', label: '12 o’clock (top)' },
+    { value: '90', label: '3 o’clock (right)' },
+    { value: '180', label: '6 o’clock (bottom)' },
+    { value: '-90', label: '9 o’clock (left)' }
   ], condition: cfg => isCirc(cfg) },
-  { id: 'circular_reverse',      label: 'Richtung umkehren (Gegen Uhrzeigersinn)', type: 'checkbox', condition: cfg => isCirc(cfg) },
-  { id: 'circular_stroke_width', label: 'Ring-Dicke bzw. Segment-Höhe (%)', type: 'range', min: 1, max: 50, step: 1, placeholder: '10', condition: cfg => isCirc(cfg) },
-  { id: 'circular_scale',        label: 'Skalierung des Rings (%)', type: 'range', min: 10, max: 100, step: 1, placeholder: '100', condition: cfg => isCirc(cfg) },
-  { id: 'circular_glow',         label: 'Neon-Glow-Effekt',      type: 'checkbox', condition: cfg => isCirc(cfg) },
-  { id: 'width',               label: 'Breite (CSS)',          type: 'text',   placeholder: '100% oder 20px' },
-  { id: 'height',              label: 'Höhe (CSS)',            type: 'text',   placeholder: '20px oder 100%' },
-  { id: 'border_radius',       label: 'Eckenradius',           type: 'range',  min: 0, max: 50, step: 0.1,   placeholder: '4px', condition: cfg => isLin(cfg) },
-  { id: 'circular_border_radius', label: 'Hintergrund-Eckenradius (%)', type: 'range', min: 0, max: 50, step: 1, placeholder: '50', condition: cfg => isCirc(cfg) },
-  { id: 'position_mode',       label: 'Ankerpunkt / Position', type: '9-sector' },
-  { id: 'offset_x',            label: 'X-Verschiebung (px oder %)', type: 'text', placeholder: '0px' },
-  { id: 'offset_y',            label: 'Y-Verschiebung (px oder %)', type: 'text', placeholder: '0px' },
-  
-  { id: '_section_colors',     label: '── Farben, Verlauf & Animation',   type: 'section' },
-  { id: 'animation_duration',  label: 'Animationsdauer (s)',  type: 'range',  min: 0, max: 10, step: 0.1, placeholder: '0.4' },
-  { id: 'bounce_intensity', label: 'Bounce-Intensität (%)', type: 'range', min: 0, max: 30, dynamic_step: true, placeholder: '50' },
-  { id: 'bg_color',            label: 'Hintergrundfarbe',      type: 'color',  placeholder: '#ffffff' },
-  { id: 'bg_opacity',          label: 'Hintergrund Deckkraft (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '10' },
-  { id: 'fill_color',          label: 'Füllfarbe (Solid)',     type: 'color',  placeholder: 'var(--primary-color)' },
-  { id: 'use_gradient',        label: 'Verlauf (Gradient) nutzen', type: 'checkbox' },
-  { id: 'gradient_as_solid',   label: 'Farbe aus Gradient ableiten (dynamisch)', type: 'checkbox', condition: cfg => cfg.use_gradient },
-  { id: 'gradient_stops',      label: 'Verlauf Farbstops',    type: 'gradient-stops', condition: cfg => cfg.use_gradient },
-  
-  { id: '_section_scale',      label: '── Wertebereich & Haupt-Ticks', type: 'section' },
+  { id: 'circular_reverse',      label: 'Reverse direction (counter-clockwise)', type: 'checkbox', condition: cfg => isCirc(cfg) },
+  { id: 'circular_stroke_width', label: 'Ring thickness / segment height (%)', type: 'range', min: 1, max: 50, step: 1, placeholder: '10', condition: cfg => isCirc(cfg) },
+  { id: 'circular_scale',        label: 'Ring scale (%)', type: 'range', min: 10, max: 100, step: 1, placeholder: '100', condition: cfg => isCirc(cfg) },
+  { id: 'circular_glow',         label: 'Neon glow effect',      type: 'checkbox', condition: cfg => isCirc(cfg) },
+  { id: 'width',               label: 'Width (CSS)',          type: 'text',   placeholder: '100% or 20px' },
+  { id: 'height',              label: 'Height (CSS)',            type: 'text',   placeholder: '20px or 100%' },
+  { id: 'border_radius',       label: 'Corner radius',           type: 'range',  min: 0, max: 50, step: 0.1,   placeholder: '4px', condition: cfg => isLin(cfg) },
+  { id: 'circular_border_radius', label: 'Background corner radius (%)', type: 'range', min: 0, max: 50, step: 1, placeholder: '50', condition: cfg => isCirc(cfg) },
+  { id: 'position_mode',       label: 'Anchor point / position', type: '9-sector' },
+  { id: 'offset_x',            label: 'X offset (px or %)', type: 'text', placeholder: '0px' },
+  { id: 'offset_y',            label: 'Y offset (px or %)', type: 'text', placeholder: '0px' },
+
+  { id: '_section_colors',     label: '── Colors, Gradient & Animation',   type: 'section' },
+  { id: 'animation_duration',  label: 'Animation duration (s)',  type: 'range',  min: 0, max: 10, step: 0.1, placeholder: '0.4' },
+  { id: 'bounce_intensity', label: 'Bounce intensity (%)', type: 'range', min: 0, max: 30, dynamic_step: true, placeholder: '50' },
+  { id: 'bg_color',            label: 'Background color',      type: 'color',  placeholder: '#ffffff' },
+  { id: 'bg_opacity',          label: 'Background opacity (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '10' },
+  { id: 'fill_color',          label: 'Fill color (solid)',     type: 'color',  placeholder: 'var(--primary-color)' },
+  { id: 'use_gradient',        label: 'Use gradient', type: 'checkbox' },
+  { id: 'gradient_as_solid',   label: 'Derive color from gradient (dynamic)', type: 'checkbox', condition: cfg => cfg.use_gradient },
+  { id: 'gradient_stops',      label: 'Gradient color stops',    type: 'gradient-stops', condition: cfg => cfg.use_gradient },
+
+  { id: '_section_scale',      label: '── Value Range & Main Ticks', type: 'section' },
   { id: 'min',                 label: 'Minimum',               type: 'number', placeholder: '0' },
   { id: 'max',                 label: 'Maximum',               type: 'number', placeholder: '100' },
-  { id: 'origin',              label: 'Startpunkt (Wert, z.B. 0)', type: 'number', placeholder: 'Leer = Minimum' },
-  
-  { id: 'show_ticks',          label: 'Ticks anzeigen',        type: 'checkbox', condition: cfg => isLin(cfg) },
-  { id: 'tick_count',          label: 'Anzahl Ticks (wenn Intervall leer)', type: 'range',  min: 0, max: 51, step: 1, placeholder: '10',  condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_interval',       label: 'Tick-Intervall (Wert-Schrittweite)', type: 'number', placeholder: 'z.B. 10', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_hide_last',      label: 'Letzte Tick-Linie ausblenden', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_align',          label: 'Startpunkt / Ausrichtung', type: 'select', options: [{value:'center', label:'Mittig'}, {value:'start', label:'Am Rand (Oben/Links)'}, {value:'end', label:'Gegenüber (Unten/Rechts)'}, {value:'full', label:'Volle Breite (100%)'}], condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_mirror_side',    label: 'Zusätzlich auf andere Seite spiegeln', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && (cfg.tick_align === 'start' || cfg.tick_align === 'end') },
-  { id: 'tick_length',         label: 'Länge Hauptticks (%, px)', type: 'text', placeholder: '100%', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_width',          label: 'Tick-Breite (px oder %)', type: 'text', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_color_adaptive', label: 'Doppelt-Adaptive Farbe (Invertiert am Füllstand)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_color',          label: 'Manuelle Farbe',        type: 'color',  placeholder: 'rgba(255,255,255,0.3)', condition: cfg => isLin(cfg) && cfg.show_ticks && !cfg.tick_color_adaptive },
+  { id: 'origin',              label: 'Start point (value, e.g. 0)', type: 'number', placeholder: 'Empty = minimum' },
 
-  { id: '_section_segments',   label: '── Segmente (Kreis)',   type: 'section', condition: cfg => isCirc(cfg) },
-  { id: 'circular_segmented',  label: 'Kreis in Pillen-Segmente unterteilen', type: 'checkbox', condition: cfg => isCirc(cfg) },
-  { id: 'circular_segment_count', label: 'Anzahl Segmente', type: 'range', min: 2, max: 100, step: 1, placeholder: '40', condition: cfg => isCirc(cfg) && cfg.circular_segmented },
-  { id: 'circular_segment_thickness', label: 'Dicke der Pillen (%)', type: 'range', min: 0.1, max: 10, step: 0.1, placeholder: '2', condition: cfg => isCirc(cfg) && cfg.circular_segmented },
+  { id: 'show_ticks',          label: 'Show ticks',        type: 'checkbox', condition: cfg => isLin(cfg) },
+  { id: 'tick_count',          label: 'Number of ticks (when interval is empty)', type: 'range',  min: 0, max: 51, step: 1, placeholder: '10',  condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'tick_interval',       label: 'Tick interval (value step)', type: 'number', placeholder: 'e.g. 10', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'tick_hide_last',      label: 'Hide last tick line', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'tick_align',          label: 'Start point / alignment', type: 'select', options: [{value:'center', label:'Centered'}, {value:'start', label:'At edge (top/left)'}, {value:'end', label:'Opposite (bottom/right)'}, {value:'full', label:'Full width (100%)'}], condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'tick_mirror_side',    label: 'Also mirror on other side', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && (cfg.tick_align === 'start' || cfg.tick_align === 'end') },
+  { id: 'tick_length',         label: 'Main tick length (%, px)', type: 'text', placeholder: '100%', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'tick_width',          label: 'Tick width (px or %)', type: 'text', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'tick_color_adaptive', label: 'Dual-adaptive color (inverted at fill level)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'tick_color',          label: 'Manual color',        type: 'color',  placeholder: 'rgba(255,255,255,0.3)', condition: cfg => isLin(cfg) && cfg.show_ticks && !cfg.tick_color_adaptive },
+
+  { id: '_section_segments',   label: '── Segments (circle)',   type: 'section', condition: cfg => isCirc(cfg) },
+  { id: 'circular_segmented',  label: 'Split circle into pill segments', type: 'checkbox', condition: cfg => isCirc(cfg) },
+  { id: 'circular_segment_count', label: 'Number of segments', type: 'range', min: 2, max: 100, step: 1, placeholder: '40', condition: cfg => isCirc(cfg) && cfg.circular_segmented },
+  { id: 'circular_segment_thickness', label: 'Pill thickness (%)', type: 'range', min: 0.1, max: 10, step: 0.1, placeholder: '2', condition: cfg => isCirc(cfg) && cfg.circular_segmented },
 
   { id: '_section_subticks',   label: '── Subticks',           type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'show_subticks',       label: 'Subticks anzeigen',     type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'subtick_count',       label: 'Anzahl pro Intervall',  type: 'number', placeholder: '4', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
-  { id: 'subtick_pos',         label: 'Startpunkt / Ausrichtung', type: 'select', options: [{value:'main', label:'Wie Hauptticks'}, {value:'center', label:'Mittig'}, {value:'start', label:'Am Rand (Oben/Links)'}, {value:'end', label:'Gegenüber (Unten/Rechts)'}, {value:'full', label:'Volle Breite (100%)'}], placeholder: 'main', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
-  { id: 'subtick_mirror_side', label: 'Zusätzlich auf andere Seite spiegeln', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && (cfg.subtick_pos === 'start' || cfg.subtick_pos === 'end') },
-  { id: 'subtick_length',      label: 'Länge Subticks (% oder px)',type: 'text', placeholder: '50%', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && cfg.subtick_pos !== 'full' },
-  { id: 'subtick_width',       label: 'Breite (px oder %)',    type: 'text', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
-  { id: 'subtick_color_adaptive', label: 'Doppelt-Adaptive Farbe (Invertiert am Füllstand)', type: 'checkbox', placeholder: 'false', default: false, condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
-  { id: 'subtick_color',       label: 'Manuelle Farbe',        type: 'color', placeholder: 'rgba(255,255,255,0.2)', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && !cfg.subtick_color_adaptive },
+  { id: 'show_subticks',       label: 'Show subticks',     type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'subtick_count',       label: 'Count per interval',  type: 'number', placeholder: '4', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
+  { id: 'subtick_pos',         label: 'Start point / alignment', type: 'select', options: [{value:'main', label:'Same as main ticks'}, {value:'center', label:'Centered'}, {value:'start', label:'At edge (top/left)'}, {value:'end', label:'Opposite (bottom/right)'}, {value:'full', label:'Full width (100%)'}], placeholder: 'main', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
+  { id: 'subtick_mirror_side', label: 'Also mirror on other side', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && (cfg.subtick_pos === 'start' || cfg.subtick_pos === 'end') },
+  { id: 'subtick_length',      label: 'Subtick length (% or px)',type: 'text', placeholder: '50%', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && cfg.subtick_pos !== 'full' },
+  { id: 'subtick_width',       label: 'Width (px or %)',    type: 'text', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
+  { id: 'subtick_color_adaptive', label: 'Dual-adaptive color (inverted at fill level)', type: 'checkbox', placeholder: 'false', default: false, condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
+  { id: 'subtick_color',       label: 'Manual color',        type: 'color', placeholder: 'rgba(255,255,255,0.2)', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && !cfg.subtick_color_adaptive },
 
-  { id: '_section_custom_ticks', label: '── Eigene Ticks (Custom)', type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'custom_ticks',        label: 'Zusätzliche / Manuelle Ticks einfügen', type: 'custom-ticks', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: '_section_custom_ticks', label: '── Custom Ticks', type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'custom_ticks',        label: 'Insert additional / manual ticks', type: 'custom-ticks', condition: cfg => isLin(cfg) && cfg.show_ticks },
 
-  { id: '_section_tick_labels',label: '── Tick-Labels',        type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'show_tick_labels',    label: 'Tick-Labels (Zahlen) anzeigen', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_labeled_extralength', label: 'Extra-Länge bei Labels', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_label_step',     label: 'Nur jedes X-te Label (1=alle)', type: 'number', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_decimals',label: 'Dezimalstellen',        type: 'number', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_size',    label: 'Schriftgröße (CSS Text)', type: 'text', placeholder: '10', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_hide_unit', label: 'Einheit ausblenden', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_hide_first', label: 'Erstes Label (Min) ausblenden', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_hide_last', label: 'Letztes Label (Max) ausblenden', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_rotation',  label: 'Text-Rotation', type: 'select', options: [
-    { value: '0', label: '0° (Horizontal)' },
+  { id: '_section_tick_labels',label: '── Tick Labels',        type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'show_tick_labels',    label: 'Show tick labels (numbers)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'tick_labeled_extralength', label: 'Extra length at labels', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_label_step',     label: 'Only every Xth label (1=all)', type: 'number', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_decimals',label: 'Decimal places',        type: 'number', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_size',    label: 'Font size (CSS text)', type: 'text', placeholder: '10', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_hide_unit', label: 'Hide unit', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_hide_first', label: 'Hide first label (min)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_hide_last', label: 'Hide last label (max)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_rotation',  label: 'Text rotation', type: 'select', options: [
+    { value: '0', label: '0° (horizontal)' },
     { value: '90', label: '90°' },
     { value: '-90', label: '-90°' },
-    { value: '180', label: '180° (Kopf)' }
+    { value: '180', label: '180° (upside down)' }
   ], condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_color_adaptive', label: 'Doppelt-Adaptive Farbe (Invertiert am Füllstand)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_color',   label: 'Eigene Farbe',          type: 'color', placeholder: 'var(--secondary-text-color)', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && !cfg.tick_labels_color_adaptive },
-  { id: 'tick_labels_pos',     label: 'Positionierung',        type: 'select', options: [{value:'start', label:'Davor / Darüber'}, {value:'end', label:'Dahinter / Darunter'}, {value:'center', label:'Mittig'}], condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_shift',   label: 'Verschiebung aus Mitte', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_tick_gap',label: 'Abstand zum Tick', type: 'text', placeholder: '4', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && cfg.tick_labels_pos !== 'center' },
-  { id: 'tick_labels_center_gap_offset', label: 'Mittige Lücke anpassen', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && cfg.tick_labels_pos === 'center' },
+  { id: 'tick_labels_color_adaptive', label: 'Dual-adaptive color (inverted at fill level)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_color',   label: 'Custom color',          type: 'color', placeholder: 'var(--secondary-text-color)', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && !cfg.tick_labels_color_adaptive },
+  { id: 'tick_labels_pos',     label: 'Positioning',        type: 'select', options: [{value:'start', label:'Before / above'}, {value:'end', label:'After / below'}, {value:'center', label:'Centered'}], condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_shift',   label: 'Offset from center', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_tick_gap',label: 'Gap to tick', type: 'text', placeholder: '4', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && cfg.tick_labels_pos !== 'center' },
+  { id: 'tick_labels_center_gap_offset', label: 'Adjust center gap', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && cfg.tick_labels_pos === 'center' },
 
-  { id: '_section_label',      label: '── Beschriftung (Name/Label)', type: 'section' },
-  { id: 'show_label',          label: 'Name / Label anzeigen', type: 'checkbox' },
-  { id: 'label_font_size',     label: 'Schriftgröße (z.B. 12 oder 12cqw)', type: 'text', placeholder: '12',  condition: cfg => cfg.show_label },
-  { id: 'label_bold',          label: 'Fettgedruckt (Bold)',   type: 'checkbox', condition: cfg => cfg.show_label },
-  { id: 'label_color',         label: 'Textfarbe (manuell)',   type: 'color',  placeholder: 'var(--primary-text-color)', condition: cfg => cfg.show_label && !cfg.label_color_adaptive_bar && !cfg.label_color_adaptive_theme },
-  { id: 'label_color_adaptive_bar',   label: 'Adaptiv: Kontrast zur Balkenfarbe', type: 'checkbox', condition: cfg => cfg.show_label && isLin(cfg) },
-  { id: 'label_color_adaptive_bar',   label: 'Farbe vom Gradienten übernehmen', type: 'checkbox', condition: cfg => cfg.show_label && isCirc(cfg) },
-  { id: 'label_color_adaptive_theme', label: 'Adaptiv: HA Theme (Hell/Dunkel)',   type: 'checkbox', condition: cfg => cfg.show_label },
-  { id: 'label_position',      label: 'Position im Balken',    type: '9-sector', condition: cfg => isLin(cfg) && cfg.show_label },
-  { id: 'label_offset_x',      label: 'X-Offset',  type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_label },
-  { id: 'label_offset_y',      label: 'Y-Offset',  type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_label },
-  { id: 'circular_label_offset_y', label: 'Y-Verschiebung im Kreis (%)', type: 'range', min: -100, max: 100, step: 1, placeholder: '0', condition: cfg => isCirc(cfg) && cfg.show_label },
-  { id: 'label_rotation',      label: 'Text-Rotation',         type: 'select', options: [
-    { value: '0', label: '0° (Horizontal)' },
+  { id: '_section_label',      label: '── Label (Name/Label)', type: 'section' },
+  { id: 'show_label',          label: 'Show name / label', type: 'checkbox' },
+  { id: 'label_font_size',     label: 'Font size (e.g. 12 or 12cqw)', type: 'text', placeholder: '12',  condition: cfg => cfg.show_label },
+  { id: 'label_bold',          label: 'Bold',   type: 'checkbox', condition: cfg => cfg.show_label },
+  { id: 'label_color',         label: 'Text color (manual)',   type: 'color',  placeholder: 'var(--primary-text-color)', condition: cfg => cfg.show_label && !cfg.label_color_adaptive_bar && !cfg.label_color_adaptive_theme },
+  { id: 'label_color_adaptive_bar',   label: 'Adaptive: contrast to bar color', type: 'checkbox', condition: cfg => cfg.show_label && isLin(cfg) },
+  { id: 'label_color_adaptive_bar',   label: 'Take color from gradient', type: 'checkbox', condition: cfg => cfg.show_label && isCirc(cfg) },
+  { id: 'label_color_adaptive_theme', label: 'Adaptive: HA theme (light/dark)',   type: 'checkbox', condition: cfg => cfg.show_label },
+  { id: 'label_position',      label: 'Position in the bar',    type: '9-sector', condition: cfg => isLin(cfg) && cfg.show_label },
+  { id: 'label_offset_x',      label: 'X offset',  type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_label },
+  { id: 'label_offset_y',      label: 'Y offset',  type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_label },
+  { id: 'circular_label_offset_y', label: 'Y offset in circle (%)', type: 'range', min: -100, max: 100, step: 1, placeholder: '0', condition: cfg => isCirc(cfg) && cfg.show_label },
+  { id: 'label_rotation',      label: 'Text rotation',         type: 'select', options: [
+    { value: '0', label: '0° (horizontal)' },
     { value: '90', label: '90°' },
     { value: '-90', label: '-90°' }
   ], condition: cfg => isLin(cfg) && cfg.show_label },
 
-  { id: '_section_value',      label: '── Wert & Beschriftung', type: 'section' },
-  { id: 'show_value',          label: 'Wert anzeigen',         type: 'checkbox' },
-  { id: 'value_animated',      label: 'Wert animieren (Füllstand folgen)', type: 'checkbox', condition: cfg => cfg.show_value },
-  { id: 'value_font_size',     label: 'Schriftgröße (z.B. 12 oder 12cqw)', type: 'text', placeholder: '12', condition: cfg => cfg.show_value },
-  { id: 'value_rotation',      label: 'Text-Rotation',         type: 'select', options: [
-    { value: '0', label: '0° (Standard)' },
-    { value: '90', label: '90° (Im Uhrzeigersinn)' },
-    { value: '-90', label: '-90° (Gegen Uhrzeigersinn)' }
+  { id: '_section_value',      label: '── Value & Label', type: 'section' },
+  { id: 'show_value',          label: 'Show value',         type: 'checkbox' },
+  { id: 'value_animated',      label: 'Animate value (follow fill level)', type: 'checkbox', condition: cfg => cfg.show_value },
+  { id: 'value_font_size',     label: 'Font size (e.g. 12 or 12cqw)', type: 'text', placeholder: '12', condition: cfg => cfg.show_value },
+  { id: 'value_rotation',      label: 'Text rotation',         type: 'select', options: [
+    { value: '0', label: '0° (default)' },
+    { value: '90', label: '90° (clockwise)' },
+    { value: '-90', label: '-90° (counter-clockwise)' }
   ], condition: cfg => isLin(cfg) && cfg.show_value },
-  { id: 'value_color',         label: 'Textfarbe (manuell)',   type: 'color',  placeholder: 'var(--primary-text-color)', condition: cfg => cfg.show_value && !cfg.value_color_adaptive_bar && !cfg.value_color_adaptive_theme },
-  { id: 'value_color_adaptive_bar',   label: 'Adaptiv: Kontrast zur Balkenfarbe', type: 'checkbox', condition: cfg => cfg.show_value && isLin(cfg) },
-  { id: 'value_color_adaptive_bar',   label: 'Farbe vom Gradienten übernehmen', type: 'checkbox', condition: cfg => cfg.show_value && isCirc(cfg) },
-  { id: 'value_color_adaptive_theme', label: 'Adaptiv: HA Theme (Hell/Dunkel)',   type: 'checkbox', condition: cfg => cfg.show_value },
-  { id: 'value_bold',          label: 'Fettgedruckt (Bold)',   type: 'checkbox', condition: cfg => cfg.show_value },
-  { id: 'value_decimals',      label: 'Nachkommastellen',      type: 'range',  min: 0, max: 3, step: 1, placeholder: '0', condition: cfg => cfg.show_value },
-  { id: 'value_unit',          label: 'Eigene Einheit (z.B. %)', type: 'text', placeholder: 'Optional', condition: cfg => cfg.show_value },
-  { id: 'value_position',      label: 'Text-Position',         type: 'select', options: [
-    { value: 'center',   label: 'Mittig im Balken' },
-    { value: 'start',    label: 'Am Anfang' },
-    { value: 'end',      label: 'Am Ende' },
-    { value: 'floating', label: 'Wandert mit dem Füllstand' }
+  { id: 'value_color',         label: 'Text color (manual)',   type: 'color',  placeholder: 'var(--primary-text-color)', condition: cfg => cfg.show_value && !cfg.value_color_adaptive_bar && !cfg.value_color_adaptive_theme },
+  { id: 'value_color_adaptive_bar',   label: 'Adaptive: contrast to bar color', type: 'checkbox', condition: cfg => cfg.show_value && isLin(cfg) },
+  { id: 'value_color_adaptive_bar',   label: 'Take color from gradient', type: 'checkbox', condition: cfg => cfg.show_value && isCirc(cfg) },
+  { id: 'value_color_adaptive_theme', label: 'Adaptive: HA theme (light/dark)',   type: 'checkbox', condition: cfg => cfg.show_value },
+  { id: 'value_bold',          label: 'Bold',   type: 'checkbox', condition: cfg => cfg.show_value },
+  { id: 'value_decimals',      label: 'Decimal places',      type: 'range',  min: 0, max: 3, step: 1, placeholder: '0', condition: cfg => cfg.show_value },
+  { id: 'value_unit',          label: 'Custom unit (e.g. %)', type: 'text', placeholder: 'Optional', condition: cfg => cfg.show_value },
+  { id: 'value_position',      label: 'Text position',         type: 'select', options: [
+    { value: 'center',   label: 'Centered in bar' },
+    { value: 'start',    label: 'At the start' },
+    { value: 'end',      label: 'At the end' },
+    { value: 'floating', label: 'Follows the fill level' }
   ], condition: cfg => isLin(cfg) && cfg.show_value },
-  { id: 'circular_value_offset_y', label: 'Y-Verschiebung im Kreis (%)', type: 'range', min: -100, max: 100, step: 1, placeholder: '0', condition: cfg => isCirc(cfg) && cfg.show_value },
+  { id: 'circular_value_offset_y', label: 'Y offset in circle (%)', type: 'range', min: -100, max: 100, step: 1, placeholder: '0', condition: cfg => isCirc(cfg) && cfg.show_value },
 
-  { id: '_section_indicator',  label: '── Indikator & Pille',  type: 'section', condition: cfg => isLin(cfg) },
-  { id: 'show_indicator',      label: 'Indikator-Linie anzeigen', type: 'checkbox', condition: cfg => isLin(cfg) },
-  { id: 'indicator_color',     label: 'Farbe der Linie',       type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator },
-  { id: 'indicator_thickness', label: 'Dicke der Linie (px/%)',type: 'text', placeholder: '2px', condition: cfg => isLin(cfg) && cfg.show_indicator },
-  { id: 'indicator_value',     label: 'Pille mit Wert auf Linie anzeigen', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_indicator },
-  { id: 'value_animated',      label: 'Wert animieren (Füllstand folgen)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
-  { id: 'indicator_value_rotation', label: 'Rotation der Pille', type: 'select', options: [
-    { value: 'auto', label: 'Auto (H ↔ V gekreuzt)' },
-    { value: '0', label: '0° (Horizontal)' },
+  { id: '_section_indicator',  label: '── Indicator & Pill',  type: 'section', condition: cfg => isLin(cfg) },
+  { id: 'show_indicator',      label: 'Show indicator line', type: 'checkbox', condition: cfg => isLin(cfg) },
+  { id: 'indicator_color',     label: 'Line color',       type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator },
+  { id: 'indicator_thickness', label: 'Line thickness (px/%)',type: 'text', placeholder: '2px', condition: cfg => isLin(cfg) && cfg.show_indicator },
+  { id: 'indicator_value',     label: 'Show pill with value on line', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_indicator },
+  { id: 'value_animated',      label: 'Animate value (follow fill level)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
+  { id: 'indicator_value_rotation', label: 'Pill rotation', type: 'select', options: [
+    { value: 'auto', label: 'Auto (H ↔ V crossed)' },
+    { value: '0', label: '0° (horizontal)' },
     { value: '90', label: '90°' },
     { value: '-90', label: '-90°' },
-    { value: '180', label: '180° (Kopf)' }
+    { value: '180', label: '180° (upside down)' }
   ], condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
-  { id: 'indicator_value_decimals', label: 'Nachkommastellen Pille', type: 'range', min: 0, max: 3, step: 1, placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
-  { id: 'indicator_value_adaptive_mode', label: 'Adaptives Verhalten', type: 'select', options: [
-    { value: 'none', label: 'Kein (Manuelle Farben)' },
-    { value: 'pill', label: 'Ganze Pille (Hintergrund adaptiv, Text Kontrast)' },
-    { value: 'text', label: 'Nur Text (Text adaptiv, Hintergrund manuell)' }
+  { id: 'indicator_value_decimals', label: 'Pill decimal places', type: 'range', min: 0, max: 3, step: 1, placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
+  { id: 'indicator_value_adaptive_mode', label: 'Adaptive behavior', type: 'select', options: [
+    { value: 'none', label: 'None (manual colors)' },
+    { value: 'pill', label: 'Whole pill (background adaptive, text contrast)' },
+    { value: 'text', label: 'Text only (text adaptive, background manual)' }
   ], condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
-  { id: 'indicator_value_bg',  label: 'Hintergrundfarbe Pille', type: 'color',  placeholder: '#000000', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value && cfg.indicator_value_adaptive_mode !== 'pill' },
-  { id: 'indicator_value_opacity', label: 'Deckkraft Pille (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '100', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
-  { id: 'indicator_glass_effect', label: 'Glass Effekt (Pille)', type: 'select', options: [
-    { value: 'none', label: 'Kein Effekt (Standard)' },
-    { value: 'glass_gooey', label: 'Liquid & Gooey (3D Glas + Verschmelzen)' },
-    { value: 'glass_clean', label: 'Clean Frost (Apple Style)' },
-    { value: 'glass_clear', label: 'Clear 3D Glass (Klares Glas)' },
-    { value: 'glass_lens', label: 'Convex Lens (Lupe)' },
-    { value: 'glass_dark', label: 'Dark Tinted Glass (Getönt)' }
+  { id: 'indicator_value_bg',  label: 'Pill background color', type: 'color',  placeholder: '#000000', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value && cfg.indicator_value_adaptive_mode !== 'pill' },
+  { id: 'indicator_value_opacity', label: 'Pill opacity (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '100', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
+  { id: 'indicator_glass_effect', label: 'Glass effect (pill)', type: 'select', options: [
+    { value: 'none', label: 'No effect (default)' },
+    { value: 'glass_gooey', label: 'Liquid & gooey (3D glass + merging)' },
+    { value: 'glass_clean', label: 'Clean frost (Apple style)' },
+    { value: 'glass_clear', label: 'Clear 3D glass' },
+    { value: 'glass_lens', label: 'Convex lens (magnifier)' },
+    { value: 'glass_dark', label: 'Dark tinted glass' }
   ], condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
-  { id: 'indicator_value_color', label: 'Textfarbe Pille',     type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value && cfg.indicator_value_adaptive_mode === 'none' },
-  { id: 'indicator_value_font_size', label: 'Schriftgröße Pille (CSS Text)', type: 'text', placeholder: '10', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
+  { id: 'indicator_value_color', label: 'Pill text color',     type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value && cfg.indicator_value_adaptive_mode === 'none' },
+  { id: 'indicator_value_font_size', label: 'Pill font size (CSS text)', type: 'text', placeholder: '10', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
 ];
 
 class ScProgressbarEditor extends LitElement {
@@ -1185,7 +1185,7 @@ class ScProgressbarEditor extends LitElement {
               </div>`)}
             <div style="display:flex; gap:6px; margin-top:4px;">
               <button type="button" class="add-btn" style="flex:1; margin-top:0;" @click=${() => updStop([...stops, { color: '#ffffff', pos: 100 }])}>＋ Stop</button>
-              <button type="button" class="add-btn" style="flex:1; margin-top:0; border-color:var(--secondary-text-color); color:var(--secondary-text-color);" @click=${distributeStops}>⇿ Aufteilen</button>
+              <button type="button" class="add-btn" style="flex:1; margin-top:0; border-color:var(--secondary-text-color); color:var(--secondary-text-color);" @click=${distributeStops}>⇿ Distribute</button>
             </div>
           </div>`;
         break;
@@ -1199,31 +1199,31 @@ class ScProgressbarEditor extends LitElement {
             ${ct.map((t, ti) => html`
               <div class="stop-row" style="flex-wrap:wrap; gap:6px; margin-bottom:4px; padding:8px; background:rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05); border-radius:6px;">
                 <div style="display:flex; align-items:center; gap:4px;">
-                  <span style="font-size:10px; color:var(--secondary-text-color);">Wert</span>
-                  <input type="number" placeholder="Wert" style="width:40px" .value=${t.value ?? 50} @input=${e => updCt(ct.map((x,i) => i===ti ? {...x, value: parseFloat(e.target.value)||0} : x))}>
+                  <span style="font-size:10px; color:var(--secondary-text-color);">Value</span>
+                  <input type="number" placeholder="Value" style="width:40px" .value=${t.value ?? 50} @input=${e => updCt(ct.map((x,i) => i===ti ? {...x, value: parseFloat(e.target.value)||0} : x))}>
                 </div>
                 <div style="display:flex; align-items:center; gap:4px;">
                   <input type="color" .value=${t.color || '#ff0000'} @input=${e => updCt(ct.map((x,i) => i===ti ? {...x, color: e.target.value} : x))}>
                 </div>
                 <div style="display:flex; align-items:center; gap:4px;">
-                  <span style="font-size:10px; color:var(--secondary-text-color);">Breite</span>
-                  <input type="text" style="width:40px" placeholder="B(px/%)" .value=${t.width || '2px'} @input=${e => updCt(ct.map((x,i) => i===ti ? {...x, width: e.target.value} : x))}>
+                  <span style="font-size:10px; color:var(--secondary-text-color);">Width</span>
+                  <input type="text" style="width:40px" placeholder="W(px/%)" .value=${t.width || '2px'} @input=${e => updCt(ct.map((x,i) => i===ti ? {...x, width: e.target.value} : x))}>
                 </div>
                 <div style="display:flex; align-items:center; gap:4px;">
-                  <span style="font-size:10px; color:var(--secondary-text-color);">Länge</span>
-                  <input type="text" style="width:45px" placeholder="main" title="Leer oder 'main' für Haupttick-Länge" .value=${t.length || ''} @input=${e => updCt(ct.map((x,i) => i===ti ? {...x, length: e.target.value} : x))}>
+                  <span style="font-size:10px; color:var(--secondary-text-color);">Length</span>
+                  <input type="text" style="width:45px" placeholder="main" title="Empty or 'main' for main tick length" .value=${t.length || ''} @input=${e => updCt(ct.map((x,i) => i===ti ? {...x, length: e.target.value} : x))}>
                 </div>
                 <div style="display:flex; align-items:center; gap:4px; flex:1;">
                   <select style="width:100%; font-size:11px; padding:2px;" @change=${e => updCt(ct.map((x,i) => i===ti ? {...x, align: e.target.value} : x))}>
-                    <option value="main" ?selected=${!t.align || t.align === 'main'}>Pos: Wie Haupt</option>
-                    <option value="center" ?selected=${t.align === 'center'}>Pos: Mittig</option>
-                    <option value="start" ?selected=${t.align === 'start'}>Pos: Rand 1</option>
-                    <option value="end" ?selected=${t.align === 'end'}>Pos: Rand 2</option>
-                    <option value="full" ?selected=${t.align === 'full'}>Pos: Voll</option>
+                    <option value="main" ?selected=${!t.align || t.align === 'main'}>Pos: Same as main</option>
+                    <option value="center" ?selected=${t.align === 'center'}>Pos: Centered</option>
+                    <option value="start" ?selected=${t.align === 'start'}>Pos: Edge 1</option>
+                    <option value="end" ?selected=${t.align === 'end'}>Pos: Edge 2</option>
+                    <option value="full" ?selected=${t.align === 'full'}>Pos: Full</option>
                   </select>
                 </div>
                 ${(t.align === 'start' || t.align === 'end') ? html`
-                  <div style="display:flex; align-items:center; gap:2px;" title="Auf andere Seite spiegeln">
+                  <div style="display:flex; align-items:center; gap:2px;" title="Mirror to other side">
                     <input type="checkbox" .checked=${!!t.mirror} @change=${e => updCt(ct.map((x,i) => i===ti ? {...x, mirror: e.target.checked} : x))}>
                     <span style="font-size:10px; opacity:0.8;">🪞</span>
                   </div>
@@ -1231,7 +1231,7 @@ class ScProgressbarEditor extends LitElement {
                 <button class="del-btn" @click=${() => updCt(ct.filter((_,i) => i !== ti))}>✕</button>
               </div>`)}
             <button type="button" class="add-btn" style="margin-top:4px; padding:6px;"
-              @click=${() => updCt([...ct, { value: 50, color: '#ff0000', width: '2px', length: '', align: 'main', mirror: false }])}>＋ Custom Tick hinzufügen</button>
+              @click=${() => updCt([...ct, { value: 50, color: '#ff0000', width: '2px', length: '', align: 'main', mirror: false }])}>＋ Add custom tick</button>
           </div>`;
         break;
       }
@@ -1295,7 +1295,7 @@ class ScProgressbarEditor extends LitElement {
     let title = '';
     if (isAlias) {
       const s = resolvedEntity ? this.hass?.states[resolvedEntity] : null;
-      const friendly = s ? (s.attributes.friendly_name || resolvedEntity) : (resolvedEntity || 'Unbenannt');
+      const friendly = s ? (s.attributes.friendly_name || resolvedEntity) : (resolvedEntity || 'Unnamed');
       let val = s ? (aliasObj.attribute ? s.attributes[aliasObj.attribute] : s.state) : '-';
       const uom = (s && !aliasObj.attribute && s.attributes.unit_of_measurement) ? ` ${s.attributes.unit_of_measurement}` : '';
       title = `[${aliasObj.alias || 'Alias'}] ${friendly}`;
@@ -1306,7 +1306,7 @@ class ScProgressbarEditor extends LitElement {
       if (!title && resolvedEntity && this.hass?.states[resolvedEntity]) {
         title = this.hass.states[resolvedEntity].attributes.friendly_name || resolvedEntity;
       } else if (!title) {
-        title = `Balken ${idx + 1}`;
+        title = `Bar ${idx + 1}`;
       }
     }
 
@@ -1321,49 +1321,49 @@ class ScProgressbarEditor extends LitElement {
           <div style="display:flex; gap:12px; align-items:center;" @click=${e => e.stopPropagation()}>
             <ha-switch
               .checked=${entry.active !== false}
-              title="Balken aktivieren / deaktivieren"
+              title="Enable / disable bar"
               style="margin-right: 4px;"
               @change=${e => updateEntry('active', e.target.checked)}>
             </ha-switch>
-            <button title="Klonen"
+            <button title="Clone"
               style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--primary-color);padding:0;"
               @click=${e => {
-                e.preventDefault(); 
+                e.preventDefault();
                 const n = JSON.parse(JSON.stringify(bars));
                 const clone = JSON.parse(JSON.stringify(n[idx]));
-                if(clone.label_text) clone.label_text += ' (Kopie)';
+                if(clone.label_text) clone.label_text += ' (Copy)';
                 n.splice(idx + 1, 0, clone);
                 this.commitFn('progressbars', n);
                 this._openStates[`pb_${idx + 1}`] = true;
                 this.requestUpdate();
               }}>⧉</button>
-            <button title="Nach oben" ?disabled=${idx === 0}
+            <button title="Move up" ?disabled=${idx === 0}
               style="background:none;border:none;cursor:${idx===0?'default':'pointer'};font-size:14px;color:${idx===0?'var(--divider-color,#555)':'var(--primary-text-color)'};padding:0;"
               @click=${e => { e.preventDefault(); if(idx===0) return; const n=JSON.parse(JSON.stringify(bars)); const t=n[idx-1]; n[idx-1]=n[idx]; n[idx]=t; this.commitFn('progressbars',n); }}>▲</button>
-            <button title="Nach unten" ?disabled=${idx === bars.length-1}
+            <button title="Move down" ?disabled=${idx === bars.length-1}
               style="background:none;border:none;cursor:${idx===bars.length-1?'default':'pointer'};font-size:14px;color:${idx===bars.length-1?'var(--divider-color,#555)':'var(--primary-text-color)'};padding:0;"
               @click=${e => { e.preventDefault(); if(idx===bars.length-1) return; const n=JSON.parse(JSON.stringify(bars)); const t=n[idx+1]; n[idx+1]=n[idx]; n[idx]=t; this.commitFn('progressbars',n); }}>▼</button>
-            <button title="Entfernen"
+            <button title="Remove"
               style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);padding:0;"
               @click=${e => { e.preventDefault(); this._removeProgressbar(idx, bars); }}>🗑</button>
           </div>
         </summary>
         <div class="inner-content">
           <div class="entity-row">
-            <label>Interner Name / Manuelles Label</label>
-            <input type="text" .value=${entry.label_text || ''} placeholder="Wird auf Balken angezeigt (falls aktiv)" 
+            <label>Internal name / manual label</label>
+            <input type="text" .value=${entry.label_text || ''} placeholder="Shown on the bar (if active)"
               ?disabled=${entry.use_alias_name && entry.global_id && entry.global_id !== 'manual'}
               style=${entry.use_alias_name && entry.global_id && entry.global_id !== 'manual' ? 'opacity: 0.5;' : ''}
               @input=${e => updateEntry('label_text', e.target.value)}>
           </div>
 
           <div class="entity-row" style="margin-top: 4px; margin-bottom: 4px;">
-            <label>Datenquelle</label>
+            <label>Data source</label>
             <select style="width: 100%;" @change=${e => updateEntry('global_id', e.target.value)}>
-              <option value="manual" ?selected=${entry.global_id === 'manual' || !entry.global_id}>Manuelle Auswahl</option>
+              <option value="manual" ?selected=${entry.global_id === 'manual' || !entry.global_id}>Manual selection</option>
               ${(this.slot?.global_entities || []).map(ge => {
                 const stateObj = ge.entity ? this.hass.states[ge.entity] : null;
-                const name = ge.alias || stateObj?.attributes?.friendly_name || ge.entity || 'Unbenannt';
+                const name = ge.alias || stateObj?.attributes?.friendly_name || ge.entity || 'Unnamed';
                 let val = stateObj ? stateObj.state : '-';
                 if (stateObj && ge.attribute && stateObj.attributes[ge.attribute] !== undefined) {
                   val = stateObj.attributes[ge.attribute];
@@ -1371,15 +1371,15 @@ class ScProgressbarEditor extends LitElement {
                 const uom = (!ge.attribute && stateObj?.attributes?.unit_of_measurement) ? ` ${stateObj.attributes.unit_of_measurement}` : '';
                 const attrLabel = ge.attribute ? ` (${ge.attribute})` : '';
                 const label = `[${ge.alias || 'Alias'}] ${name}${attrLabel}: ${val}${uom}`;
-                
+
                 return html`<option value=${ge.id} ?selected=${entry.global_id === ge.id}>${label}</option>`;
               })}
             </select>
           </div>
-          
+
           ${(entry.global_id && entry.global_id !== 'manual') ? html`
             <div class="row" style="margin-bottom: 8px; background: rgba(3, 169, 244, 0.1); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(3, 169, 244, 0.2);">
-              <label style="color: var(--primary-color);">Alias-Namen als Balken-Beschriftung nutzen</label>
+              <label style="color: var(--primary-color);">Use alias name as bar label</label>
               <ha-switch .checked=${!!entry.use_alias_name}
                 @change=${e => updateEntry('use_alias_name', e.target.checked)}>
               </ha-switch>
@@ -1387,11 +1387,11 @@ class ScProgressbarEditor extends LitElement {
           ` : html`
             <div style="background:rgba(0,0,0,0.15); padding:10px; border-radius:8px; border:1px solid var(--divider-color,#333); margin-bottom:8px;">
               <div class="entity-row" style="margin-bottom: 8px;">
-                <label>Quelle</label>
+                <label>Source</label>
                 <ha-entity-picker .hass=${this.hass} .allowCustomEntity=${false} .value=${entry.entity || ''} @value-changed=${e => updateEntry('entity', e.detail.value)}></ha-entity-picker>
               </div>
               <div class="entity-row">
-                <label>Attribut</label>
+                <label>Attribute</label>
                 <ha-selector .hass=${this.hass} .selector=${{ attribute: { entity_id: entry.entity || this.slot?.entity || '' } }} .value=${entry.attribute || ''} @value-changed=${e => updateEntry('attribute', e.detail.value || '')}></ha-selector>
               </div>
             </div>
@@ -1399,7 +1399,7 @@ class ScProgressbarEditor extends LitElement {
 
           ${bars.length > 1 ? html`
             <div class="row" style="margin-top:8px; padding-top:8px; border-top:1px dashed var(--divider-color,#444);">
-              <label>Style kopieren von...</label>
+              <label>Copy style from...</label>
               <select style="width:60%" @change=${e => {
                 const srcIdx = parseInt(e.target.value);
                 if (isNaN(srcIdx)) return;
@@ -1409,7 +1409,7 @@ class ScProgressbarEditor extends LitElement {
                 this.commitFn('progressbars', n);
                 e.target.value = '';
               }}>
-                <option value="" selected disabled>Bitte wählen...</option>
+                <option value="" selected disabled>Please select...</option>
                 ${bars.map((b,i) => i !== idx ? html`<option value=${i}>Bar ${i+1}${b.label_text?' — '+b.label_text:(b.entity?' — '+b.entity.split('.')[1]:'')}</option>` : '')}
               </select>
             </div>` : ''}
@@ -1441,11 +1441,11 @@ class ScProgressbarEditor extends LitElement {
         <div class="inner-content">
           ${!this.slot.progressbar_active ? html`
             <div style="font-size:12px; color:var(--secondary-text-color); text-align:center; padding:8px 0;">
-              Modul deaktiviert
+              Module disabled
             </div>` : html`
             ${bars.map((entry, idx) => this._renderBarPanel(entry, idx, bars))}
             <button type="button" class="add-btn" @click=${() => this._addProgressbar(bars)}>
-              ＋ Neue Progressbar hinzufügen
+              ＋ Add new progressbar
             </button>`}
         </div>
       </details>`;
@@ -1454,7 +1454,7 @@ class ScProgressbarEditor extends LitElement {
 if (!customElements.get('sc-progressbar-editor')) customElements.define('sc-progressbar-editor', ScProgressbarEditor);
 
 // ==========================================
-// 4. BRÜCKE ZUM CORE
+// 4. BRIDGE TO CORE
 // ==========================================
 window.SupercardModules = window.SupercardModules || {};
 window.SupercardModules['progressbar'] = (() => {

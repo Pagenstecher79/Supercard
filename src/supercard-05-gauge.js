@@ -1,6 +1,6 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
-// --- HILFSFUNKTIONEN ---
+// --- HELPER FUNCTIONS ---
 const safeFloat = (v, d) => { const f = parseFloat(v); return isNaN(f) ? d : f; };
 const polarToCart = (cx, cy, r, deg) => { const rad = deg * Math.PI / 180; return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }; };
 
@@ -40,7 +40,7 @@ const buildSectorPath = (cx, cy, innerR, outerR, startAng, endAng) => {
   return `M${p1.x.toFixed(3)},${p1.y.toFixed(3)} A${outerR},${outerR},0,${la},1,${p2.x.toFixed(3)},${p2.y.toFixed(3)} L${p3.x.toFixed(3)},${p3.y.toFixed(3)} A${innerR},${innerR},0,${la},0,${p4.x.toFixed(3)},${p4.y.toFixed(3)}Z`;
 };
 
-// --- DIE LIT COMPONENT ---
+// --- THE LIT COMPONENT ---
 class ScGauge extends LitElement {
   static get properties() {
     return {
@@ -99,7 +99,7 @@ class ScGauge extends LitElement {
     this._thresholdActive = false;
     this._bgColorThresholdActive = false;
     this._isInitialized = false;
-    this._lastRenderAngle = null; // NEU: Speichert den letzten Winkel für die Berechnung der Differenz
+    this._lastRenderAngle = null; // NEW: Stores the last angle for calculating the difference
   }
 
   firstUpdated() {
@@ -327,20 +327,20 @@ class ScGauge extends LitElement {
     const targetAngle = startAngle + pct * totalAngle;
     const renderAngle = this._isInitialized ? targetAngle : startAngle;
 
-    // --- NEU: DIFFERENZ UND DYNAMISCHE DAUER BERECHNEN ---
+    // --- NEW: CALCULATE DIFFERENCE AND DYNAMIC DURATION ---
     if (this._lastRenderAngle === null) this._lastRenderAngle = startAngle;
     const diff = Math.abs(targetAngle - this._lastRenderAngle);
     if (this._isInitialized) this._lastRenderAngle = targetAngle;
 
     const easingMode = this._get('animation_easing', 'smooth');
 
-    // Basis-Dauer (entkoppelt für Spring)
+    // Base duration (decoupled for spring)
     let dur = safeFloat(this._get('animation_duration', 0.8), 0.8);
     if (easingMode === 'spring') {
       dur = safeFloat(this._get('animation_spring_duration', 1.5), 1.5);
     }
     
-    // Dynamische Beschleunigung (Optional)
+    // Dynamic acceleration (optional)
     if (this._get('animation_dynamic_speed', false) && this._isInitialized && diff > 0) {
       const distancePct = Math.min(1, diff / totalAngle);
       if (this._get('animation_dynamic_speed_invert', false)) {
@@ -350,8 +350,8 @@ class ScGauge extends LitElement {
       }
     }
 
-    // --- NEU: EINPENDELN (EASING CURVES) ---
-    let easingCurve = 'cubic-bezier(0.2, 0, 0, 1)'; // smooth (Standard)
+    // --- NEW: SETTLING (EASING CURVES) ---
+    let easingCurve = 'cubic-bezier(0.2, 0, 0, 1)'; // smooth (default)
     
     if (easingMode === 'overshoot_light')  easingCurve = 'cubic-bezier(0.25, 1.15, 0.5, 1)';
     if (easingMode === 'overshoot_medium') easingCurve = 'cubic-bezier(0.34, 1.4, 0.64, 1)';
@@ -360,7 +360,7 @@ class ScGauge extends LitElement {
     
     if (easingMode === 'spring') {
       const bounces = parseInt(this._get('animation_spring_bounces', 3));
-      // Amplitude berechnen: 100% = kaum Dämpfung, 0% = massive Dämpfung
+      // Calculate amplitude: 100% = barely any damping, 0% = massive damping
       const rawAmp = safeFloat(this._get('animation_spring_amplitude', 50), 50) / 100;
       const decay = 8 - (rawAmp * 7); 
       
@@ -927,7 +927,7 @@ class ScGauge extends LitElement {
 
 if (!customElements.get('sc-gauge')) customElements.define('sc-gauge', ScGauge);
 
-// --- BRÜCKE ZUM CORE ---
+// --- BRIDGE TO CORE ---
 window.SupercardModules['gauge'] = (() => {
 
   function update({ config }) {

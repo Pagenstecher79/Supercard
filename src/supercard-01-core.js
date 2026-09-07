@@ -1,6 +1,6 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
-// --- ZENTRALES LAYER-DICTIONARY ---
+// --- CENTRAL LAYER DICTIONARY ---
 export const SC_LAYERS = {
   BG_NATIVE: 0,
   BG_STATIC: 100,
@@ -41,7 +41,7 @@ class SupercardCore extends LitElement {
   }
 
   setConfig(config) {
-    // FIX: Kein Zwang mehr für eine Entität!
+    // FIX: No longer requires an entity!
     this.config = config;
   }
 
@@ -86,7 +86,7 @@ class SupercardCore extends LitElement {
         isolation: isolate;
         cursor: pointer;
         position: relative;
-        z-index: ${SC_LAYERS.BG_NATIVE}; 
+        z-index: ${SC_LAYERS.BG_NATIVE};
       }
 
       .supercard-container::before {
@@ -95,7 +95,7 @@ class SupercardCore extends LitElement {
         position: absolute;
         inset: 0;
         background-color: var(--uc-color, transparent);
-        z-index: ${SC_LAYERS.BG_STATIC}; 
+        z-index: ${SC_LAYERS.BG_STATIC};
         pointer-events: none;
         opacity: var(--uc-opacity, 0);
         transition: background-color 0.6s ease, opacity 0.6s ease;
@@ -137,7 +137,7 @@ class SupercardCore extends LitElement {
         height: calc(42px * var(--sc-scale, 1));
         border-radius: 50%;
         flex-shrink: 0;
-        z-index: ${SC_LAYERS.ELM_STATIC}; 
+        z-index: ${SC_LAYERS.ELM_STATIC};
         position: relative;
       }
 
@@ -212,7 +212,7 @@ class SupercardCore extends LitElement {
     const stateObj = entityId ? this.hass.states[entityId] : null;
 
     if (entityId && !stateObj) {
-      return html`<ha-card style="padding: 16px; color: red;">Entität nicht gefunden: ${entityId}</ha-card>`;
+      return html`<ha-card style="padding: 16px; color: red;">Entity not found: ${entityId}</ha-card>`;
     }
 
     let stateVal = stateObj ? stateObj.state : '';
@@ -256,7 +256,7 @@ class SupercardCore extends LitElement {
       if (typeof mod.initCSS === 'function') injectedCSS += mod.initCSS();
     });
 
-    // FIX: Die lebenswichtige Änderung! Optional Chaining (?.) schützt vor Abstürzen, wenn stateObj null ist.
+    // FIX: The critical change! Optional chaining (?.) protects against crashes when stateObj is null.
     const uom = stateObj?.attributes?.unit_of_measurement ? ' ' + stateObj.attributes.unit_of_measurement : '';
     const headerText = slot.entity_name_override || stateObj?.attributes?.friendly_name || entityId || 'Supercard';
     const iconId = stateObj?.attributes?.icon || 'mdi:bookmark';
@@ -273,21 +273,21 @@ class SupercardCore extends LitElement {
     const handleTouchOrClick = (e) => {
       const path = e.composedPath();
       const isSubElement = path.some(el => el.classList && (el.classList.contains('sub-button') || el.classList.contains('supercard-icon-container')));
-      
+
       if (isSubElement) {
-        return; 
+        return;
       }
 
-      e.stopPropagation(); 
+      e.stopPropagation();
 
-      // FIX: Ignoriert den Klick standardmäßig, es sei denn, er wurde im Editor explizit aktiviert
+      // FIX: Ignores the click by default unless it was explicitly enabled in the editor
       if (!slot.enable_click) return;
 
       if (this.config) {
         const event = new Event('hass-action', { bubbles: true, composed: true });
-        event.detail = { 
-          config: this.config, 
-          action: 'tap' 
+        event.detail = {
+          config: this.config,
+          action: 'tap'
         };
         this.dispatchEvent(event);
       }
@@ -323,11 +323,11 @@ if (!customElements.get('supercard-core')) customElements.define('supercard-core
 window.customCards = window.customCards || [];
 if (!window.customCards.find(c => c.type === 'supercard-core')) {
   window.customCards.push({
-    type: 'supercard-core', name: 'Supercard', description: 'Modulare LitElement Supercard für Home Assistant', preview: false, documentationURL: ''
+    type: 'supercard-core', name: 'Supercard', description: 'Modular LitElement Supercard for Home Assistant', preview: false, documentationURL: ''
   });
 }
 
-// --- HELPER FÜR MODUL-FORMULARE ---
+// --- HELPER FOR MODULE FORMS ---
 class ScGenericModuleEditor extends LitElement {
   static get properties() { return { slot: { type: Object }, fields: { type: Array }, title: { type: String }, commitFn: { type: Object }, _isOpen: { state: true } }; }
   constructor() { super(); this._timeouts = {}; }
@@ -403,7 +403,7 @@ class ScGenericModuleEditor extends LitElement {
 }
 customElements.define('sc-generic-module-editor', ScGenericModuleEditor);
 
-// --- HAUPT-EDITOR ALS LIT-ELEMENT ---
+// --- MAIN EDITOR AS LIT ELEMENT ---
 class SupercardModularEditor extends LitElement {
   static get properties() {
     return {
@@ -437,7 +437,7 @@ class SupercardModularEditor extends LitElement {
     if (!this.config || !this.hass) return html``;
     const slot = this.config.supercard || {};
 
-    const moduleOrder = ['core', 'layout', 'labels', 'color', 'gauge', 'progressbar', 'debug']; 
+    const moduleOrder = ['core', 'layout', 'labels', 'color', 'gauge', 'progressbar', 'debug'];
     const availableModules = Object.keys(window.SupercardModules);
 
     availableModules.sort((a, b) => {
@@ -481,7 +481,7 @@ class SupercardModularEditor extends LitElement {
 }
 customElements.define('supercard-modular-editor', SupercardModularEditor);
 
-// --- CORE EDITOR MODUL ---
+// --- CORE EDITOR MODULE ---
 window.SupercardModules['core'] = window.SupercardModules['core'] || {};
 Object.assign(window.SupercardModules['core'], (() => {
 
@@ -509,22 +509,22 @@ Object.assign(window.SupercardModules['core'], (() => {
         ha-entity-picker { display: block; width: 100%; }
       `;
     }
-    // --- NEUE METHODEN FÜR GLOBAL ENTITIES ---
+    // --- NEW METHODS FOR GLOBAL ENTITIES ---
     _addGlobalEntity() {
       const entities = [...(this.slot.global_entities || [])];
-      
-      // Fallback für non-HTTPS Umgebungen (lokale HA Instanzen)
-      const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) 
-        ? crypto.randomUUID() 
+
+      // Fallback for non-HTTPS environments (local HA instances)
+      const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
         : 'ge_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 
       entities.push({
         id: newId,
         alias: '',
-        entity: this.slot.entity || '', 
+        entity: this.slot.entity || '',
         attribute: ''
       });
-      
+
       this.commitFn('global_entities', entities);
     }
 
@@ -556,45 +556,45 @@ Object.assign(window.SupercardModules['core'], (() => {
       return html`
         <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px 16px;">
           <details class="inner-section" ?open=${this._expanded.basis} @toggle=${e => this._expanded = {...this._expanded, basis: e.target.open}}>
-            <summary>── Basis & Entität(en) <span style="font-size:10px;">▼</span></summary>
-            <div class="inner-content"> 
+            <summary>── Basics & Entity(ies) <span style="font-size:10px;">▼</span></summary>
+            <div class="inner-content">
 
               <div class="col">
-                <label>Haupt-Entität</label>
-                <ha-selector 
-                  .hass=${this.hass} 
-                  .selector=${{ entity: {} }} 
-                  .value=${this.slot.entity || ''} 
+                <label>Main entity</label>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ entity: {} }}
+                  .value=${this.slot.entity || ''}
                   @value-changed=${e => update('entity', e.detail.value)}>
                 </ha-selector>
               </div>
 
               <div class="col">
-                <label>Attribut (optional)</label>
-                <ha-selector 
-                  .hass=${this.hass} 
-                  .selector=${{ attribute: { entity_id: this.slot.entity || '' } }} 
-                  .value=${this.slot.entity_attribute || ''} 
+                <label>Attribute (optional)</label>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ attribute: { entity_id: this.slot.entity || '' } }}
+                  .value=${this.slot.entity_attribute || ''}
                   @value-changed=${e => update('entity_attribute', e.detail.value)}>
                 </ha-selector>
               </div>
 
               <div class="row" style="margin-top: 12px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
-                <label>Klick-Aktion (Detailansicht) aktivieren</label>
+                <label>Enable click action (detail view)</label>
                 <label class="toggle">
                   <input type="checkbox" .checked=${!!this.slot.enable_click} @change=${e => update('enable_click', e.target.checked)}>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
-              <!-- === NEUER BLOCK: GLOBAL ENTITIES === -->
+              <!-- === NEW BLOCK: GLOBAL ENTITIES === -->
               <div class="col" style="margin-top: 12px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
                 <div class="row" style="margin-bottom: 12px;">
-                  <label style="font-weight: 600;">Globale Entitäten (Alias)</label>
+                  <label style="font-weight: 600;">Global entities (alias)</label>
                   <div style="cursor: pointer; background: var(--primary-color, #03a9f4); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;" @click="${() => this._addGlobalEntity()}">
-                    + Hinzufügen
+                    + Add
                   </div>
                 </div>
-                
+
                 <ha-sortable handle-selector=".handle" @item-moved=${this._handleSort}>
                   <div class="global-entities-list" style="display: flex; flex-direction: column; gap: 8px;">
                     ${(this.slot.global_entities || []).map((ge, index) => html`
@@ -604,26 +604,26 @@ Object.assign(window.SupercardModules['core'], (() => {
                             <ha-icon class="handle" icon="mdi:drag" style="cursor: grab; color: var(--secondary-text-color);"></ha-icon>
                             <span style="font-weight: normal; font-size: 13px; line-height: 1.2;">
                               ${(() => {
-                                // 1. Hole das State-Objekt aus HA
+                                // 1. Get the state object from HA
                                 const stateObj = ge.entity ? this.hass.states[ge.entity] : null;
-                                
-                                // 2. Bestimme den Namen (Alias oder HA Friendly Name)
-                                const name = ge.alias || (stateObj?.attributes?.friendly_name || ge.entity || 'Neuer Alias');
-                                
-                                if (!stateObj) return name; // Fallback, falls Entität nicht existiert
 
-                                // 3. Hole den Wert (State oder Attribut)
+                                // 2. Determine the name (alias or HA friendly name)
+                                const name = ge.alias || (stateObj?.attributes?.friendly_name || ge.entity || 'New alias');
+
+                                if (!stateObj) return name; // Fallback if entity doesn't exist
+
+                                // 3. Get the value (state or attribute)
                                 let val = stateObj.state;
                                 if (ge.attribute && stateObj.attributes[ge.attribute] !== undefined) {
                                   val = stateObj.attributes[ge.attribute];
                                 }
-                                
-                                // 4. Einheit anhängen (falls vorhanden, aber nur bei Main-State)
-                                const uom = (!ge.attribute && stateObj.attributes?.unit_of_measurement) 
-                                  ? ` ${stateObj.attributes.unit_of_measurement}` 
+
+                                // 4. Append unit (if present, but only for the main state)
+                                const uom = (!ge.attribute && stateObj.attributes?.unit_of_measurement)
+                                  ? ` ${stateObj.attributes.unit_of_measurement}`
                                   : '';
 
-                                // 5. Baue den finalen String zusammen
+                                // 5. Assemble the final string
                                 const attrLabel = ge.attribute ? ` (${ge.attribute})` : '';
                                 return html`<strong>${name}</strong>${attrLabel}: ${val}${uom}`;
                               })()}
@@ -633,11 +633,11 @@ Object.assign(window.SupercardModules['core'], (() => {
                         </summary>
                         <div class="inner-content" style="padding-top: 8px;">
                           <div class="col">
-                            <label>Alias Name</label>
+                            <label>Alias name</label>
                             <input type="text" .value=${ge.alias || ''} @input=${e => this._updateGlobalEntity(index, 'alias', e.target.value)}>
                           </div>
                           <div class="col" style="margin-top: 8px;">
-                            <label>Entität</label>
+                            <label>Entity</label>
                             <ha-selector
                               .hass=${this.hass}
                               .selector=${{ entity: {} }}
@@ -646,9 +646,9 @@ Object.assign(window.SupercardModules['core'], (() => {
                             </ha-selector>
                           </div>
                           <div class="col" style="margin-top: 8px;">
-                            <label>Attribut (optional)</label>
+                            <label>Attribute (optional)</label>
                             <div style="display: flex; align-items: center; gap: 8px;">
-                              
+
                               <ha-selector
                                 style="flex: 1; width: 100%;"
                                 .hass=${this.hass}
@@ -656,16 +656,16 @@ Object.assign(window.SupercardModules['core'], (() => {
                                 .value=${ge.attribute}
                                 @value-changed=${e => this._updateGlobalEntity(index, 'attribute', e.detail.value)}>
                               </ha-selector>
-                              
+
                               ${ge.attribute ? html`
-                                <ha-icon 
-                                  icon="mdi:close-circle" 
-                                  title="Attribut leeren"
+                                <ha-icon
+                                  icon="mdi:close-circle"
+                                  title="Clear attribute"
                                   @click=${() => this._updateGlobalEntity(index, 'attribute', '')}
                                   style="cursor: pointer; color: var(--secondary-text-color); --mdc-icon-size: 24px; padding: 4px;">
                                 </ha-icon>
                               ` : ''}
-                              
+
                             </div>
                           </div>
 
@@ -675,23 +675,23 @@ Object.assign(window.SupercardModules['core'], (() => {
                   </div>
                 </ha-sortable>
               </div>
-              <!-- === ENDE NEUER BLOCK === -->
+              <!-- === END NEW BLOCK === -->
 
             </div>
           </details>
-            
+
           <details class="inner-section" ?open=${this._expanded.dim} @toggle=${e => this._expanded = {...this._expanded, dim: e.target.open}}>
-            <summary>── Karte & Dimensionen <span style="font-size:10px;">▼</span></summary>
+            <summary>── Card & Dimensions <span style="font-size:10px;">▼</span></summary>
             <div class="inner-content">
               <div class="row">
-                <label>Karten-Form</label>
+                <label>Card shape</label>
                 <select @change=${e => update('layout_shape', e.target.value)}>
-                  <option value="rectangle" ?selected=${this.slot.layout_shape === 'rectangle'}>Rechteckig</option>
-                  <option value="pill" ?selected=${this.slot.layout_shape === 'pill'}>Pille (Rund)</option>
+                  <option value="rectangle" ?selected=${this.slot.layout_shape === 'rectangle'}>Rectangular</option>
+                  <option value="pill" ?selected=${this.slot.layout_shape === 'pill'}>Pill (rounded)</option>
                 </select>
               </div>
               <div class="col">
-                <label>Ecken-Radius (px)</label>
+                <label>Corner radius (px)</label>
                 <div style="display:flex; gap:8px; align-items:center;">
                   <input type="range" min="0" max="100" step="1" style="flex:1;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
                   <input type="number" min="0" max="100" style="width:64px;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
@@ -699,24 +699,24 @@ Object.assign(window.SupercardModules['core'], (() => {
               </div>
 
               <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
-                <label>Breite responsiv (HA Layout)</label>
+                <label>Responsive width (HA layout)</label>
                 <label class="toggle"><input type="checkbox" .checked=${this.slot.card_width_responsive !== false} @change=${e => update('card_width_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
               </div>
               ${this.slot.card_width_responsive === false ? html`
                 <div class="col">
-                  <label>Breite absolut (px oder %)</label>
-                  <input type="text" placeholder="z.B. 200px" .value=${this.slot.card_width || ''} @input=${e => update('card_width', e.target.value)}>
+                  <label>Absolute width (px or %)</label>
+                  <input type="text" placeholder="e.g. 200px" .value=${this.slot.card_width || ''} @input=${e => update('card_width', e.target.value)}>
                 </div>
               ` : ''}
 
               <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
-                <label>Höhe responsiv (HA Layout)</label>
+                <label>Responsive height (HA layout)</label>
                 <label class="toggle"><input type="checkbox" .checked=${this.slot.card_height_responsive === true} @change=${e => update('card_height_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
               </div>
               ${this.slot.card_height_responsive !== true ? html`
                 <div class="col">
-                  <label>Höhe absolut (px)</label>
-                  <input type="number" placeholder="z.B. 80" .value=${this.slot.card_height || ''} @input=${e => update('card_height', parseInt(e.target.value))}>
+                  <label>Absolute height (px)</label>
+                  <input type="number" placeholder="e.g. 80" .value=${this.slot.card_height || ''} @input=${e => update('card_height', parseInt(e.target.value))}>
                 </div>
               ` : ''}
             </div>

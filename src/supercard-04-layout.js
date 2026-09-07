@@ -1,12 +1,12 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
-// --- VERFÜGBARE ELEMENTE ---
+// --- AVAILABLE ELEMENTS ---
 function getAvailableElements(slot) {
   const elements = [
-    { id: 'empty', label: 'Leer', group: 'Basis' },
-    { id: 'icon', label: 'Icon (Haupt-Entität)', group: 'Basis' },
-    { id: 'name', label: 'Name (Haupt-Entität)', group: 'Basis' },
-    { id: 'state', label: 'Zustand / Wert', group: 'Basis' }
+    { id: 'empty', label: 'Empty', group: 'Basic' },
+    { id: 'icon', label: 'Icon (main entity)', group: 'Basic' },
+    { id: 'name', label: 'Name (main entity)', group: 'Basic' },
+    { id: 'state', label: 'State / value', group: 'Basic' }
   ];
 
   const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
@@ -23,20 +23,20 @@ function getAvailableElements(slot) {
   if (Array.isArray(slot.labels_list)) {
     slot.labels_list.forEach((lbl, idx) => {
       const lblName = lbl.label_text || `Label ${idx + 1}`;
-      const statusStr = !lbl.enabled ? ' (deaktiviert)' : '';
+      const statusStr = !lbl.enabled ? ' (disabled)' : '';
       const gName = `Label ${idx + 1} - ${lblName}${statusStr}`;
 
-      elements.push({ id: `label_${idx}`, label: `Komplett (Container/Indikator)`, group: gName });
-      elements.push({ id: `label_${idx}_icon`, label: `Nur Icon`, group: gName });
-      elements.push({ id: `label_${idx}_name`, label: `Nur Name`, group: gName });
-      elements.push({ id: `label_${idx}_value`, label: `Nur Wert`, group: gName });
+      elements.push({ id: `label_${idx}`, label: `Complete (container/indicator)`, group: gName });
+      elements.push({ id: `label_${idx}_icon`, label: `Icon only`, group: gName });
+      elements.push({ id: `label_${idx}_name`, label: `Name only`, group: gName });
+      elements.push({ id: `label_${idx}_value`, label: `Value only`, group: gName });
     });
   }
 
   return elements;
 }
 
-// --- HELPER: Migration & Standardisierung ---
+// --- HELPER: Migration & standardization ---
 function getCellItems(cell) {
   if (Array.isArray(cell.items)) {
     return cell.items.map(item => {
@@ -307,7 +307,7 @@ class ScLayoutRenderer extends LitElement {
 }
 if (!customElements.get('sc-layout-renderer')) customElements.define('sc-layout-renderer', ScLayoutRenderer);
 
-// --- DER EDITOR (INKL. TRACKPAD & DRAG'N'DROP) ---
+// --- THE EDITOR (INCL. TRACKPAD & DRAG'N'DROP) ---
 class ScLayoutEditor extends LitElement {
   static get properties() {
     return {
@@ -322,7 +322,7 @@ class ScLayoutEditor extends LitElement {
     super();
     this._expanded = ScLayoutEditor._expandedCache ?? {};
     this._dragState = null; 
-    this._dndSource = null; // Für Drag and Drop Sortierung
+    this._dndSource = null; // For drag and drop sorting
   }
 
   static get styles() {
@@ -353,7 +353,7 @@ class ScLayoutEditor extends LitElement {
         border-style: dashed !important;
       }
       
-      /* HIER WAR DER FEHLER: Wir ignorieren NICHT die cell-list! So bleibt sie greifbar. */
+      /* THIS WAS THE BUG: we do NOT ignore the cell-list! This keeps it grabbable. */
       .is-dragging .row-card > :not(.cell-list), .is-dragging .cell-card > * { pointer-events: none !important; }
       
       .dragging-ghost { opacity: 0.4; filter: grayscale(1); border: 1px dashed var(--primary-color) !important; }
@@ -385,7 +385,7 @@ class ScLayoutEditor extends LitElement {
     ScLayoutEditor._expandedCache = this._expanded;
   }
 
-  // --- HTML5 DRAG AND DROP (Sortierung) ---
+  // --- HTML5 DRAG AND DROP (sorting) ---
   _handleDragStart(e, type, rIdx, cIdx = null) {
     e.stopPropagation();
     this._dndSource = { type, rIdx, cIdx };
@@ -405,7 +405,7 @@ class ScLayoutEditor extends LitElement {
   _handleDragOver(e, type) {
     if (!this._dndSource) return;
     
-    // Nur reagieren und abfangen, wenn der gezogene Typ zum Container passt!
+    // Only react and intercept when the dragged type matches the container!
     if (this._dndSource.type === type) {
       e.preventDefault(); 
       e.stopPropagation(); 
@@ -441,7 +441,7 @@ class ScLayoutEditor extends LitElement {
       const [movedCell] = n[source.rIdx].cells.splice(source.cIdx, 1);
       n[targetRIdx].cells.splice(targetCIdx, 0, movedCell);
       
-      // Auto-Breiten updaten
+      // Update auto widths
       [source.rIdx, targetRIdx].forEach(r => {
         const row = n[r];
         if (!row || row.cells.length === 0) return;
@@ -470,9 +470,9 @@ class ScLayoutEditor extends LitElement {
     }
   }
 
-  // --- TRACKPAD LOGIK ---
+  // --- TRACKPAD LOGIC ---
   _handlePointerDown(e, rIdx, cIdx, iIdx, type, layout) {
-    // WICHTIG: KEIN e.preventDefault() hier! Das blockiert sonst den Drag auf iOS/Touch.
+    // IMPORTANT: NO e.preventDefault() here! Otherwise it blocks dragging on iOS/touch.
     e.stopPropagation();
     
     const now = Date.now();
@@ -496,7 +496,7 @@ class ScLayoutEditor extends LitElement {
     const canvas = e.currentTarget.closest('.trackpad-canvas');
     const rect = canvas.getBoundingClientRect();
     
-    // WICHTIG: Capture muss zwingend auf das berührte Element (Target), nicht auf den Canvas!
+    // IMPORTANT: capture must go on the touched element (target), not the canvas!
     e.currentTarget.setPointerCapture(e.pointerId);
 
     this._dragState = {
@@ -591,22 +591,22 @@ class ScLayoutEditor extends LitElement {
     return html`
       <div class="trackpad-wrap">
         <div class="row" style="margin-bottom: 4px;">
-          <label style="font-weight:bold; color:var(--primary-color);">📐 Freifläche (Canvas)</label>
+          <label style="font-weight:bold; color:var(--primary-color);">📐 Free-form Area (Canvas)</label>
         </div>
-        
+
         <div style="font-size: 10px; color: var(--secondary-text-color); margin-bottom: 8px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 4px; border-left: 2px solid var(--primary-color);">
-          <strong>Mathe:</strong> Zelle (${Math.round(cellWidthFraction*100)}% B / ${Math.round(rowFraction*100)}% H) = <strong>${mathAspectRounded}</strong>
+          <strong>Math:</strong> Cell (${Math.round(cellWidthFraction*100)}% W / ${Math.round(rowFraction*100)}% H) = <strong>${mathAspectRounded}</strong>
         </div>
 
         <div class="row" style="margin-bottom: 8px;">
           <div style="display:flex; gap:4px; align-items:center;">
-            <label style="font-size:10px;">Helfer-Grid:</label>
+            <label style="font-size:10px;">Helper grid:</label>
             <select style="font-size:11px; padding:2px;" @change=${e => {
               const n = JSON.parse(JSON.stringify(layout));
               n[rIdx].cells[cIdx]._gridSnap = parseFloat(e.target.value);
               this._commit(n);
             }}>
-              <option value="0" ?selected=${snapVal === 0}>Aus (1%)</option>
+              <option value="0" ?selected=${snapVal === 0}>Off (1%)</option>
               <option value="5" ?selected=${snapVal === 5}>5%</option>
               <option value="10" ?selected=${snapVal === 10}>10%</option>
               <option value="20" ?selected=${snapVal === 20}>20%</option>
@@ -623,7 +623,7 @@ class ScLayoutEditor extends LitElement {
               n[rIdx].cells[cIdx]._editorAspectRatio = parseFloat(e.target.value);
               this._commit(n);
             }}>
-            <button title="Auf exakte Mathematik (${mathAspectRounded}) zurücksetzen" 
+            <button title="Reset to exact math (${mathAspectRounded})"
               style="background:none;border:none;cursor:pointer;font-size:12px;padding:0; margin-left:2px; ${isOverride ? 'filter:none; opacity:1;' : 'filter:grayscale(1); opacity:0.4;'}" 
               @click=${() => {
                 const n = JSON.parse(JSON.stringify(layout));
@@ -672,7 +672,7 @@ class ScLayoutEditor extends LitElement {
     `;
   }
 
-  // --- ITEM EDITOR (Werte & Typo) ---
+  // --- ITEM EDITOR (values & typography) ---
   _renderItemEditor(item, rIdx, cIdx, iIdx, layout, allElements, usedElements) {
     const hasTypo = ['name','state'].includes(item.id) || item.id?.startsWith('label_');
     const updateVal = (key, val) => {
@@ -697,7 +697,7 @@ class ScLayoutEditor extends LitElement {
               const n = JSON.parse(JSON.stringify(layout));
               n[rIdx].cells[cIdx].items.splice(iIdx, 1);
               this._commit(n);
-            }}>✕ Entfernen</button>
+            }}>✕ Remove</button>
         </div>
         
         ${isExp ? html`
@@ -707,7 +707,7 @@ class ScLayoutEditor extends LitElement {
               ${(() => {
                 const groups = {};
                 allElements.filter(e => e.id !== 'empty').forEach(el => {
-                  const g = el.group || 'Allgemein';
+                  const g = el.group || 'General';
                   if (!groups[g]) groups[g] = [];
                   groups[g].push(el);
                 });
@@ -735,17 +735,17 @@ class ScLayoutEditor extends LitElement {
           </div>
           <div class="row" style="gap:4px; margin-bottom: 8px;">
             <div style="display:flex; flex-direction:column; flex:1;">
-              <label style="font-size:10px;">Breite (%)</label>
+              <label style="font-size:10px;">Width (%)</label>
               <input type="number" step="1" .value=${Math.round(item.w)} @change=${e => updateVal('w', parseFloat(e.target.value))}>
             </div>
             <div style="display:flex; flex-direction:column; flex:1;">
-              <label style="font-size:10px;">Höhe (%)</label>
+              <label style="font-size:10px;">Height (%)</label>
               <input type="number" step="1" .value=${Math.round(item.h)} @change=${e => updateVal('h', parseFloat(e.target.value))}>
             </div>
           </div>
 
           <div class="row" style="margin-top:4px;">
-            <label style="font-size:11px;">Innere Ausrichtung</label>
+            <label style="font-size:11px;">Inner alignment</label>
             <div class="grid-picker" style="width:40px; height:40px;">
               ${['tl','tc','tr','cl','cc','cr','bl','bc','br'].map(pos => html`
                 <div class="grid-dot ${item.inner===pos?'active':''}" title="${pos}" @click=${() => updateVal('inner', pos)}></div>`)}
@@ -755,7 +755,7 @@ class ScLayoutEditor extends LitElement {
           ${hasTypo ? html`
             <div style="border-top:1px dashed var(--divider-color); margin-top:8px; padding-top:8px;">
               <div class="row" style="margin-top:4px;">
-                <label>Größe</label>
+                <label>Size</label>
                 <div style="display:flex;width:60%;gap:4px;">
                   <input type="number" step="0.1" style="flex:1" placeholder="Auto" .value=${item.font_size??''} @input=${e => updateVal('font_size', e.target.value !== '' ? parseFloat(e.target.value) : null)}>
                   <select style="width:75px" @change=${e => updateVal('font_unit', e.target.value)}>
@@ -768,19 +768,19 @@ class ScLayoutEditor extends LitElement {
                 </div>
               </div>
               <div class="row" style="margin-top:6px; margin-bottom:4px;">
-                <label style="font-size:11px;" title="Verringern, wenn der Text zu viel freien Rand lässt (z.B. bei schmalen Zahlen wie 1 oder .)">Text-Dichte (Faktor)</label>
+                <label style="font-size:11px;" title="Decrease if the text leaves too much free margin (e.g. with narrow characters like 1 or .)">Text density (factor)</label>
                 <div style="display:flex; align-items:center; width:60%; gap:8px;">
                   <input type="range" min="0.2" max="0.9" step="0.05" style="flex:1" .value=${item.font_factor || 0.55} @input=${e => updateVal('font_factor', parseFloat(e.target.value))}>
                   <span style="font-size:10px; width:24px; text-align:right;">${item.font_factor || 0.55}</span>
                 </div>
               </div>
               <div class="row" style="margin-top:4px;">
-                <label>Schriftstil</label>
+                <label>Font style</label>
                 <select style="width:60%" @change=${e => updateVal('font_weight', e.target.value || null)}>
-                  <option value="" ?selected=${!item.font_weight}>Standard</option>
-                  <option value="bold" ?selected=${item.font_weight==='bold'}>Fett</option>
+                  <option value="" ?selected=${!item.font_weight}>Default</option>
+                  <option value="bold" ?selected=${item.font_weight==='bold'}>Bold</option>
                   <option value="normal" ?selected=${item.font_weight==='normal'}>Normal</option>
-                  <option value="100" ?selected=${item.font_weight==='100'}>Dünn</option>
+                  <option value="100" ?selected=${item.font_weight==='100'}>Thin</option>
                 </select>
               </div>
             </div>` : ''}
@@ -797,7 +797,7 @@ class ScLayoutEditor extends LitElement {
 
     return html`
       <details class="inner-section">
-        <summary>── Layout & Freifläche <div style="display:flex; align-items:center; gap:8px;">
+        <summary>── Layout & Free-form Area <div style="display:flex; align-items:center; gap:8px;">
           <ha-switch .checked=${!!this.slot.layout_active} @click=${e => e.stopPropagation()} @change=${e => this.dispatchEvent(new CustomEvent('layout-update', { detail: { layout_active: e.target.checked } }))}></ha-switch>
           <span>▼</span>
         </summary>
@@ -805,7 +805,7 @@ class ScLayoutEditor extends LitElement {
 
         <div class="row-card" style="margin-bottom: 12px; border-color: var(--primary-color); background: rgba(3, 169, 244, 0.05);">
             <div class="row" style="margin-bottom: 8px;">
-              <label style="font-weight: bold; color: var(--primary-color);">👁 Standard-Elemente anzeigen</label>
+              <label style="font-weight: bold; color: var(--primary-color);">👁 Show default elements</label>
             </div>
             <div class="row">
               <label>Icon</label>
@@ -814,13 +814,13 @@ class ScLayoutEditor extends LitElement {
               }}></ha-switch>
             </div>
             <div class="row" style="margin-top: 8px;">
-              <label>Name (Entität)</label>
+              <label>Name (entity)</label>
               <ha-switch .checked=${this.slot.hide_entity_name !== true} @change=${e => {
                 this.dispatchEvent(new CustomEvent('layout-update', { detail: { hide_entity_name: !e.target.checked } }));
               }}></ha-switch>
             </div>
             <div class="row" style="margin-top: 8px;">
-              <label>Zustand (Wert)</label>
+              <label>State (value)</label>
               <ha-switch .checked=${this.slot.hide_entity_state !== true} @change=${e => {
                 this.dispatchEvent(new CustomEvent('layout-update', { detail: { hide_entity_state: !e.target.checked } }));
               }}></ha-switch>
@@ -836,7 +836,7 @@ class ScLayoutEditor extends LitElement {
                 }}></ha-switch>
               </div>
               <div style="font-size:11px; color:var(--secondary-text-color); margin-top:4px;">
-                Zeigt im Dashboard grüne (Inhalt/Breite) und rote (ID) Indikatoren an.
+                Shows green (content/width) and red (ID) indicators in the dashboard.
               </div>
             </div>
           </div>
@@ -864,7 +864,7 @@ class ScLayoutEditor extends LitElement {
                       <path fill="currentColor" d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
                     </svg>
                   </div>
-                  <span style="margin-right:8px">${isRowExpanded ? '▼' : '▶'}</span>Zeile ${rIdx + 1}
+                  <span style="margin-right:8px">${isRowExpanded ? '▼' : '▶'}</span>Row ${rIdx + 1}
                 </div>
                 <button type="button" style="background:none;border:none;color:#f44;cursor:pointer;" @click=${(e) => {
                   e.stopPropagation(); const n = [...layout]; n.splice(rIdx, 1); this._commit(n);
@@ -873,7 +873,7 @@ class ScLayoutEditor extends LitElement {
 
               ${isRowExpanded ? html`
                 <div class="row" style="margin-top: 8px;">
-                  <label>Zeilen-Höhe (%)</label>
+                  <label>Row height (%)</label>
                   <div style="display:flex; align-items:center; width:60%; gap:8px;">
                     <input type="range" min="0" max="100" step="1" style="flex:1" .value=${row.flex ?? 0} @input=${e => {
                       const n = JSON.parse(JSON.stringify(layout)); n[rIdx].flex = parseInt(e.target.value); this._commit(n);
@@ -883,7 +883,7 @@ class ScLayoutEditor extends LitElement {
                 </div>
 
                 <div class="row" style="margin-top:12px; margin-bottom:8px;">
-                    <label>Breite automatisch aufteilen</label>
+                    <label>Auto-split width</label>
                     <ha-switch .checked=${!!row.auto_width} @change=${e => {
                       const n = JSON.parse(JSON.stringify(layout));
                       n[rIdx].auto_width = e.target.checked;
@@ -897,7 +897,7 @@ class ScLayoutEditor extends LitElement {
 
                   ${!row.auto_width ? html`
                     <div class="row" style="margin-bottom:8px;">
-                      <label style="color: var(--secondary-text-color);">Breiten verketten (Ergibt immer 100%)</label>
+                      <label style="color: var(--secondary-text-color);">Chain widths (always totals 100%)</label>
                       <ha-switch .checked=${!!row.sync_widths} @change=${e => {
                         const n = JSON.parse(JSON.stringify(layout));
                         n[rIdx].sync_widths = e.target.checked;
@@ -917,7 +917,7 @@ class ScLayoutEditor extends LitElement {
                           n[rIdx].cells.forEach((c, i) => { c.width = (i === n[rIdx].cells.length - 1) ? (100 - (w * i)) : w; });
                           this._commit(n);
                         }
-                      }}>⚖️ Alle Container gleich breit</button>
+                      }}>⚖️ Equal width for all containers</button>
                     </div>
                   ` : ''}
                 <div class="cell-list">
@@ -944,7 +944,7 @@ class ScLayoutEditor extends LitElement {
                               <path fill="currentColor" d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
                             </svg>
                           </div>
-                          <span style="margin-right:8px">${isCellExpanded ? '▼' : '▶'}</span>Zelle ${cIdx+1}
+                          <span style="margin-right:8px">${isCellExpanded ? '▼' : '▶'}</span>Cell ${cIdx+1}
                         </div>
                         <button type="button" style="background:none;border:none;color:#f44;cursor:pointer;" @click=${(e) => {
                           e.stopPropagation(); const n = JSON.parse(JSON.stringify(layout)); n[rIdx].cells.splice(cIdx, 1); this._commit(n);
@@ -954,7 +954,7 @@ class ScLayoutEditor extends LitElement {
                       ${isCellExpanded ? html`
                         ${!row.auto_width ? html`
                         <div class="row" style="margin-top: 6px; margin-bottom: 8px;">
-                          <label>Breite (%)</label>
+                          <label>Width (%)</label>
                           <div style="display:flex; align-items:center; width:60%; gap:8px;">
                             <input type="range" min="1" max="100" step="1" style="flex:1;" .value=${cell.width || 100} @input=${e => {
                               const n = JSON.parse(JSON.stringify(layout));
@@ -1038,7 +1038,7 @@ class ScLayoutEditor extends LitElement {
                           const firstFree = allElements.find(e => e.id !== 'empty' && !usedElements.includes(e.id));
                           n[rIdx].cells[cIdx].items.push({ id: firstFree?.id || 'name', x: 0, y: 0, w: 33.333, h: 33.333, inner: 'cc' });
                           this._commit(n);
-                        }}>＋ Element hinzufügen</button>
+                        }}>＋ Add element</button>
                       ` : ''}
                     </div>`;
                   })}
@@ -1047,7 +1047,7 @@ class ScLayoutEditor extends LitElement {
                   const n = JSON.parse(JSON.stringify(layout));
                   n[rIdx].cells.push({ id: 'c'+Date.now(), width: 100, items: [] });
                   this._commit(n); this._expanded = { ...this._expanded, [`r${rIdx}c${n[rIdx].cells.length-1}`]: true };
-                }}>＋ Zelle hinzufügen</button>
+                }}>＋ Add cell</button>
               ` : ''}
             </div>`;
           })}
@@ -1056,7 +1056,7 @@ class ScLayoutEditor extends LitElement {
             const n = JSON.parse(JSON.stringify(layout));
             n.push({ id: 'r'+Date.now(), flex: 0, cells: [{ id: 'c'+Date.now(), width: 100, items: [] }] });
             this._commit(n); this._expanded = { ...this._expanded, [`r${n.length-1}`]: true };
-          }}>＋ Neue Zeile hinzufügen</button>
+          }}>＋ Add new row</button>
         </div>
       </details>
     `;
@@ -1065,7 +1065,7 @@ class ScLayoutEditor extends LitElement {
 if (!customElements.get('sc-layout-editor')) ScLayoutEditor._expandedCache = {};
 customElements.define('sc-layout-editor', ScLayoutEditor);
 
-// --- BRÜCKE ZUM CORE ---
+// --- BRIDGE TO CORE ---
 window.SupercardModules['layout'] = (() => {
   function resolveElement(shadow, id) {
     if (id === 'icon')  return shadow.querySelector('#icon');
