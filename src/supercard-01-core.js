@@ -374,7 +374,9 @@ class SupercardCore extends LitElement {
 
       e.stopPropagation();
 
-      // FIX: Ignores the click by default unless it was explicitly enabled in the editor
+      // No longer exposed in the editor - the interaction module covers this and
+      // more, per element rather than for the whole card. The key is still
+      // honoured so existing configurations keep their detail view.
       if (!slot.enable_click) return;
 
       if (this.config) {
@@ -672,13 +674,6 @@ Object.assign(window.SupercardModules['core'], (() => {
                 </ha-selector>
               </div>
 
-              <div class="row" style="margin-top: 12px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
-                <label>Enable click action (detail view)</label>
-                <label class="toggle">
-                  <input type="checkbox" .checked=${!!this.slot.enable_click} @change=${e => update('enable_click', e.target.checked)}>
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
               <!-- === NEW BLOCK: GLOBAL ENTITIES === -->
               <div class="col" style="margin-top: 12px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
                 <div class="row" style="margin-bottom: 12px;">
