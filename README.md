@@ -11,6 +11,42 @@
 
 ---
 
+## 📦 Installation
+
+### Via HACS (recommended)
+
+Supercard is not in the default HACS store yet, so add it as a custom repository:
+
+1. In Home Assistant, open **HACS**.
+2. Click the **⋮** menu (top right) → **Custom repositories**.
+3. Enter the repository URL `https://github.com/Pagenstecher79/Supercard`, choose type **Dashboard** (called **Lovelace** in older HACS versions), and click **Add**.
+4. Search for **Supercard** in HACS, open it, and click **Download**.
+5. Reload your browser (a hard refresh clears the cached old version).
+
+HACS registers the dashboard resource for you. If your dashboards are in YAML mode, add it manually instead:
+
+```yaml
+lovelace:
+  resources:
+    - url: /hacsfiles/Supercard/supercard.js
+      type: module
+```
+
+### Manual installation
+
+1. Download `supercard.js` from the [latest release](https://github.com/Pagenstecher79/Supercard/releases/latest).
+2. Copy it to `config/www/supercard/supercard.js` in your Home Assistant configuration.
+3. Add the resource under **Settings → Dashboards → ⋮ → Resources**:
+   * URL: `/local/supercard/supercard.js`
+   * Type: **JavaScript Module**
+4. Reload your browser.
+
+### Adding the card
+
+Once installed, add a card to any dashboard and pick **Supercard** from the card picker, or switch to the YAML editor and start with `type: custom:supercard-core` (see the [configuration example](#️-configuration-example-yaml) below).
+
+---
+
 ## 🌟 Key Features
 
 * **Layered Render Pipeline (`Z-Index Hierarchy`)**:
