@@ -928,7 +928,8 @@ class ScGauge extends LitElement {
 if (!customElements.get('sc-gauge')) customElements.define('sc-gauge', ScGauge);
 
 // --- BRIDGE TO CORE ---
-window.SupercardModules['gauge'] = (() => {
+window.SupercardModules['gauge'] = window.SupercardModules['gauge'] || {};
+Object.assign(window.SupercardModules['gauge'], (() => {
 
   function update({ config }) {
     if (!config?.gauge_active) return {};
@@ -957,4 +958,4 @@ window.SupercardModules['gauge'] = (() => {
   }
 
   return { update, onAfterRender, initCSS: () => '' };
-})();
+})());
