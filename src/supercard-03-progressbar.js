@@ -120,6 +120,7 @@ class ScProgressbar extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this._resizeObs) this._resizeObs.disconnect();
+    if (this._animFrame) { cancelAnimationFrame(this._animFrame); this._animFrame = null; }
   }
 
   _checkEdges() {
@@ -235,12 +236,16 @@ class ScProgressbar extends LitElement {
     const pct = Math.max(0, Math.min(1, (rawVal - min) / range));
     const animDur = safeFloat(this._get('animation_duration', 0.4), 0.4);
 
+    const needsFrames = this._get('value_animated', false)
+      || this._get('use_gradient', false)
+      || this._get('circular_segmented', false);
+
     if (this._isInitialized && pct !== this._targetPct) {
       this._targetPct = pct;
-      this._animatePct(pct, animDur * 1000);
+      if (needsFrames) this._animatePct(pct, animDur * 1000);
     }
 
-    const renderPct = this._isInitialized ? this._displayPct : 0;
+    const renderPct = this._isInitialized ? (needsFrames ? this._displayPct : pct) : 0;
     const originPct = Math.max(0, Math.min(1, (originVal - min) / range));
     
     const targetPct = this._isInitialized ? pct : originPct;
@@ -1435,29 +1440,15 @@ if (!customElements.get('sc-progressbar-editor')) customElements.define('sc-prog
 window.SupercardModules = window.SupercardModules || {};
 window.SupercardModules['progressbar'] = window.SupercardModules['progressbar'] || {};
 Object.assign(window.SupercardModules['progressbar'], (() => {
-  function update({ config }) {
+  function update({ config, hass }) {
     if (!config?.progressbar_active) return {};
     const bars = Array.isArray(config.progressbars) && config.progressbars.length > 0 ? config.progressbars : [];
     if (bars.length === 0) return {};
     return {
       litOverlay: html`${bars.map((cfg, idx) => cfg.active !== false ? html`
-        <sc-progressbar data-idx="${idx}" .config=${cfg} .rootConfig=${config} .globalEntities=${config.global_entities}></sc-progressbar>
+        <sc-progressbar data-idx="${idx}" .config=${cfg} .hass=${hass} .rootConfig=${config} .globalEntities=${config.global_entities}></sc-progressbar>
       ` : '')}`
     };
-  }
-
-  function onAfterRender(shadow, config) {
-    if (!config?.progressbar_active) return;
-    const bars = Array.isArray(config.progressbars) ? config.progressbars : [];
-    const hass = document.querySelector('home-assistant')?.hass;
-    if (!hass) return;
-    shadow.querySelectorAll('sc-progressbar').forEach(el => {
-      const idx = parseInt(el.getAttribute('data-idx'));
-      el.config = bars[idx];
-      el.rootConfig = config;
-      el.hass = hass;
-      el.globalEntities = config.global_entities;
-    });
   }
 
   function editorFields() { return []; }
@@ -1471,5 +1462,5 @@ Object.assign(window.SupercardModules['progressbar'], (() => {
     return _cachedEditor;
   }
 
-  return /** @type {SupercardModule} */ ({ update, onAfterRender, initCSS: () => '', editorFields, renderCustomBlock });
+  return /** @type {SupercardModule} */ ({ update, editorFields, renderCustomBlock });
 })());

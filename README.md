@@ -55,7 +55,8 @@ Once installed, add a card to any dashboard and pick **Supercard** from the card
   Uses `ResizeObserver` to automatically measure available component width/height and dynamically compute the scale factor (`--sc-scale`).
 * **Modular Architecture**:
   Extensible architecture using `SupercardModules`. Built-in modules include:
-  * **Core Editor & Global Entities**: Easily register alias entities, attributes, and handle click detail views (`hass-action`).
+  * **Core Editor & Global Entities**: Easily register alias entities and attributes, and set the card's shape, sizing and responsiveness.
+  * **Interactions**: Per-element tap, hold and double-tap actions (`more-info`, `toggle`, `call-service`, `navigate`) with press-scale and rotation effects.
   * **Color & Animation Engine**: Solid, gradient, vector fluid (Aurora, Gooey, Smoke, Particles), wave, ripple, and drop pulse effects.
   * **Interactive Layout Engine**: Modular multi-cell layout manager with fine-tuning, flexible aspect-ratio canvas, and responsive sizing.
   * **Progressbars**: Linear and circular (donut, speedo, half-circle) progress bars with glassmorphism/gooey indicator pills.
@@ -124,7 +125,6 @@ entity: sensor.living_room_temperature
 supercard:
   layout_shape: pill
   border_radius: 16
-  enable_click: true
   card_height_responsive: true
   
   # Global Alias Entities for usage across modules

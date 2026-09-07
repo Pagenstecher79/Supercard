@@ -1112,5 +1112,5 @@ Object.assign(window.SupercardModules['layout'], (() => {
     });
   }
 
-  return /** @type {SupercardModule} */ ({ update, onAfterRender, initCSS: () => '', editorFields: () => [], renderCustomBlock: (commitFn, hass, slot) => html`<sc-layout-editor .slot=${slot} .hass=${hass} @layout-update=${e => { if (e.detail) commitFn('__merge__', e.detail); }}></sc-layout-editor>` });
+  return /** @type {SupercardModule} */ ({ update, onAfterRender, editorFields: () => [], renderCustomBlock: (commitFn, hass, slot) => html`<sc-layout-editor .slot=${slot} .hass=${hass} @layout-update=${e => { if (e.detail) commitFn('__merge__', e.detail); }}></sc-layout-editor>` });
 })());
