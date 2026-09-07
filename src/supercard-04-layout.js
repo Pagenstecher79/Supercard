@@ -17,7 +17,7 @@ function getAvailableElements(slot) {
   const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
   for (let i = 0; i < pbCount; i++) {
     const pb = slot.progressbars[i];
-    elements.push({ id: `progressbar_${i}`, label: pb?.label || `Progressbar ${i + 1}`, group: 'Progressbars' });
+    elements.push({ id: `progressbar_${i}`, label: pb?.label_text || `Progressbar ${i + 1}`, group: 'Progressbars' });
   }
 
   if (Array.isArray(slot.labels_list)) {
@@ -429,7 +429,7 @@ class ScLayoutEditor extends LitElement {
     e.currentTarget.classList.remove('drag-over');
 
     const source = this._dndSource;
-    const n = JSON.parse(JSON.stringify(layout));
+    const n = structuredClone(layout);
 
     if (targetType === 'row') {
       if (source.rIdx === targetRIdx) return;
@@ -483,7 +483,7 @@ class ScLayoutEditor extends LitElement {
     const currentSnap = parseFloat(layout[rIdx].cells[cIdx]._gridSnap || 5);
 
     if (isDoubleClick && currentSnap > 0 && type === 'move') {
-      const n = JSON.parse(JSON.stringify(layout));
+      const n = structuredClone(layout);
       const currentItem = n[rIdx].cells[cIdx].items[iIdx];
       
       currentItem.w = Math.max(currentSnap, Math.min(currentSnap, 100 - currentItem.x));
@@ -520,7 +520,7 @@ class ScLayoutEditor extends LitElement {
     const deltaX = ((e.clientX - startX) / rect.width) * 100;
     const deltaY = ((e.clientY - startY) / rect.height) * 100;
 
-    const n = JSON.parse(JSON.stringify(layout));
+    const n = structuredClone(layout);
     const item = n[rIdx].cells[cIdx].items[iIdx];
 
     if (type === 'move') {
@@ -602,7 +602,7 @@ class ScLayoutEditor extends LitElement {
           <div style="display:flex; gap:4px; align-items:center;">
             <label style="font-size:10px;">Helper grid:</label>
             <select style="font-size:11px; padding:2px;" @change=${e => {
-              const n = JSON.parse(JSON.stringify(layout));
+              const n = structuredClone(layout);
               n[rIdx].cells[cIdx]._gridSnap = parseFloat(e.target.value);
               this._commit(n);
             }}>
@@ -619,14 +619,14 @@ class ScLayoutEditor extends LitElement {
           <div style="display:flex; gap:4px; align-items:center;">
             <label style="font-size:10px;">Ratio Override:</label>
             <input type="range" min="0.2" max="6.0" step="0.1" style="width:50px;" .value=${tpAspect} @input=${e => {
-              const n = JSON.parse(JSON.stringify(layout));
+              const n = structuredClone(layout);
               n[rIdx].cells[cIdx]._editorAspectRatio = parseFloat(e.target.value);
               this._commit(n);
             }}>
             <button title="Reset to exact math (${mathAspectRounded})"
               style="background:none;border:none;cursor:pointer;font-size:12px;padding:0; margin-left:2px; ${isOverride ? 'filter:none; opacity:1;' : 'filter:grayscale(1); opacity:0.4;'}" 
               @click=${() => {
-                const n = JSON.parse(JSON.stringify(layout));
+                const n = structuredClone(layout);
                 delete n[rIdx].cells[cIdx]._editorAspectRatio;
                 this._commit(n);
             }}>🔄</button>
@@ -653,7 +653,7 @@ class ScLayoutEditor extends LitElement {
                       const currentSnap = parseFloat(cell._gridSnap || 5);
                       if (currentSnap <= 0) return;
 
-                      const n = JSON.parse(JSON.stringify(layout));
+                      const n = structuredClone(layout);
                       const currentItem = n[rIdx].cells[cIdx].items[iIdx];
                       
                       currentItem.w = Math.max(currentSnap, Math.min(currentSnap, 100 - currentItem.x));
@@ -676,7 +676,7 @@ class ScLayoutEditor extends LitElement {
   _renderItemEditor(item, rIdx, cIdx, iIdx, layout, allElements, usedElements) {
     const hasTypo = ['name','state'].includes(item.id) || item.id?.startsWith('label_');
     const updateVal = (key, val) => {
-      const n = JSON.parse(JSON.stringify(layout));
+      const n = structuredClone(layout);
       n[rIdx].cells[cIdx].items[iIdx][key] = val;
       this._commit(n);
     };
@@ -694,7 +694,7 @@ class ScLayoutEditor extends LitElement {
           <button type="button" style="background:none;border:none;color:#f44;cursor:pointer;font-size:12px;"
             @click=${(e) => {
               e.stopPropagation();
-              const n = JSON.parse(JSON.stringify(layout));
+              const n = structuredClone(layout);
               n[rIdx].cells[cIdx].items.splice(iIdx, 1);
               this._commit(n);
             }}>✕ Remove</button>
@@ -876,7 +876,7 @@ class ScLayoutEditor extends LitElement {
                   <label>Row height (%)</label>
                   <div style="display:flex; align-items:center; width:60%; gap:8px;">
                     <input type="range" min="0" max="100" step="1" style="flex:1" .value=${row.flex ?? 0} @input=${e => {
-                      const n = JSON.parse(JSON.stringify(layout)); n[rIdx].flex = parseInt(e.target.value); this._commit(n);
+                      const n = structuredClone(layout); n[rIdx].flex = parseInt(e.target.value); this._commit(n);
                     }}>
                     <span style="font-size:11px; width:30px; text-align:right;">${(row.flex > 0) ? row.flex + '%' : 'Auto'}</span>
                   </div>
@@ -885,7 +885,7 @@ class ScLayoutEditor extends LitElement {
                 <div class="row" style="margin-top:12px; margin-bottom:8px;">
                     <label>Auto-split width</label>
                     <ha-switch .checked=${!!row.auto_width} @change=${e => {
-                      const n = JSON.parse(JSON.stringify(layout));
+                      const n = structuredClone(layout);
                       n[rIdx].auto_width = e.target.checked;
                       if (!e.target.checked && n[rIdx].cells.length > 0) {
                         const w = Math.floor(100 / n[rIdx].cells.length);
@@ -899,7 +899,7 @@ class ScLayoutEditor extends LitElement {
                     <div class="row" style="margin-bottom:8px;">
                       <label style="color: var(--secondary-text-color);">Chain widths (always totals 100%)</label>
                       <ha-switch .checked=${!!row.sync_widths} @change=${e => {
-                        const n = JSON.parse(JSON.stringify(layout));
+                        const n = structuredClone(layout);
                         n[rIdx].sync_widths = e.target.checked;
                         if (e.target.checked && n[rIdx].cells.length > 0) {
                           const w = Math.floor(100 / n[rIdx].cells.length);
@@ -911,7 +911,7 @@ class ScLayoutEditor extends LitElement {
                     
                     <div class="row" style="margin-bottom:12px;">
                       <button type="button" class="add-btn" style="border: 1px solid var(--divider-color); color: var(--primary-text-color); margin-top: 0; font-weight: normal; font-size: 12px;" @click=${() => {
-                        const n = JSON.parse(JSON.stringify(layout));
+                        const n = structuredClone(layout);
                         if (n[rIdx].cells.length > 0) {
                           const w = Math.floor(100 / n[rIdx].cells.length);
                           n[rIdx].cells.forEach((c, i) => { c.width = (i === n[rIdx].cells.length - 1) ? (100 - (w * i)) : w; });
@@ -947,7 +947,7 @@ class ScLayoutEditor extends LitElement {
                           <span style="margin-right:8px">${isCellExpanded ? '▼' : '▶'}</span>Cell ${cIdx+1}
                         </div>
                         <button type="button" style="background:none;border:none;color:#f44;cursor:pointer;" @click=${(e) => {
-                          e.stopPropagation(); const n = JSON.parse(JSON.stringify(layout)); n[rIdx].cells.splice(cIdx, 1); this._commit(n);
+                          e.stopPropagation(); const n = structuredClone(layout); n[rIdx].cells.splice(cIdx, 1); this._commit(n);
                         }}>✕</button>
                       </div>
                       
@@ -957,7 +957,7 @@ class ScLayoutEditor extends LitElement {
                           <label>Width (%)</label>
                           <div style="display:flex; align-items:center; width:60%; gap:8px;">
                             <input type="range" min="1" max="100" step="1" style="flex:1;" .value=${cell.width || 100} @input=${e => {
-                              const n = JSON.parse(JSON.stringify(layout));
+                              const n = structuredClone(layout);
                               let newVal = parseInt(e.target.value);
                               
                               if (row.sync_widths) {
@@ -1023,7 +1023,7 @@ class ScLayoutEditor extends LitElement {
                         <div class="row" style="margin-top:12px; border-top:1px dashed var(--divider-color,#555); padding-top:12px;">
                           <label style="color:var(--primary-color,#03a9f4); font-weight:bold;">🎛 Show Element Flexbox</label>
                           <input type="checkbox" .checked=${!!cell.debug_grid} @change=${e => {
-                            const n = JSON.parse(JSON.stringify(layout));
+                            const n = structuredClone(layout);
                             n[rIdx].cells[cIdx].debug_grid = e.target.checked;
                             this._commit(n);
                           }}>
@@ -1033,7 +1033,7 @@ class ScLayoutEditor extends LitElement {
                           ${getCellItems(cell).map((item, iIdx) => this._renderItemEditor(item, rIdx, cIdx, iIdx, layout, allElements, usedElements))}
                         </div>
                         <button type="button" class="add-btn" @click=${() => {
-                          const n = JSON.parse(JSON.stringify(layout));
+                          const n = structuredClone(layout);
                           if (!Array.isArray(n[rIdx].cells[cIdx].items)) n[rIdx].cells[cIdx].items = getCellItems(n[rIdx].cells[cIdx]);
                           const firstFree = allElements.find(e => e.id !== 'empty' && !usedElements.includes(e.id));
                           n[rIdx].cells[cIdx].items.push({ id: firstFree?.id || 'name', x: 0, y: 0, w: 33.333, h: 33.333, inner: 'cc' });
@@ -1044,7 +1044,7 @@ class ScLayoutEditor extends LitElement {
                   })}
                 </div>
                 <button type="button" class="add-btn" style="border-style: solid;" @click=${() => {
-                  const n = JSON.parse(JSON.stringify(layout));
+                  const n = structuredClone(layout);
                   n[rIdx].cells.push({ id: 'c'+Date.now(), width: 100, items: [] });
                   this._commit(n); this._expanded = { ...this._expanded, [`r${rIdx}c${n[rIdx].cells.length-1}`]: true };
                 }}>＋ Add cell</button>
@@ -1053,7 +1053,7 @@ class ScLayoutEditor extends LitElement {
           })}
           
           <button type="button" class="add-btn" @click=${() => {
-            const n = JSON.parse(JSON.stringify(layout));
+            const n = structuredClone(layout);
             n.push({ id: 'r'+Date.now(), flex: 0, cells: [{ id: 'c'+Date.now(), width: 100, items: [] }] });
             this._commit(n); this._expanded = { ...this._expanded, [`r${n.length-1}`]: true };
           }}>＋ Add new row</button>

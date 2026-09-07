@@ -312,21 +312,21 @@ class ScGaugeEditor extends LitElement {
   }
 
   _addGauge(gauges) {
-    const newGauges = JSON.parse(JSON.stringify(gauges));
+    const newGauges = structuredClone(gauges);
     newGauges.push({ entity: '', gauge_attribute: '' });
     this._openStates[`gauge_${newGauges.length - 1}`] = true;
     this.commitFn('gauges', newGauges);
   }
 
   _removeGauge(idx, gauges) {
-    const newGauges = JSON.parse(JSON.stringify(gauges));
+    const newGauges = structuredClone(gauges);
     newGauges.splice(idx, 1);
     this.commitFn('gauges', newGauges);
   }
 
   _cloneSection(targetIdx, sourceIdx, sec, gauges, selectEl) {
     if(isNaN(sourceIdx)) return;
-    const n = JSON.parse(JSON.stringify(gauges));
+    const n = structuredClone(gauges);
     const src = n[sourceIdx];
     const tgt = n[targetIdx];
     
@@ -340,7 +340,7 @@ class ScGaugeEditor extends LitElement {
     
     fieldsToCopy.forEach(fid => {
        if (src[fid] !== undefined) {
-           tgt[fid] = JSON.parse(JSON.stringify(src[fid])); 
+           tgt[fid] = structuredClone(src[fid]); 
        } else {
            delete tgt[fid]; 
        }
@@ -382,7 +382,7 @@ class ScGaugeEditor extends LitElement {
     if (this._openStates[stateKey] === undefined) this._openStates[stateKey] = false;
 
     const updateEntry = (key, val) => {
-      const newGauges = JSON.parse(JSON.stringify(gauges));
+      const newGauges = structuredClone(gauges);
       newGauges[idx][key] = val;
       this.commitFn('gauges', newGauges);
     };
@@ -407,7 +407,7 @@ class ScGaugeEditor extends LitElement {
           e.currentTarget.style.borderTop = '';
           const draggedIdx = parseInt(e.dataTransfer.getData('text/plain'));
           if (draggedIdx !== idx && !isNaN(draggedIdx)) {
-            const n = JSON.parse(JSON.stringify(gauges));
+            const n = structuredClone(gauges);
             const [movedItem] = n.splice(draggedIdx, 1);
             n.splice(idx, 0, movedItem);
             this.commitFn('gauges', n);
@@ -435,14 +435,14 @@ class ScGaugeEditor extends LitElement {
               <button title="Move up" ?disabled=${idx === 0} style="background:none;border:none;cursor:${idx === 0 ? 'default' : 'pointer'};font-size:14px;color:${idx === 0 ? 'var(--divider-color,#555)' : 'var(--primary-text-color)'};padding:0;" @click=${(e) => {
                 e.preventDefault();
                 if (idx === 0) return;
-                const n = JSON.parse(JSON.stringify(gauges));
+                const n = structuredClone(gauges);
                 const temp = n[idx-1]; n[idx-1] = n[idx]; n[idx] = temp;
                 this.commitFn('gauges', n);
               }}>▲</button>
               <button title="Move down" ?disabled=${idx === gauges.length - 1} style="background:none;border:none;cursor:${idx === gauges.length - 1 ? 'default' : 'pointer'};font-size:14px;color:${idx === gauges.length - 1 ? 'var(--divider-color,#555)' : 'var(--primary-text-color)'};padding:0;" @click=${(e) => {
                 e.preventDefault();
                 if (idx === gauges.length - 1) return;
-                const n = JSON.parse(JSON.stringify(gauges));
+                const n = structuredClone(gauges);
                 const temp = n[idx+1]; n[idx+1] = n[idx]; n[idx] = temp;
                 this.commitFn('gauges', n);
               }}>▼</button>
@@ -502,7 +502,7 @@ class ScGaugeEditor extends LitElement {
               <select style="width: 60%" @change=${e => {
                 const srcIdx = parseInt(e.target.value);
                 if (isNaN(srcIdx)) return;
-                const n = JSON.parse(JSON.stringify(gauges));
+                const n = structuredClone(gauges);
                 const src = n[srcIdx];
                 const currentEntity = n[idx].entity;
                 const currentAttr = n[idx].gauge_attribute;
@@ -551,7 +551,7 @@ class ScGaugeEditor extends LitElement {
         <div style="display:flex; gap:8px; margin-bottom:4px;">
           <button type="button" style="flex:1; padding:6px; border-radius:6px; border:1px dashed var(--primary-color,#03a9f4); background:none; color:var(--primary-color,#03a9f4); cursor:pointer; font-size:12px;" @click=${(e) => {
             e.preventDefault();
-            const n = JSON.parse(JSON.stringify(mStops));
+            const n = structuredClone(mStops);
             n.forEach(t => t._isOpen = false);
 
             // Dynamic default color (safe palette)
@@ -573,7 +573,7 @@ class ScGaugeEditor extends LitElement {
             @click=${(e) => {
             e.preventDefault();
             if (mStops.length < 2) return;
-            const n = JSON.parse(JSON.stringify(mStops));
+            const n = structuredClone(mStops);
             
             
             const isCoarse = resolution === 'coarse';
@@ -617,7 +617,7 @@ class ScGaugeEditor extends LitElement {
               ?open=${isOpen} 
               @toggle=${e => {
                 if (st._isOpen !== e.target.open) {
-                  const n = JSON.parse(JSON.stringify(mStops));
+                  const n = structuredClone(mStops);
                   n[sIdx]._isOpen = e.target.open;
                   onUpdate(n);
                 }
@@ -638,7 +638,7 @@ class ScGaugeEditor extends LitElement {
                 e.currentTarget.style.borderTop = '';
                 const draggedIdx = parseInt(e.dataTransfer.getData('stopIdx'));
                 if (draggedIdx !== sIdx && !isNaN(draggedIdx)) {
-                  const n = JSON.parse(JSON.stringify(mStops));
+                  const n = structuredClone(mStops);
                   const [movedItem] = n.splice(draggedIdx, 1);
                   n.splice(sIdx, 0, movedItem);
                   onUpdate(n);
@@ -664,7 +664,7 @@ class ScGaugeEditor extends LitElement {
                 <div style="display:flex; gap:12px; align-items:center;" @click=${e => e.stopPropagation()}>
                   <button title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);padding:0;" @click=${(e) => {
                     e.preventDefault();
-                    const n = JSON.parse(JSON.stringify(mStops));
+                    const n = structuredClone(mStops);
                     n.splice(sIdx, 1);
                     onUpdate(n);
                   }}>🗑</button>
@@ -674,18 +674,18 @@ class ScGaugeEditor extends LitElement {
                 ${isAbsolute ? html`
                   <div class="row">
                     <label>Threshold (absolute)</label>
-                    <input type="number" step="any" style="width:50%" .value=${st.value ?? ''} @input=${e => { const n = JSON.parse(JSON.stringify(mStops)); n[sIdx].value = parseFloat(e.target.value); onUpdate(n); }}>
+                    <input type="number" step="any" style="width:50%" .value=${st.value ?? ''} @input=${e => { const n = structuredClone(mStops); n[sIdx].value = parseFloat(e.target.value); onUpdate(n); }}>
                   </div>
                 ` : html`
                   <div class="col">
                     <label>Threshold (%) <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${st.value ?? 0}</span></label>
-                    <input type="range" min="0" max="100" step="1" .value=${st.value ?? 0} @input=${e => { const n = JSON.parse(JSON.stringify(mStops)); n[sIdx].value = parseFloat(e.target.value); onUpdate(n); }}>
+                    <input type="range" min="0" max="100" step="1" .value=${st.value ?? 0} @input=${e => { const n = structuredClone(mStops); n[sIdx].value = parseFloat(e.target.value); onUpdate(n); }}>
                   </div>
                 `}
                 <div class="col"><label>Color</label>
                   <div class="color-row">
-                    <input type="color" .value=${st.color ?? '#03a9f4'} @input=${e => { const n = JSON.parse(JSON.stringify(mStops)); n[sIdx].color = e.target.value; onUpdate(n); }}>
-                    <input type="text" .value=${st.color ?? '#03a9f4'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = JSON.parse(JSON.stringify(mStops)); n[sIdx].color = e.target.value; onUpdate(n); } }}>
+                    <input type="color" .value=${st.color ?? '#03a9f4'} @input=${e => { const n = structuredClone(mStops); n[sIdx].color = e.target.value; onUpdate(n); }}>
+                    <input type="text" .value=${st.color ?? '#03a9f4'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(mStops); n[sIdx].color = e.target.value; onUpdate(n); } }}>
                   </div>
                 </div>
               </div>
@@ -774,7 +774,7 @@ class ScGaugeEditor extends LitElement {
     const val = entry[field.id];
     
     const updateDirect = (newVal) => {
-      const newGauges = JSON.parse(JSON.stringify(gauges));
+      const newGauges = structuredClone(gauges);
       newGauges[idx][field.id] = newVal;
       this.commitFn('gauges', newGauges);
     };
@@ -794,7 +794,7 @@ class ScGaugeEditor extends LitElement {
               Tip: thresholds can be given as absolute values or in %.
             </div>
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
-              const n = JSON.parse(JSON.stringify(gauges));
+              const n = structuredClone(gauges);
               n[idx].manual_stops = newStops;
               this.commitFn('gauges', n);
             }, entry.gradient_resolution)} </div>
@@ -806,7 +806,7 @@ class ScGaugeEditor extends LitElement {
         content = html`
           <div class="col" style="gap:8px;">
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
-              const n = JSON.parse(JSON.stringify(gauges));
+              const n = structuredClone(gauges);
               n[idx].bg_manual_stops = newStops;
               this.commitFn('gauges', n);
             }, entry.gradient_resolution)} </div>
@@ -824,7 +824,7 @@ class ScGaugeEditor extends LitElement {
                   ?open=${isOpen} 
                   @toggle=${e => {
                     if (ct._isOpen !== e.target.open) {
-                      const n = JSON.parse(JSON.stringify(gauges));
+                      const n = structuredClone(gauges);
                       n[idx].custom_ticks[ctIdx]._isOpen = e.target.open;
                       this.commitFn('gauges', n);
                     }
@@ -844,7 +844,7 @@ class ScGaugeEditor extends LitElement {
                     e.currentTarget.style.borderTop = '';
                     const dIdx = parseInt(e.dataTransfer.getData('tickIdx'));
                     if (dIdx !== ctIdx && !isNaN(dIdx)) {
-                      const n = JSON.parse(JSON.stringify(gauges));
+                      const n = structuredClone(gauges);
                       const [moved] = n[idx].custom_ticks.splice(dIdx, 1);
                       n[idx].custom_ticks.splice(ctIdx, 0, moved);
                       this.commitFn('gauges', n);
@@ -863,7 +863,7 @@ class ScGaugeEditor extends LitElement {
                     </div>
                     <div @click=${e => e.stopPropagation()}>
                       <button title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);" @click=${() => {
-                        const n = JSON.parse(JSON.stringify(gauges));
+                        const n = structuredClone(gauges);
                         n[idx].custom_ticks.splice(ctIdx, 1);
                         this.commitFn('gauges', n);
                       }}>🗑</button>
@@ -876,30 +876,30 @@ class ScGaugeEditor extends LitElement {
                         const val = e.target.value.replace(',', '.'); 
                         clearTimeout(this._timeouts['ct_' + idx + '_' + ctIdx]);
                         this._timeouts['ct_' + idx + '_' + ctIdx] = setTimeout(() => {
-                        const n = JSON.parse(JSON.stringify(gauges));
+                        const n = structuredClone(gauges);
                         n[idx].custom_ticks[ctIdx].value = val !== '' ? parseFloat(val) : '';
                         this.commitFn('gauges', n);
                         }, 500);
                     }}>
                   </div>
-                    <div class="row"><label>Length</label><input type="range" min="0" max="10" step="0.1" style="width:50%" .value=${ct.length ?? 4} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].length = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Width</label><input type="range" min="0" max="2" step="0.1" style="width:50%" .value=${ct.width ?? 1} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].width = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Offset from ring</label><input type="range" min="-15" max="0" step="0.1" style="width:50%" .value=${ct.offset ?? 0} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Length</label><input type="range" min="0" max="10" step="0.1" style="width:50%" .value=${ct.length ?? 4} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].length = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Width</label><input type="range" min="0" max="2" step="0.1" style="width:50%" .value=${ct.width ?? 1} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].width = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Offset from ring</label><input type="range" min="-15" max="0" step="0.1" style="width:50%" .value=${ct.offset ?? 0} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
                     <div class="col"><label>Color</label>
                       <div class="color-row">
-                        <input type="color" .value=${ct.color ?? '#ff0000'} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); }}>
-                        <input type="text" .value=${ct.color ?? '#ff0000'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
+                        <input type="color" .value=${ct.color ?? '#ff0000'} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); }}>
+                        <input type="text" .value=${ct.color ?? '#ff0000'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
                       </div>
                     </div>
-                    <div class="row"><label>Label text</label><input type="text" style="width:50%" .value=${ct.label ?? ''} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].label = e.target.value; this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Label offset</label><input type="range" min="-15" max="4" step="0.1" style="width:50%" .value=${ct.label_offset ?? 10} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].label_offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Label size</label><input type="range" min="1" max="20" step="0.1" style="width:50%" .value=${ct.label_font_size ?? 7} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].custom_ticks[ctIdx].label_font_size = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Label text</label><input type="text" style="width:50%" .value=${ct.label ?? ''} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label = e.target.value; this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Label offset</label><input type="range" min="-15" max="4" step="0.1" style="width:50%" .value=${ct.label_offset ?? 10} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Label size</label><input type="range" min="1" max="20" step="0.1" style="width:50%" .value=${ct.label_font_size ?? 7} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_font_size = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
                   </div>
                 </details>
               `;
             })}
             <button class="add-btn" @click=${() => {
-              const n = JSON.parse(JSON.stringify(gauges));
+              const n = structuredClone(gauges);
               if (!n[idx].custom_ticks) n[idx].custom_ticks = [];
               n[idx].custom_ticks.push({ value: 0, length: 4, width: 1, offset: 0, color: '#ff0000', label: '', _isOpen: true });
               this.commitFn('gauges', n);
@@ -921,7 +921,7 @@ class ScGaugeEditor extends LitElement {
                   ?open=${isOpen} 
                   @toggle=${e => {
                     if (sec._isOpen !== e.target.open) {
-                      const n = JSON.parse(JSON.stringify(gauges));
+                      const n = structuredClone(gauges);
                       n[idx].sectors[sIdx]._isOpen = e.target.open;
                       this.commitFn('gauges', n);
                     }
@@ -941,7 +941,7 @@ class ScGaugeEditor extends LitElement {
                     e.currentTarget.style.borderTop = '';
                     const dIdx = parseInt(e.dataTransfer.getData('secIdx'));
                     if (dIdx !== sIdx && !isNaN(dIdx)) {
-                      const n = JSON.parse(JSON.stringify(gauges));
+                      const n = structuredClone(gauges);
                       const [moved] = n[idx].sectors.splice(dIdx, 1);
                       n[idx].sectors.splice(sIdx, 0, moved);
                       this.commitFn('gauges', n);
@@ -960,32 +960,32 @@ class ScGaugeEditor extends LitElement {
                     </div>
                     <div @click=${e => e.stopPropagation()}>
                       <button title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);" @click=${() => {
-                        const n = JSON.parse(JSON.stringify(gauges));
+                        const n = structuredClone(gauges);
                         n[idx].sectors.splice(sIdx, 1);
                         this.commitFn('gauges', n);
                       }}>🗑</button>
                     </div>
                   </summary>
                   <div class="inner-content" style="padding-top:4px; gap:8px;">
-                    <div class="row"><label>Start (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.start_percent ?? 75} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].start_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Length (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.length_percent ?? 25} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].length_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Inner radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.inner_radius ?? 12} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].inner_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Outer radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.outer_radius ?? 22} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].outer_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Opacity</label><input type="range" min="0" max="1" step="0.05" style="width:50%" .value=${sec.opacity ?? 0.85} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].opacity = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Start (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.start_percent ?? 75} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].start_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Length (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.length_percent ?? 25} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].length_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Inner radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.inner_radius ?? 12} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].inner_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Outer radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.outer_radius ?? 22} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].outer_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    <div class="row"><label>Opacity</label><input type="range" min="0" max="1" step="0.05" style="width:50%" .value=${sec.opacity ?? 0.85} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].opacity = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
 
                     <div style="border-top:1px dashed var(--divider-color,#444); margin:4px 0;"></div>
 
                     <div class="col"><label>Color (start)</label>
                       <div class="color-row">
-                        <input type="color" .value=${sec.color ?? '#dc3232'} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); }}>
-                        <input type="text" .value=${sec.color ?? '#dc3232'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
+                        <input type="color" .value=${sec.color ?? '#dc3232'} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); }}>
+                        <input type="text" .value=${sec.color ?? '#dc3232'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(gauges); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
                       </div>
                     </div>
 
                     <div class="row">
                       <label>Gradient</label>
                       <select @change=${e => {
-                        const n = JSON.parse(JSON.stringify(gauges));
+                        const n = structuredClone(gauges);
                         n[idx].sectors[sIdx].gradient_preset = e.target.value;
                         n[idx].sectors[sIdx].use_gradient = (e.target.value === 'classic');
                         this.commitFn('gauges', n);
@@ -999,8 +999,8 @@ class ScGaugeEditor extends LitElement {
                     ${secPreset === 'classic' ? html`
                       <div class="col"><label>Color (end)</label>
                         <div class="color-row">
-                          <input type="color" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); }}>
-                          <input type="text" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = JSON.parse(JSON.stringify(gauges)); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); } }}>
+                          <input type="color" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); }}>
+                          <input type="text" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(gauges); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); } }}>
                         </div>
                       </div>
                     ` : ''}
@@ -1010,7 +1010,7 @@ class ScGaugeEditor extends LitElement {
                         <label>Auto resolution (dynamic)</label>
                         <label class="toggle">
                           <input type="checkbox" .checked=${sec.resolution_auto !== false} @change=${e => {
-                            const n = JSON.parse(JSON.stringify(gauges));
+                            const n = structuredClone(gauges);
                             n[idx].sectors[sIdx].resolution_auto = e.target.checked;
                             this.commitFn('gauges', n);
                           }}>
@@ -1024,7 +1024,7 @@ class ScGaugeEditor extends LitElement {
                           <input type="range" min="0.1" max="5" step="0.1" style="width:50%"
                             .value=${sec.resolution ?? 1.5}
                             @input=${e => {
-                              const n = JSON.parse(JSON.stringify(gauges));
+                              const n = structuredClone(gauges);
                               n[idx].sectors[sIdx].resolution = parseFloat(e.target.value);
                               this.commitFn('gauges', n);
                             }}>
@@ -1036,7 +1036,7 @@ class ScGaugeEditor extends LitElement {
                       <div class="row">
                         <label>Threshold unit</label>
                         <select @change=${e => {
-                          const n = JSON.parse(JSON.stringify(gauges));
+                          const n = structuredClone(gauges);
                           n[idx].sectors[sIdx].threshold_unit = e.target.value;
                           this.commitFn('gauges', n);
                         }}>
@@ -1045,7 +1045,7 @@ class ScGaugeEditor extends LitElement {
                         </select>
                       </div>
                       ${this._renderStopsEditor(sec.manual_stops, (sec.threshold_unit || 'percent') === 'absolute', (newStops) => {
-                        const n = JSON.parse(JSON.stringify(gauges));
+                        const n = structuredClone(gauges);
                         n[idx].sectors[sIdx].manual_stops = newStops;
                         this.commitFn('gauges', n);
                       })}
@@ -1056,7 +1056,7 @@ class ScGaugeEditor extends LitElement {
               `;
             })}
             <button class="add-btn" @click=${() => {
-              const n = JSON.parse(JSON.stringify(gauges));
+              const n = structuredClone(gauges);
               if (!n[idx].sectors) n[idx].sectors = [];
               n[idx].sectors.push({ start_percent: 75, length_percent: 25, inner_radius: 12, outer_radius: 22, opacity: 0.85, color: '#dc3232', _isOpen: true });
               this.commitFn('gauges', n);

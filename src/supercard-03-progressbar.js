@@ -3,20 +3,13 @@ import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/co
 // ==========================================
 // 1. HELPER FUNCTIONS
 // ==========================================
-const safeFloat = (v, d) => { const f = parseFloat(v); return isNaN(f) ? d : f; };
+const { safeFloat, hexToRgb, rgbToHex, sampleGradient } = window.SupercardUtils;
 
 const parseDim = (v, fallback, unit = 'px') => {
   if (v === undefined || v === null || v === '') return fallback;
   const s = String(v).trim();
   return /^-?\d+(\.\d+)?$/.test(s) ? `${s}${unit}` : s;
 };
-
-const hexToRgb = hex => {
-  const h = hex.replace('#','');
-  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
-};
-
-const rgbToHex = (r,g,b) => '#' + [r,g,b].map(v => Math.round(v).toString(16).padStart(2,'0')).join('');
 
 function extractHex(c) {
   if (!c) return '#000000';
@@ -31,23 +24,6 @@ function extractHex(c) {
     if (m && m.length >= 3) return rgbToHex(parseInt(m[0]), parseInt(m[1]), parseInt(m[2]));
   }
   return '#ffffff';
-}
-
-function sampleGradient(stops, pct) {
-  const sorted = [...stops].sort((a,b) => a.pos - b.pos);
-  const pos = pct * 100;
-  if (pos <= sorted[0].pos) return sorted[0].color;
-  if (pos >= sorted[sorted.length-1].pos) return sorted[sorted.length-1].color;
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const lo = sorted[i], hi = sorted[i+1];
-    if (pos >= lo.pos && pos <= hi.pos) {
-      const t = (pos - lo.pos) / (hi.pos - lo.pos);
-      const [r1,g1,b1] = hexToRgb(lo.color);
-      const [r2,g2,b2] = hexToRgb(hi.color);
-      return rgbToHex(r1+(r2-r1)*t, g1+(g2-g1)*t, b1+(b2-b1)*t);
-    }
-  }
-  return sorted[sorted.length-1].color;
 }
 
 function solveCubicBezier(x, p1x, p1y, p2x, p2y) {
@@ -1085,14 +1061,14 @@ class ScProgressbarEditor extends LitElement {
   }
 
   _addProgressbar(bars) {
-    const newBars = JSON.parse(JSON.stringify(bars));
+    const newBars = structuredClone(bars);
     newBars.push({ entity: '', attribute: '', label_text: '' });
     this._openStates[`pb_${newBars.length - 1}`] = true;
     this.commitFn('progressbars', newBars);
   }
 
   _removeProgressbar(idx, bars) {
-    const newBars = JSON.parse(JSON.stringify(bars));
+    const newBars = structuredClone(bars);
     newBars.splice(idx, 1);
     this.commitFn('progressbars', newBars);
   }
@@ -1249,7 +1225,7 @@ class ScProgressbarEditor extends LitElement {
 
   _renderFieldsGroup(fields, cfg, idx, bars) {
     let timeout;
-    const updateDirect    = (key, val) => { const n = JSON.parse(JSON.stringify(bars)); n[idx][key] = val; this.commitFn('progressbars', n); };
+    const updateDirect    = (key, val) => { const n = structuredClone(bars); n[idx][key] = val; this.commitFn('progressbars', n); };
     const updateDebounced = (key, val) => { clearTimeout(timeout); timeout = setTimeout(() => updateDirect(key, val), 400); };
 
     const groups = [];
@@ -1312,7 +1288,7 @@ class ScProgressbarEditor extends LitElement {
 
     const stateKey = `pb_${idx}`;
     if (this._openStates[stateKey] === undefined) this._openStates[stateKey] = false;
-    const updateEntry = (key, val) => { const n = JSON.parse(JSON.stringify(bars)); n[idx][key] = val; this.commitFn('progressbars', n); };
+    const updateEntry = (key, val) => { const n = structuredClone(bars); n[idx][key] = val; this.commitFn('progressbars', n); };
 
     return html`
       <details class="inner-section" ?open=${this._openStates[stateKey]} @toggle=${e => this._openStates[stateKey] = e.target.open}>
@@ -1329,8 +1305,8 @@ class ScProgressbarEditor extends LitElement {
               style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--primary-color);padding:0;"
               @click=${e => {
                 e.preventDefault();
-                const n = JSON.parse(JSON.stringify(bars));
-                const clone = JSON.parse(JSON.stringify(n[idx]));
+                const n = structuredClone(bars);
+                const clone = structuredClone(n[idx]);
                 if(clone.label_text) clone.label_text += ' (Copy)';
                 n.splice(idx + 1, 0, clone);
                 this.commitFn('progressbars', n);
@@ -1339,10 +1315,10 @@ class ScProgressbarEditor extends LitElement {
               }}>⧉</button>
             <button title="Move up" ?disabled=${idx === 0}
               style="background:none;border:none;cursor:${idx===0?'default':'pointer'};font-size:14px;color:${idx===0?'var(--divider-color,#555)':'var(--primary-text-color)'};padding:0;"
-              @click=${e => { e.preventDefault(); if(idx===0) return; const n=JSON.parse(JSON.stringify(bars)); const t=n[idx-1]; n[idx-1]=n[idx]; n[idx]=t; this.commitFn('progressbars',n); }}>▲</button>
+              @click=${e => { e.preventDefault(); if(idx===0) return; const n=structuredClone(bars); const t=n[idx-1]; n[idx-1]=n[idx]; n[idx]=t; this.commitFn('progressbars',n); }}>▲</button>
             <button title="Move down" ?disabled=${idx === bars.length-1}
               style="background:none;border:none;cursor:${idx===bars.length-1?'default':'pointer'};font-size:14px;color:${idx===bars.length-1?'var(--divider-color,#555)':'var(--primary-text-color)'};padding:0;"
-              @click=${e => { e.preventDefault(); if(idx===bars.length-1) return; const n=JSON.parse(JSON.stringify(bars)); const t=n[idx+1]; n[idx+1]=n[idx]; n[idx]=t; this.commitFn('progressbars',n); }}>▼</button>
+              @click=${e => { e.preventDefault(); if(idx===bars.length-1) return; const n=structuredClone(bars); const t=n[idx+1]; n[idx+1]=n[idx]; n[idx]=t; this.commitFn('progressbars',n); }}>▼</button>
             <button title="Remove"
               style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);padding:0;"
               @click=${e => { e.preventDefault(); this._removeProgressbar(idx, bars); }}>🗑</button>
@@ -1403,7 +1379,7 @@ class ScProgressbarEditor extends LitElement {
               <select style="width:60%" @change=${e => {
                 const srcIdx = parseInt(e.target.value);
                 if (isNaN(srcIdx)) return;
-                const n = JSON.parse(JSON.stringify(bars));
+                const n = structuredClone(bars);
                 const src = n[srcIdx];
                 n[idx] = { ...src, entity: n[idx].entity, attribute: n[idx].attribute, label_text: n[idx].label_text, global_id: n[idx].global_id };
                 this.commitFn('progressbars', n);

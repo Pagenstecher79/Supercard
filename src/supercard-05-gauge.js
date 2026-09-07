@@ -1,17 +1,10 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
 // --- HELPER FUNCTIONS ---
-const safeFloat = (v, d) => { const f = parseFloat(v); return isNaN(f) ? d : f; };
+const { safeFloat, hexToRgb } = window.SupercardUtils;
 const polarToCart = (cx, cy, r, deg) => { const rad = deg * Math.PI / 180; return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }; };
 
-const hexToRgb = hex => {
-  if (!hex || typeof hex !== 'string') return null;
-  const h = hex.replace('#', '');
-  if (h.length === 3) return [parseInt(h[0]+h[0],16), parseInt(h[1]+h[1],16), parseInt(h[2]+h[2],16)];
-  if (h.length === 6) return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
-  return null;
-};
-const toRgbArray = v => { 
+const toRgbArray = v => {
   if (Array.isArray(v)) return v; 
   if (typeof v === 'string') {
     if (v.startsWith('#')) return hexToRgb(v);

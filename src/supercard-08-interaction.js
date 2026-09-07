@@ -1,22 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
 // --- HELPER FUNCTIONS FOR TARGET SELECTION ---
-function getAvailableElements(slot) {
-  const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
-  const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
-  for (let i = 0; i < gaugeCount; i++) elements[`gauge_${i}`] = `Gauge ${i + 1}`;
-  const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
-  for (let i = 0; i < pbCount; i++) {
-    const pb = slot.progressbars[i];
-    elements[`progressbar_${i}`] = pb?.label_text || `Progressbar ${i + 1}`;
-  }
-  if (Array.isArray(slot.labels_list)) {
-    slot.labels_list.forEach((l, idx) => {
-      elements[`label_${idx}`] = `Label: ${l.label_text || l.entity || idx + 1}`;
-    });
-  }
-  return elements;
-}
+const { getAvailableElements } = window.SupercardUtils;
 
 function getTargets(slot) {
   const targets = [
@@ -127,7 +112,7 @@ class ScInteractionEditor extends LitElement {
 
   _renderActionBlock(pat, idx, patterns, prefix, label) {
     const actionType = pat[`${prefix}_action`] || 'none';
-    const setAction = (val) => { const n = JSON.parse(JSON.stringify(patterns)); n[idx][`${prefix}_action`] = val; this._commit(n); };
+    const setAction = (val) => { const n = structuredClone(patterns); n[idx][`${prefix}_action`] = val; this._commit(n); };
 
     return html`
       <div class="action-box">
@@ -155,7 +140,7 @@ class ScInteractionEditor extends LitElement {
           <div class="col" style="margin-top:8px;">
             <label>Target entity (Entity ID)</label>
             <ha-entity-picker .hass=${this.hass} .allowCustomEntity=${true} .value=${pat[`${prefix}_entity`] || ''}
-              @value-changed=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx][`${prefix}_entity`] = e.detail.value; this._commit(n); }}>
+              @value-changed=${e => { const n = structuredClone(patterns); n[idx][`${prefix}_entity`] = e.detail.value; this._commit(n); }}>
             </ha-entity-picker>
           </div>
         ` : ''}
@@ -164,12 +149,12 @@ class ScInteractionEditor extends LitElement {
           <div class="col" style="margin-top:8px;">
             <label>Service</label>
             <input type="text" placeholder="light.turn_on" .value=${pat[`${prefix}_service`] || ''}
-              @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx][`${prefix}_service`] = e.target.value; this._commit(n); }}>
+              @input=${e => { const n = structuredClone(patterns); n[idx][`${prefix}_service`] = e.target.value; this._commit(n); }}>
           </div>
           <div class="col" style="margin-top:8px;">
             <label>Data (JSON, optional)</label>
             <input type="text" placeholder='{"brightness": 255}' .value=${pat[`${prefix}_data`] || ''}
-              @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx][`${prefix}_data`] = e.target.value; this._commit(n); }}>
+              @input=${e => { const n = structuredClone(patterns); n[idx][`${prefix}_data`] = e.target.value; this._commit(n); }}>
           </div>
         ` : ''}
 
@@ -177,7 +162,7 @@ class ScInteractionEditor extends LitElement {
           <div class="col" style="margin-top:8px;">
             <label>Path</label>
             <input type="text" placeholder="/lovelace/dashboard" .value=${pat[`${prefix}_nav`] || ''}
-              @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx][`${prefix}_nav`] = e.target.value; this._commit(n); }}>
+              @input=${e => { const n = structuredClone(patterns); n[idx][`${prefix}_nav`] = e.target.value; this._commit(n); }}>
           </div>
         ` : ''}
       </div>
@@ -219,7 +204,7 @@ class ScInteractionEditor extends LitElement {
                   e.currentTarget.style.borderTop = '';
                   const data = JSON.parse(e.dataTransfer.getData('application/json') || '{}');
                   if (data.idx !== undefined && data.idx !== idx) {
-                    const n = JSON.parse(JSON.stringify(patterns));
+                    const n = structuredClone(patterns);
                     const [moved] = n.splice(data.idx, 1);
                     n.splice(idx, 0, moved);
                     this._commit(n);
@@ -243,13 +228,13 @@ class ScInteractionEditor extends LitElement {
                   <div style="display:flex;align-items:center;gap:8px">
                     <ha-switch .checked=${!!pat.enabled}
                       @click=${e => e.stopPropagation()}
-                      @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].enabled = e.target.checked; this._commit(n); }}>
+                      @change=${e => { const n = structuredClone(patterns); n[idx].enabled = e.target.checked; this._commit(n); }}>
                     </ha-switch>
 
                     <button type="button" title="Clone" @click=${e => {
                       e.preventDefault(); e.stopPropagation();
-                      const n = JSON.parse(JSON.stringify(patterns));
-                      const clone = JSON.parse(JSON.stringify(pat));
+                      const n = structuredClone(patterns);
+                      const clone = structuredClone(pat);
                       clone.id = Date.now(); clone.target = 'none';
                       n.splice(idx + 1, 0, clone);
                       this._commit(n);
@@ -267,7 +252,7 @@ class ScInteractionEditor extends LitElement {
                   <div class="pattern-content">
                     <div class="row">
                       <label>Target element</label>
-                      <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].target = e.target.value; this._commit(n); }}>
+                      <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].target = e.target.value; this._commit(n); }}>
                         ${(() => {
                           const groups = {};
                           targets.forEach(t => {
@@ -298,12 +283,12 @@ class ScInteractionEditor extends LitElement {
                     <div class="row">
                       <label>Click depth (scale)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Max. press depth</span></label>
                       <input type="range" min="0" max="100" style="width:60%" .value=${pat.scale_depth ?? 50}
-                        @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].scale_depth = parseInt(e.target.value); this._commit(n); }}>
+                        @input=${e => { const n = structuredClone(patterns); n[idx].scale_depth = parseInt(e.target.value); this._commit(n); }}>
                     </div>
                     <div class="row">
                       <label>Continuous rotation<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Very fast</span></label>
                       <input type="range" min="0" max="100" style="width:60%" .value=${pat.rotate_speed ?? 0}
-                        @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].rotate_speed = parseInt(e.target.value); this._commit(n); }}>
+                        @input=${e => { const n = structuredClone(patterns); n[idx].rotate_speed = parseInt(e.target.value); this._commit(n); }}>
                     </div>
                   </div>
                 ` : ''}
@@ -313,7 +298,7 @@ class ScInteractionEditor extends LitElement {
 
           <button type="button" class="add-btn" @click=${(e) => {
             e.preventDefault(); e.stopPropagation();
-            const n = JSON.parse(JSON.stringify(patterns));
+            const n = structuredClone(patterns);
             const newId = Date.now();
             n.push({
               id: newId, enabled: true, target: 'none',

@@ -1,22 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
 // --- HELPER FUNCTIONS ---
-function getAvailableElements(slot) {
-  const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
-  const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
-  for (let i = 0; i < gaugeCount; i++) elements[`gauge_${i}`] = `Gauge ${i + 1}`;
-  const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
-  for (let i = 0; i < pbCount; i++) {
-    const pb = slot.progressbars[i];
-    elements[`progressbar_${i}`] = pb?.label_text || `Progressbar ${i + 1}`;
-  }
-  if (Array.isArray(slot.labels_list)) {
-    slot.labels_list.forEach((l, idx) => {
-      elements[`label_${idx}`] = `Label: ${l.label_text || l.entity || idx + 1}`;
-    });
-  }
-  return elements;
-}
+const { getAvailableElements } = window.SupercardUtils;
 
 function getTargets(slot) {
   const targets = [
@@ -129,14 +114,14 @@ class ScColorEditor extends LitElement {
                   <div style="display:flex;align-items:center;gap:8px">
                     <ha-switch .checked=${!!pat.enabled}
                       @click=${e => e.stopPropagation()}
-                      @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].enabled = e.target.checked; this._commit(n); }}>
+                      @change=${e => { const n = structuredClone(patterns); n[idx].enabled = e.target.checked; this._commit(n); }}>
                     </ha-switch>
 
                     <button type="button" title="Clone" @click=${e => {
                       e.preventDefault();
                       e.stopPropagation();
-                      const n = JSON.parse(JSON.stringify(patterns));
-                      const clone = JSON.parse(JSON.stringify(pat));
+                      const n = structuredClone(patterns);
+                      const clone = structuredClone(pat);
                       clone.id = Date.now();
                       clone.target = 'none';
                       clone.name = (clone.name || 'Pattern') + ' (Copy)';
@@ -154,11 +139,11 @@ class ScColorEditor extends LitElement {
                   <div class="pattern-content" style="display:flex; flex-direction:column; gap:8px;">
                     <div class="col">
                       <label>Name (internal)</label>
-                      <input type="text" .value=${pat.name || ''} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].name = e.target.value; this._commit(n); }}>
+                      <input type="text" .value=${pat.name || ''} @input=${e => { const n = structuredClone(patterns); n[idx].name = e.target.value; this._commit(n); }}>
                     </div>
                     <div class="row">
                       <label>Target container</label>
-                      <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].target = e.target.value; this._commit(n); }}>
+                      <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].target = e.target.value; this._commit(n); }}>
                         ${targets.map(t => {
                           const isLocked = t.id !== 'none' && t.id !== pat.target && usedTargets.includes(t.id);
                           return html`<option value=${t.id} ?selected=${pat.target === t.id} ?disabled=${isLocked}>
@@ -174,7 +159,7 @@ class ScColorEditor extends LitElement {
                         <div class="row">
                           <label>Automatic corner radius</label>
                           <ha-switch .checked=${isAutoBorder}
-                            @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].border_radius_auto = e.target.checked; this._commit(n); }}>
+                            @change=${e => { const n = structuredClone(patterns); n[idx].border_radius_auto = e.target.checked; this._commit(n); }}>
                           </ha-switch>
                         </div>
 
@@ -182,8 +167,8 @@ class ScColorEditor extends LitElement {
                           <div class="row">
                             <label>Corner radius (manual)</label>
                             <div style="display:flex;width:60%;gap:4px">
-                              <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].border_radius = e.target.value; this._commit(n); }}>
-                              <select style="width:60px" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].border_radius_unit = e.target.value; this._commit(n); }}>
+                              <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} @input=${e => { const n = structuredClone(patterns); n[idx].border_radius = e.target.value; this._commit(n); }}>
+                              <select style="width:60px" @change=${e => { const n = structuredClone(patterns); n[idx].border_radius_unit = e.target.value; this._commit(n); }}>
                                 <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
                                 <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
                               </select>
@@ -195,22 +180,22 @@ class ScColorEditor extends LitElement {
                           <div class="info-text" style="margin-top:0;">The colors are calculated dynamically by the effect.</div>
                           <div class="row"><label>Count (density)</label>
                             <input type="range" min="1" max="20" style="width:60%" .value=${pat.wave_count ?? 3}
-                              @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wave_count = parseInt(e.target.value); this._commit(n); }}>
+                              @input=${e => { const n = structuredClone(patterns); n[idx].wave_count = parseInt(e.target.value); this._commit(n); }}>
                           </div>
                           <div class="row"><label>Balance (peak vs. trough)</label>
                             <input type="range" min="5" max="95" style="width:60%" .value=${pat.wave_balance ?? 50}
-                              @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wave_balance = parseInt(e.target.value); this._commit(n); }}>
+                              @input=${e => { const n = structuredClone(patterns); n[idx].wave_balance = parseInt(e.target.value); this._commit(n); }}>
                           </div>
                           <div class="col"><label>Line/wave color (peak)</label>
                             <div class="color-row">
-                              <input type="color" .value=${pat.wave_c1 || '#03a9f4'} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wave_c1 = e.target.value; this._commit(n); }}>
-                              <input type="text" .value=${pat.wave_c1 || '#03a9f4'} style="flex:1" @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wave_c1 = e.target.value; this._commit(n); }}>
+                              <input type="color" .value=${pat.wave_c1 || '#03a9f4'} @input=${e => { const n = structuredClone(patterns); n[idx].wave_c1 = e.target.value; this._commit(n); }}>
+                              <input type="text" .value=${pat.wave_c1 || '#03a9f4'} style="flex:1" @input=${e => { const n = structuredClone(patterns); n[idx].wave_c1 = e.target.value; this._commit(n); }}>
                             </div>
                           </div>
                           <div class="col"><label>Background color (trough)</label>
                             <div class="color-row">
-                              <input type="color" .value=${pat.wave_c2 || '#transparent'} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wave_c2 = e.target.value; this._commit(n); }}>
-                              <input type="text" .value=${pat.wave_c2 || 'transparent'} style="flex:1" @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wave_c2 = e.target.value; this._commit(n); }}>
+                              <input type="color" .value=${pat.wave_c2 || '#transparent'} @input=${e => { const n = structuredClone(patterns); n[idx].wave_c2 = e.target.value; this._commit(n); }}>
+                              <input type="text" .value=${pat.wave_c2 || 'transparent'} style="flex:1" @input=${e => { const n = structuredClone(patterns); n[idx].wave_c2 = e.target.value; this._commit(n); }}>
                             </div>
                           </div>
                           <div style="font-size:11px; font-weight:bold; color:var(--primary-color); margin-top:4px;">Gradient preview</div>
@@ -222,7 +207,7 @@ class ScColorEditor extends LitElement {
                         ` : html`
                           ${pat.animation !== 'fluid' ? html`
                             <div class="row"><label>Background type</label>
-                              <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].bg_type = e.target.value; this._commit(n); }}>
+                              <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].bg_type = e.target.value; this._commit(n); }}>
                                 <option value="solid"          ?selected=${pat.bg_type === 'solid'}>Solid (static)</option>
                                 <option value="solid_gradient" ?selected=${pat.bg_type === 'solid_gradient'}>Solid (dynamic from gradient)</option>
                                 <option value="linear"         ?selected=${pat.bg_type === 'linear'}>Gradient (linear)</option>
@@ -234,7 +219,7 @@ class ScColorEditor extends LitElement {
                             <div class="info-text" style="color:var(--secondary-text-color); margin-top:0;">Generates an endless, organically flowing vector animation.</div>
                             <div class="row" style="margin-top:4px;">
                               <label>Fluid style (viscosity)</label>
-                              <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].fluid_style = e.target.value; this._commit(n); }}>
+                              <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].fluid_style = e.target.value; this._commit(n); }}>
                                 <option value="aurora" ?selected=${!pat.fluid_style || pat.fluid_style === 'aurora'}>Aurora (gentle mesh, GentleRain)</option>
                                 <option value="gooey"  ?selected=${pat.fluid_style === 'gooey'}>Liquid (lava/water, WbONyK)</option>
                                 <option value="smoke"     ?selected=${pat.fluid_style === 'smoke'}>Smoke / fog</option>
@@ -251,15 +236,15 @@ class ScColorEditor extends LitElement {
                                 return html`
                                   <div class="color-item">
                                     <div class="color-item-row">
-                                      <input type="color" .value=${c} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].colors[cIdx] = e.target.value; this._commit(n); }}>
-                                      <input type="text"  .value=${c} style="flex:1" @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].colors[cIdx] = e.target.value; this._commit(n); }}>
-                                      ${(pat.colors.length > 1 && (pat.bg_type !== 'solid' || pat.animation === 'fluid')) ? html`<button class="del-color-btn" @click=${() => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].colors.splice(cIdx,1); if (n[idx].stops) n[idx].stops.splice(cIdx,1); this._commit(n); }}>✕</button>` : ''}
+                                      <input type="color" .value=${c} @input=${e => { const n = structuredClone(patterns); n[idx].colors[cIdx] = e.target.value; this._commit(n); }}>
+                                      <input type="text"  .value=${c} style="flex:1" @input=${e => { const n = structuredClone(patterns); n[idx].colors[cIdx] = e.target.value; this._commit(n); }}>
+                                      ${(pat.colors.length > 1 && (pat.bg_type !== 'solid' || pat.animation === 'fluid')) ? html`<button class="del-color-btn" @click=${() => { const n = structuredClone(patterns); n[idx].colors.splice(cIdx,1); if (n[idx].stops) n[idx].stops.splice(cIdx,1); this._commit(n); }}>✕</button>` : ''}
                                     </div>
                                     ${(pat.bg_type !== 'solid' || pat.animation === 'fluid') ? html`
                                       <div class="color-item-row" style="padding:2px 4px 0 4px;border-top:1px solid rgba(255,255,255,0.05);margin-top:4px">
                                         <span style="font-size:10px;color:var(--secondary-text-color)">${pat.animation === 'fluid' ? 'Radius (size)' : 'Stop'}</span>
                                         <input type="range" min="0" max="100" style="flex:1" .value=${currentStop}
-                                          @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); if (!n[idx].stops) n[idx].stops = n[idx].colors.map((_,i) => Math.round((100/(n[idx].colors.length>1?n[idx].colors.length-1:1))*i)); n[idx].stops[cIdx] = parseInt(e.target.value); this._commit(n); }}>
+                                          @input=${e => { const n = structuredClone(patterns); if (!n[idx].stops) n[idx].stops = n[idx].colors.map((_,i) => Math.round((100/(n[idx].colors.length>1?n[idx].colors.length-1:1))*i)); n[idx].stops[cIdx] = parseInt(e.target.value); this._commit(n); }}>
                                         <span style="font-size:10px;width:24px;text-align:right">${currentStop}%</span>
                                       </div>` : ''}
                                   </div>`;
@@ -267,8 +252,8 @@ class ScColorEditor extends LitElement {
                             </div>
                             ${(pat.bg_type !== 'solid' || pat.animation === 'fluid') ? html`
                               <div style="display:flex;gap:6px">
-                                <button class="add-color-btn" @click=${() => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].colors.push('#03a9f4'); if (n[idx].stops) n[idx].stops.push(100); this._commit(n); }}>＋ Add color</button>
-                                ${pat.colors.length > 1 ? html`<button class="action-btn" @click=${() => { const n = JSON.parse(JSON.stringify(patterns)); const len = n[idx].colors.length; n[idx].stops = n[idx].colors.map((_,i) => Math.round((100/(len-1))*i)); this._commit(n); }}>⟷ Distribute stops</button>` : ''}
+                                <button class="add-color-btn" @click=${() => { const n = structuredClone(patterns); n[idx].colors.push('#03a9f4'); if (n[idx].stops) n[idx].stops.push(100); this._commit(n); }}>＋ Add color</button>
+                                ${pat.colors.length > 1 ? html`<button class="action-btn" @click=${() => { const n = structuredClone(patterns); const len = n[idx].colors.length; n[idx].stops = n[idx].colors.map((_,i) => Math.round((100/(len-1))*i)); this._commit(n); }}>⟷ Distribute stops</button>` : ''}
                               </div>
                               ${ (pat.colors.length > 1 && pat.animation !== 'fluid') ? html`
                               <div style="font-size:11px; font-weight:bold; color:var(--primary-color); margin-top:8px;">Gradient preview</div>
@@ -282,13 +267,13 @@ class ScColorEditor extends LitElement {
                         ${needsAngle ? html`
                           <div class="row" style="margin-top:8px;"><label>Angle (degrees)</label>
                             <input type="range" min="0" max="360" style="width:60%" .value=${pat.gradient_angle ?? 90}
-                              @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].gradient_angle = parseInt(e.target.value); this._commit(n); }}>
+                              @input=${e => { const n = structuredClone(patterns); n[idx].gradient_angle = parseInt(e.target.value); this._commit(n); }}>
                           </div>` : ''}
 
                         <div class="row">
                           <label>Opacity (%)</label>
                           <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 100}
-                            @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].opacity = parseInt(e.target.value); this._commit(n); }}>
+                            @input=${e => { const n = structuredClone(patterns); n[idx].opacity = parseInt(e.target.value); this._commit(n); }}>
                         </div>
                       </div>
                     </details>
@@ -300,7 +285,7 @@ class ScColorEditor extends LitElement {
 
                           <div class="col" style="margin-bottom: 4px;">
                             <label style="font-size:11px; color:var(--secondary-text-color);">Data source</label>
-                            <select style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color);" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].global_id = e.target.value; this._commit(n); }}>
+                            <select style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color);" @change=${e => { const n = structuredClone(patterns); n[idx].global_id = e.target.value; this._commit(n); }}>
                               <option value="manual" ?selected=${pat.global_id === 'manual' || !pat.global_id}>Manual selection</option>
                               ${(this.slot?.global_entities || []).map(ge => {
                                 const stateObj = ge.entity ? this.hass.states[ge.entity] : null;
@@ -322,13 +307,13 @@ class ScColorEditor extends LitElement {
                             <div style="background:rgba(0,0,0,0.15); padding:10px; border-radius:8px; border:1px solid var(--divider-color,#333);">
                               <ha-selector .hass=${this.hass} .selector=${{entity:{}}}
                                 .value=${pat.gradient_entity||''} .label=${'Entity (value source)'}
-                                @value-changed=${e => { const n=JSON.parse(JSON.stringify(patterns)); n[idx].gradient_entity=e.detail.value; this._commit(n); }}>
+                                @value-changed=${e => { const n=structuredClone(patterns); n[idx].gradient_entity=e.detail.value; this._commit(n); }}>
                               </ha-selector>
                               <div style="margin-top:8px;">
                                 <ha-selector .hass=${this.hass}
                                   .selector=${{attribute:{entity_id: pat.gradient_entity||''}}}
                                   .value=${pat.gradient_entity_attribute||''} .label=${'Attribute (optional)'}
-                                  @value-changed=${e => { const n=JSON.parse(JSON.stringify(patterns)); n[idx].gradient_entity_attribute=e.detail.value||undefined; this._commit(n); }}>
+                                  @value-changed=${e => { const n=structuredClone(patterns); n[idx].gradient_entity_attribute=e.detail.value||undefined; this._commit(n); }}>
                                 </ha-selector>
                               </div>
                             </div>
@@ -338,12 +323,12 @@ class ScColorEditor extends LitElement {
                             <div class="col" style="flex:1;">
                               <label style="font-size:11px; color:var(--secondary-text-color);">Min (0%)</label>
                               <input type="number" step="0.1" .value=${pat.gradient_entity_min??0}
-                                @input=${e=>{ const n=JSON.parse(JSON.stringify(patterns)); n[idx].gradient_entity_min=parseFloat(e.target.value); this._commit(n); }}>
+                                @input=${e=>{ const n=structuredClone(patterns); n[idx].gradient_entity_min=parseFloat(e.target.value); this._commit(n); }}>
                             </div>
                             <div class="col" style="flex:1;">
                               <label style="font-size:11px; color:var(--secondary-text-color);">Max (100%)</label>
                               <input type="number" step="0.1" .value=${pat.gradient_entity_max??100}
-                                @input=${e=>{ const n=JSON.parse(JSON.stringify(patterns)); n[idx].gradient_entity_max=parseFloat(e.target.value); this._commit(n); }}>
+                                @input=${e=>{ const n=structuredClone(patterns); n[idx].gradient_entity_max=parseFloat(e.target.value); this._commit(n); }}>
                             </div>
                           </div>
                         </div>
@@ -366,7 +351,7 @@ class ScColorEditor extends LitElement {
                                   let pctX = Math.round((Math.max(0,Math.min(ev.clientX-rect.left,rect.width)) / rect.width) * 100);
                                   let pctY = Math.round((Math.max(0,Math.min(ev.clientY-rect.top,rect.height)) / rect.height) * 100);
                                   if (pctX !== (pat.radial_x ?? 50) || pctY !== (pat.radial_y ?? 50)) {
-                                    const n = JSON.parse(JSON.stringify(patterns));
+                                    const n = structuredClone(patterns);
                                     n[idx].radial_x = pctX; n[idx].radial_y = pctY;
                                     this._commit(n);
                                   }
@@ -379,18 +364,18 @@ class ScColorEditor extends LitElement {
                               <div class="pos-dot" style="left:${pat.radial_x ?? 50}%;top:${pat.radial_y ?? 50}%"></div>
                             </div>
                             <button class="icon-btn" title="Center (50/50)"
-                              @click=${() => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].radial_x = 50; n[idx].radial_y = 50; this._commit(n); }}>
+                              @click=${() => { const n = structuredClone(patterns); n[idx].radial_x = 50; n[idx].radial_y = 50; this._commit(n); }}>
                               <ha-icon icon="mdi:crosshairs-gps" style="--mdc-icon-size:20px"></ha-icon>
                             </button>
                           </div>
                           <div class="row">
                             <div class="col" style="flex:1;margin-right:8px">
                               <label style="font-size:10px">X-axis (${pat.radial_x ?? 50}%)</label>
-                              <input type="range" min="0" max="100" .value=${pat.radial_x ?? 50} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].radial_x = parseInt(e.target.value); this._commit(n); }}>
+                              <input type="range" min="0" max="100" .value=${pat.radial_x ?? 50} @input=${e => { const n = structuredClone(patterns); n[idx].radial_x = parseInt(e.target.value); this._commit(n); }}>
                             </div>
                             <div class="col" style="flex:1">
                               <label style="font-size:10px">Y-axis (${pat.radial_y ?? 50}%)</label>
-                              <input type="range" min="0" max="100" .value=${pat.radial_y ?? 50} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].radial_y = parseInt(e.target.value); this._commit(n); }}>
+                              <input type="range" min="0" max="100" .value=${pat.radial_y ?? 50} @input=${e => { const n = structuredClone(patterns); n[idx].radial_y = parseInt(e.target.value); this._commit(n); }}>
                             </div>
                           </div>
                         </div>
@@ -402,7 +387,7 @@ class ScColorEditor extends LitElement {
                       <div class="inner-content" style="gap: 8px;">
                         <div class="info-text" style="margin-top:0;">Without a condition the background is always visible.</div>
                         <ha-selector .hass=${this.hass} .selector=${{ condition: {} }} .value=${pat.bg_condition}
-                          @value-changed=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].bg_condition = e.detail.value; this._commit(n); }}>
+                          @value-changed=${e => { const n = structuredClone(patterns); n[idx].bg_condition = e.detail.value; this._commit(n); }}>
                         </ha-selector>
                       </div>
                     </details>
@@ -411,7 +396,7 @@ class ScColorEditor extends LitElement {
                       <summary style="font-size: 13px; color: var(--primary-color);"><span>🎬 Animation &amp; mode</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
                       <div class="inner-content" style="gap: 8px;">
                         <div class="row"><label>Effect</label>
-                          <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].animation = e.target.value; this._commit(n); }}>
+                          <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].animation = e.target.value; this._commit(n); }}>
                             <option value="none"           ?selected=${pat.animation==='none'}>None (background only)</option>
                             <option value="pulse"          ?selected=${pat.animation==='pulse'}>Pulse (opacity)</option>
                             <option value="pump"           ?selected=${pat.animation==='pump'}>Pump (scale in/out)</option>
@@ -428,15 +413,15 @@ class ScColorEditor extends LitElement {
                             <div class="col" style="width:100%; gap:12px;">
                               <div class="row" style="margin:0"><label>Start amplitude (contrast)</label>
                                 <input type="range" min="1" max="100" style="width:60%" .value=${pat.wobble_amplitude ?? 100}
-                                  @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wobble_amplitude = parseInt(e.target.value); this._commit(n); }}>
+                                  @input=${e => { const n = structuredClone(patterns); n[idx].wobble_amplitude = parseInt(e.target.value); this._commit(n); }}>
                               </div>
                               <div class="row" style="margin:0"><label>Range (spread)</label>
                                 <input type="range" min="1" max="10" style="width:60%" .value=${pat.wobble_freq ?? 4}
-                                  @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wobble_freq = parseInt(e.target.value); this._commit(n); }}>
+                                  @input=${e => { const n = structuredClone(patterns); n[idx].wobble_freq = parseInt(e.target.value); this._commit(n); }}>
                               </div>
                               <div class="row" style="margin:0"><label>Pause after effect (sec.)</label>
                                 <input type="range" step="0.5" min="0" max="10" style="width:60%" .value=${pat.wobble_pause ?? 2}
-                                  @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wobble_pause = parseFloat(e.target.value); this._commit(n); }}>
+                                  @input=${e => { const n = structuredClone(patterns); n[idx].wobble_pause = parseFloat(e.target.value); this._commit(n); }}>
                               </div>
                             </div>
                           </div>
@@ -445,19 +430,19 @@ class ScColorEditor extends LitElement {
                         ${pat.animation !== 'none' ? html`
                           <div class="row" style="margin-top:4px"><label>${isWobble ? 'Fade-out time (duration in sec.)' : 'Speed (sec.)'}</label>
                             <input type="range" step="0.1" min="0.5" max="20" style="width:60%" .value=${pat.anim_duration ?? 3}
-                              @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].anim_duration = parseFloat(e.target.value); this._commit(n); }}>
+                              @input=${e => { const n = structuredClone(patterns); n[idx].anim_duration = parseFloat(e.target.value); this._commit(n); }}>
                           </div>` : ''}
 
                         ${pat.animation === 'pump' ? html`
                           <div class="row"><label>Pump expansion</label>
                             <input type="range" step="0.001" min="1.0" max="1.2" style="width:60%" .value=${pat.pump_scale ?? 1.1}
-                              @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].pump_scale = parseFloat(e.target.value); this._commit(n); }}>
+                              @input=${e => { const n = structuredClone(patterns); n[idx].pump_scale = parseFloat(e.target.value); this._commit(n); }}>
                           </div>` : ''}
 
                         ${isWaveOrRipple ? html`
                           <div class="row"><label>Reverse direction</label>
                             <ha-switch .checked=${!!pat.wave_invert}
-                              @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].wave_invert = e.target.checked; this._commit(n); }}>
+                              @change=${e => { const n = structuredClone(patterns); n[idx].wave_invert = e.target.checked; this._commit(n); }}>
                             </ha-switch>
                           </div>` : ''}
                       </div>
@@ -469,7 +454,7 @@ class ScColorEditor extends LitElement {
                         <div class="inner-content" style="gap: 8px;">
                           <div class="info-text" style="margin-top:0;">Without a condition the animation is always active.</div>
                           <ha-selector .hass=${this.hass} .selector=${{ condition: {} }} .value=${pat.anim_condition}
-                            @value-changed=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].anim_condition = e.detail.value; this._commit(n); }}>
+                            @value-changed=${e => { const n = structuredClone(patterns); n[idx].anim_condition = e.detail.value; this._commit(n); }}>
                           </ha-selector>
                         </div>
                       </details>
@@ -525,24 +510,7 @@ if (!customElements.get('sc-color-styler')) {
 window.SupercardModules['color'] = window.SupercardModules['color'] || {};
 Object.assign(window.SupercardModules['color'], (() => {
 
-  const _hexToRgb = hex => { const h = hex.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; };
-  const _rgbToHex = (r,g,b) => '#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
-
-  function sampleGradient(stops, pct) {
-    const sorted = [...stops].sort((a,b)=>a.pos-b.pos);
-    const pos = pct*100;
-    if (pos<=sorted[0].pos) return sorted[0].color;
-    if (pos>=sorted[sorted.length-1].pos) return sorted[sorted.length-1].color;
-    for (let i=0;i<sorted.length-1;i++){
-      const lo=sorted[i],hi=sorted[i+1];
-      if(pos>=lo.pos&&pos<=hi.pos){
-        const t=(pos-lo.pos)/(hi.pos-lo.pos);
-        const [r1,g1,b1]=_hexToRgb(lo.color),[r2,g2,b2]=_hexToRgb(hi.color);
-        return _rgbToHex(r1+(r2-r1)*t,g1+(g2-g1)*t,b1+(b2-b1)*t);
-      }
-    }
-    return sorted[sorted.length-1].color;
-  }
+  const { sampleGradient } = window.SupercardUtils;
 
   function evaluateCondition(hass, c) {
     if (!c) return true;

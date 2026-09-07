@@ -93,22 +93,7 @@ class ScShadowPad extends LitElement {
 if (!customElements.get('sc-shadow-pad')) customElements.define('sc-shadow-pad', ScShadowPad);
 
 // --- HELPER FUNCTIONS FOR TARGET SELECTION ---
-function getAvailableElements(slot) {
-  const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
-  const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
-  for (let i = 0; i < gaugeCount; i++) elements[`gauge_${i}`] = `Gauge ${i + 1}`;
-  const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
-  for (let i = 0; i < pbCount; i++) {
-    const pb = slot.progressbars[i];
-    elements[`progressbar_${i}`] = pb?.label_text || `Progressbar ${i + 1}`;
-  }
-  if (Array.isArray(slot.labels_list)) {
-    slot.labels_list.forEach((l, idx) => {
-      elements[`label_${idx}`] = `Label: ${l.label_text || l.entity || idx + 1}`;
-    });
-  }
-  return elements;
-}
+const { getAvailableElements } = window.SupercardUtils;
 
 function getTargets(slot) {
   const groups = {
@@ -224,7 +209,7 @@ class ScFxGlassEditor extends LitElement {
                   e.preventDefault(); e.stopPropagation(); e.currentTarget.style.borderTop = '';
                   const data = JSON.parse(e.dataTransfer.getData('application/json') || '{}');
                   if (data.idx !== undefined && data.idx !== idx) {
-                    const n = JSON.parse(JSON.stringify(patterns));
+                    const n = structuredClone(patterns);
                     const [moved] = n.splice(data.idx, 1);
                     n.splice(idx, 0, moved);
                     this._commit(n);
@@ -240,8 +225,8 @@ class ScFxGlassEditor extends LitElement {
                     <span style="font-size:10px;color:${pat.target === 'none' ? '#f44' : 'var(--secondary-text-color)'};margin-left:8px;font-weight:normal;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom;">(${targetLabel})</span>
                   </div>
                   <div style="display:flex;align-items:center;gap:8px">
-                    <ha-switch .checked=${!!pat.enabled} @click=${e => e.stopPropagation()} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].enabled = e.target.checked; this._commit(n); }}></ha-switch>
-                    <button type="button" title="Clone" @click=${e => { e.preventDefault(); e.stopPropagation(); const n = JSON.parse(JSON.stringify(patterns)); const clone = JSON.parse(JSON.stringify(pat)); clone.id = Date.now(); clone.target = 'none'; n.splice(idx + 1, 0, clone); this._commit(n); this.requestUpdate(); }} style="background:none;border:none;color:var(--primary-color);cursor:pointer;padding:4px;font-size:14px;">⧉</button>
+                    <ha-switch .checked=${!!pat.enabled} @click=${e => e.stopPropagation()} @change=${e => { const n = structuredClone(patterns); n[idx].enabled = e.target.checked; this._commit(n); }}></ha-switch>
+                    <button type="button" title="Clone" @click=${e => { e.preventDefault(); e.stopPropagation(); const n = structuredClone(patterns); const clone = structuredClone(pat); clone.id = Date.now(); clone.target = 'none'; n.splice(idx + 1, 0, clone); this._commit(n); this.requestUpdate(); }} style="background:none;border:none;color:var(--primary-color);cursor:pointer;padding:4px;font-size:14px;">⧉</button>
                     <button type="button" title="Delete" @click=${e => { e.preventDefault(); e.stopPropagation(); const n = [...patterns]; n.splice(idx, 1); this._commit(n); }} style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">✕</button>
                   </div>
                 </div>
@@ -250,7 +235,7 @@ class ScFxGlassEditor extends LitElement {
                   <div class="pattern-content">
                     <div class="row">
                       <label>Target / element</label>
-                      <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].target = e.target.value; this._commit(n); }}>
+                      <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].target = e.target.value; this._commit(n); }}>
                         ${Object.values(targetGroups).map(group => html`
                           <optgroup label="${group.label}">
                             ${group.items.map(t => {
@@ -272,20 +257,20 @@ class ScFxGlassEditor extends LitElement {
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid rgba(3,169,244,0.3); padding-top:8px;">
                           <label>Manual correction (show sliders)</label>
-                          <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].manual_override = e.target.checked; this._commit(n); }}></ha-switch>
+                          <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].manual_override = e.target.checked; this._commit(n); }}></ha-switch>
                         </div>
                       </div>
                     ` : ''}
 
                     <div class="row" style="background: rgba(244,67,54,0.1); padding: 8px; border-radius: 6px; border: 1px dashed rgba(244,67,54,0.3);">
                       <label style="color:#f44336; font-weight:bold;">🛠 Debug mode (show boxes)<br><span style="font-size:10px; font-weight:normal;">Shows the container in green and the glass in dashed pink.</span></label>
-                      <ha-switch style="--switch-checked-button-color: #f44336; --switch-checked-track-color: rgba(244,67,54,0.5);" .checked=${pat.debug_mask ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].debug_mask = e.target.checked; this._commit(n); }}></ha-switch>
+                      <ha-switch style="--switch-checked-button-color: #f44336; --switch-checked-track-color: rgba(244,67,54,0.5);" .checked=${pat.debug_mask ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].debug_mask = e.target.checked; this._commit(n); }}></ha-switch>
                     </div>
 
                     ${showManualControls ? html`
                       <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;">
                         <label style="color:var(--primary-color)">Lock shape (1:1 aspect ratio)<br><span style="font-size:10px;color:var(--secondary-text-color)">Forces a perfect square/circle (cqmin).</span></label>
-                        <ha-switch .checked=${pat.force_square ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].force_square = e.target.checked; this._commit(n); }}></ha-switch>
+                        <ha-switch .checked=${pat.force_square ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].force_square = e.target.checked; this._commit(n); }}></ha-switch>
                       </div>
                       <div class="row">
                         <label>Edge distance (inset / padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
@@ -296,9 +281,9 @@ class ScFxGlassEditor extends LitElement {
                             step="1"
                             style="flex:1"
                             .value=${pat.padding ?? 0}
-                            @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].padding = parseInt(e.target.value); this._commit(n); }}>
+                            @input=${e => { const n = structuredClone(patterns); n[idx].padding = parseInt(e.target.value); this._commit(n); }}>
                           <span style="font-size:11px; min-width:24px; text-align:right;">${pat.padding ?? 0}</span>
-                          <select style="width:60px" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].padding_unit = e.target.value; this._commit(n); }}>
+                          <select style="width:60px" @change=${e => { const n = structuredClone(patterns); n[idx].padding_unit = e.target.value; this._commit(n); }}>
                             <option value="px" ?selected=${pat.padding_unit === 'px' || !pat.padding_unit}>px</option>
                             <option value="%" ?selected=${pat.padding_unit === '%'}>%</option>
                           </select>
@@ -307,8 +292,8 @@ class ScFxGlassEditor extends LitElement {
                       <div class="row">
                         <label>Corner radius (border-radius)</label>
                         <div style="display:flex;width:60%;gap:4px">
-                          <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} placeholder="Auto" @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].border_radius = e.target.value; this._commit(n); }}>
-                          <select style="width:60px" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].border_radius_unit = e.target.value; this._commit(n); }}>
+                          <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} placeholder="Auto" @input=${e => { const n = structuredClone(patterns); n[idx].border_radius = e.target.value; this._commit(n); }}>
+                          <select style="width:60px" @change=${e => { const n = structuredClone(patterns); n[idx].border_radius_unit = e.target.value; this._commit(n); }}>
                             <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
                             <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
                           </select>
@@ -319,45 +304,45 @@ class ScFxGlassEditor extends LitElement {
                     <div class="section-title">🍩 Ring / Donut Mask</div>
                     <div class="row">
                       <label style="color:var(--primary-color)">Hide center (hard edge)<br><span style="font-size:10px;color:var(--secondary-text-color)">Blur & color only affect the edge exactly.</span></label>
-                      <ha-switch .checked=${pat.ring_effect ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].ring_effect = e.target.checked; this._commit(n); }}></ha-switch>
+                      <ha-switch .checked=${pat.ring_effect ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].ring_effect = e.target.checked; this._commit(n); }}></ha-switch>
                     </div>
                     ${pat.ring_effect ? html`
                       <div class="row" style="padding-top: 4px;">
                         <label>Use custom mask thickness<br><span style="font-size:10px;color:var(--secondary-text-color)">Off = thickness matches the bevel width exactly (${pat.bevel_width ?? pat.bevel_size ?? 2}px)</span></label>
-                        <ha-switch .checked=${pat.use_custom_ring_width ?? false} @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].use_custom_ring_width = e.target.checked; this._commit(n); }}></ha-switch>
+                        <ha-switch .checked=${pat.use_custom_ring_width ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].use_custom_ring_width = e.target.checked; this._commit(n); }}></ha-switch>
                       </div>
                       ${pat.use_custom_ring_width ? html`
                         <div class="row"><label>Mask thickness (px)</label>
-                          <input type="range" min="1" max="50" step="0.5" style="width:60%" .value=${pat.ring_width ?? 5} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].ring_width = parseFloat(e.target.value); this._commit(n); }}>
+                          <input type="range" min="1" max="50" step="0.5" style="width:60%" .value=${pat.ring_width ?? 5} @input=${e => { const n = structuredClone(patterns); n[idx].ring_width = parseFloat(e.target.value); this._commit(n); }}>
                         </div>
                       ` : ''}
                       <div class="row"><label>Effect strength in center (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = blur & color completely hollow</span></label>
-                        <input type="range" min="0" max="100" style="width:60%" .value=${pat.ring_center_opacity ?? 0} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].ring_center_opacity = parseInt(e.target.value); this._commit(n); }}>
+                        <input type="range" min="0" max="100" style="width:60%" .value=${pat.ring_center_opacity ?? 0} @input=${e => { const n = structuredClone(patterns); n[idx].ring_center_opacity = parseInt(e.target.value); this._commit(n); }}>
                       </div>
                     ` : ''}
 
                     <div class="section-title">🔍 Optics (Magnifier & Curvature)</div>
                     <div class="row"><label>Magnify content (zoom)</label>
-                      <input type="range" step="0.01" min="1" max="1.5" style="width:60%" .value=${pat.zoom ?? 1} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].zoom = parseFloat(e.target.value); this._commit(n); }}>
+                      <input type="range" step="0.01" min="1" max="1.5" style="width:60%" .value=${pat.zoom ?? 1} @input=${e => { const n = structuredClone(patterns); n[idx].zoom = parseFloat(e.target.value); this._commit(n); }}>
                     </div>
                     <div class="row"><label>Convex 3D shine (%)</label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.glare ?? 0} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].glare = parseInt(e.target.value); this._commit(n); }}>
+                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.glare ?? 0} @input=${e => { const n = structuredClone(patterns); n[idx].glare = parseInt(e.target.value); this._commit(n); }}>
                     </div>
 
                     <div class="section-title">💧 Glass & Blur</div>
                     <div class="row"><label>Blur strength (px)</label>
-                      <input type="range" step="0.01" min="0" max="2" style="width:60%" .value=${pat.blur ?? 10} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].blur = parseFloat(e.target.value); this._commit(n); }}>
+                      <input type="range" step="0.01" min="0" max="2" style="width:60%" .value=${pat.blur ?? 10} @input=${e => { const n = structuredClone(patterns); n[idx].blur = parseFloat(e.target.value); this._commit(n); }}>
                     </div>
                     <div class="row"><label>Background opacity (%)</label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 10} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].opacity = parseInt(e.target.value); this._commit(n); }}>
+                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 10} @input=${e => { const n = structuredClone(patterns); n[idx].opacity = parseInt(e.target.value); this._commit(n); }}>
                     </div>
                     <div class="row"><label>Color (hex picker)</label>
-                      <input type="color" .value=${pat.bg_rgb || '#ffffff'} @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].bg_rgb = e.target.value; this._commit(n); }}>
+                      <input type="color" .value=${pat.bg_rgb || '#ffffff'} @input=${e => { const n = structuredClone(patterns); n[idx].bg_rgb = e.target.value; this._commit(n); }}>
                     </div>
 
                     <div class="section-title">🌒 Light Refraction & Bevel (Physics)</div>
                     <div class="row"><label>Glass style</label>
-                      <select style="width:60%" @change=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].shadow_style = e.target.value; this._commit(n); }}>
+                      <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].shadow_style = e.target.value; this._commit(n); }}>
                         <option value="none" ?selected=${pat.shadow_style === 'none'}>Flat (no edges)</option>
                         <option value="frosted" ?selected=${pat.shadow_style === 'frosted'}>Frosted (soft edges)</option>
                         <option value="liquid" ?selected=${pat.shadow_style === 'liquid'}>Liquid (physical refraction)</option>
@@ -372,7 +357,7 @@ class ScFxGlassEditor extends LitElement {
                           .distance=${pat.shadow_distance ?? 1}
                           .maxDistance=${5}
                           @pad-change=${e => {
-                            const n = JSON.parse(JSON.stringify(patterns));
+                            const n = structuredClone(patterns);
                             n[idx].shadow_angle = e.detail.angle;
                             n[idx].shadow_distance = e.detail.distance;
                             this._commit(n);
@@ -386,17 +371,17 @@ class ScFxGlassEditor extends LitElement {
 
                       <div class="row"><label>Bevel width (px)<br><span style="font-size:10px;color:var(--secondary-text-color)">Extent of the edge inward</span></label>
                         <input type="range" step="0.1" min="0" max="30" style="width:60%" .value=${pat.bevel_width ?? pat.bevel_size ?? 2}
-                          @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].bevel_width = parseFloat(e.target.value); this._commit(n); }}>
+                          @input=${e => { const n = structuredClone(patterns); n[idx].bevel_width = parseFloat(e.target.value); this._commit(n); }}>
                       </div>
 
                       <div class="row"><label>Glass thickness (depth)<br><span style="font-size:10px;color:var(--secondary-text-color)">Controls the steepness & refraction</span></label>
                         <input type="range" step="0.5" min="0" max="20" style="width:60%" .value=${pat.glass_thickness ?? 5}
-                          @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].glass_thickness = parseFloat(e.target.value); this._commit(n); }}>
+                          @input=${e => { const n = structuredClone(patterns); n[idx].glass_thickness = parseFloat(e.target.value); this._commit(n); }}>
                       </div>
 
                       <div class="row"><label>Base brightness (light)</label>
                         <input type="range" step="0.001" min="0" max="1" style="width:60%" .value=${pat.light_brightness ?? 0.4}
-                          @input=${e => { const n = JSON.parse(JSON.stringify(patterns)); n[idx].light_brightness = parseFloat(e.target.value); this._commit(n); }}>
+                          @input=${e => { const n = structuredClone(patterns); n[idx].light_brightness = parseFloat(e.target.value); this._commit(n); }}>
                       </div>
                     ` : ''}
                   </div>
@@ -407,7 +392,7 @@ class ScFxGlassEditor extends LitElement {
 
           <button type="button" class="add-btn" @click=${(e) => {
             e.preventDefault(); e.stopPropagation();
-            const n = JSON.parse(JSON.stringify(patterns));
+            const n = structuredClone(patterns);
             const newId = Date.now();
             n.push({
               id: newId, enabled: true, target: 'none', blur: 10, opacity: 10, padding: 0, padding_unit: 'px',

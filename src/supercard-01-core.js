@@ -18,6 +18,62 @@ export const SC_LAYERS = {
 
 window.SupercardModules = window.SupercardModules || {};
 
+// --- SHARED UTILS (number/color helpers used by multiple modules) ---
+window.SupercardUtils = window.SupercardUtils || {};
+Object.assign(window.SupercardUtils, (() => {
+  const safeFloat = (v, d) => { const f = parseFloat(v); return isNaN(f) ? d : f; };
+
+  const hexToRgb = hex => {
+    if (!hex || typeof hex !== 'string') return null;
+    const h = hex.replace('#', '');
+    if (h.length === 3) return [parseInt(h[0]+h[0],16), parseInt(h[1]+h[1],16), parseInt(h[2]+h[2],16)];
+    if (h.length === 6) return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    return null;
+  };
+
+  const rgbToHex = (r, g, b) => '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+
+  function sampleGradient(stops, pct) {
+    const sorted = [...stops].sort((a, b) => a.pos - b.pos);
+    const pos = pct * 100;
+    if (pos <= sorted[0].pos) return sorted[0].color;
+    if (pos >= sorted[sorted.length - 1].pos) return sorted[sorted.length - 1].color;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const lo = sorted[i], hi = sorted[i + 1];
+      if (pos >= lo.pos && pos <= hi.pos) {
+        const t = (pos - lo.pos) / (hi.pos - lo.pos);
+        const [r1, g1, b1] = hexToRgb(lo.color) || [128, 128, 128];
+        const [r2, g2, b2] = hexToRgb(hi.color) || [128, 128, 128];
+        return rgbToHex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t);
+      }
+    }
+    return sorted[sorted.length - 1].color;
+  }
+
+  // Flat {id: label} map of elements available for targeting (color patterns,
+  // fx-glass, interactions). Used to look up a human label for a layout
+  // cell's content type; kept as one shared source so it can't drift between
+  // the modules that consume it.
+  function getAvailableElements(slot) {
+    const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
+    const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
+    for (let i = 0; i < gaugeCount; i++) elements[`gauge_${i}`] = `Gauge ${i + 1}`;
+    const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
+    for (let i = 0; i < pbCount; i++) {
+      const pb = slot.progressbars[i];
+      elements[`progressbar_${i}`] = pb?.label_text || `Progressbar ${i + 1}`;
+    }
+    if (Array.isArray(slot.labels_list)) {
+      slot.labels_list.forEach((l, idx) => {
+        elements[`label_${idx}`] = `Label: ${l.label_text || l.entity || idx + 1}`;
+      });
+    }
+    return elements;
+  }
+
+  return { safeFloat, hexToRgb, rgbToHex, sampleGradient, getAvailableElements };
+})());
+
 class SupercardCore extends LitElement {
   static get properties() {
     return {
@@ -418,7 +474,7 @@ class SupercardModularEditor extends LitElement {
 
   _commit(key, value) {
     if (!this.config) return;
-    const newConfig = JSON.parse(JSON.stringify(this.config));
+    const newConfig = structuredClone(this.config);
     if (!newConfig.supercard) newConfig.supercard = {};
 
     if (key === '__merge__') {
