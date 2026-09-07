@@ -28,7 +28,6 @@ declare global {
       slot: any
     ) => any;
     /** Extra <style> text injected once per render. */
-    initCSS?: () => string;
   }
 
   /** Shared number/color/target helpers, set up once by supercard-01-core.js. */

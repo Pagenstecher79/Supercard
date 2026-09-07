@@ -382,17 +382,19 @@ Object.assign(window.SupercardModules['interaction'], (() => {
   }
 
   // --- HA ACTION EXECUTOR ---
-  // Takes 'hass', 'config' and 'hostEl' (main card) as parameters to trigger 100% reliably.
-  function executeAction(actionType, pat, hass, config, element, hostEl) {
+  // 'ctx' carries the live { hass, config, rootEntity }; 'hostEl' is the main
+  // card, so events reliably escape the shadow DOM.
+  function executeAction(actionType, pat, ctx, element, hostEl) {
+    const { hass, config, rootEntity } = ctx;
     const type = pat[`${actionType}_action`] || 'none';
     let entity = pat[`${actionType}_entity`];
 
     if (type === 'none') return;
 
-    // Fall back to the card's main entity
-    if (!entity && config?.entity) {
-      entity = config.entity;
-    }
+    // Fall back to the card's main entity. render() resolves it as
+    // slot.entity || config.entity, so both have to be checked here - YAML
+    // written by hand usually only sets the top-level key.
+    if (!entity) entity = config?.entity || rootEntity;
 
     if (type === 'toggle' && entity && hass) {
       const domain = entity.split('.')[0];
@@ -426,11 +428,18 @@ Object.assign(window.SupercardModules['interaction'], (() => {
 
   // --- EVENT LISTENER INJECTION ---
   function onAfterRender(shadow, config) {
+    // Absolutely safe HASS access via the host element
+    const hass = shadow.host.hass || document.querySelector('home-assistant')?.hass;
+    const rootEntity = shadow.host?.config?.entity;
+
+    // Refreshed on every render, before any early return: listeners are attached
+    // only once, so this is the only thing keeping them from acting on the config
+    // and hass that happened to be current when the element was first rendered.
+    shadow._sc_ctx = { config, hass, rootEntity };
+
     if (!Array.isArray(config.interactions)) return;
 
     const renderer = shadow.querySelector('sc-layout-renderer');
-    // Absolutely safe HASS access via the host element
-    const hass = shadow.host.hass || document.querySelector('home-assistant')?.hass;
 
     config.interactions.forEach(pat => {
       if (!pat.enabled || pat.target === 'none') return;
@@ -475,6 +484,15 @@ Object.assign(window.SupercardModules['interaction'], (() => {
       if (el._sc_interactions_attached) return;
       el._sc_interactions_attached = true;
 
+      // Re-resolve against the current config on every event. Returns null once
+      // the pattern is gone, switched off, or pointed at a different element -
+      // this element keeps its listeners, so they have to opt out themselves.
+      const currentPattern = () => {
+        const cur = shadow._sc_ctx?.config?.interactions?.find(i => i.id === pat.id);
+        if (!cur || cur.enabled === false || cur.target !== pat.target) return null;
+        return cur;
+      };
+
       let clickTimer = null;
       let holdTimer = null;
       let isHeld = false;
@@ -486,7 +504,8 @@ Object.assign(window.SupercardModules['interaction'], (() => {
         preventProp(e);
         isHeld = false;
 
-        const currentPat = config.interactions.find(i => i.id === pat.id);
+        const ctx = shadow._sc_ctx;
+        const currentPat = currentPattern();
         if (currentPat && currentPat.scale_depth > 0 && currentPat.target !== 'main') {
            el.style.transition = 'scale 0.15s cubic-bezier(0.2, 0, 0, 1)';
            el.style.scale = 1 - (currentPat.scale_depth * 0.0015);
@@ -494,7 +513,7 @@ Object.assign(window.SupercardModules['interaction'], (() => {
 
         holdTimer = setTimeout(() => {
           isHeld = true;
-          if (currentPat) executeAction('hold', currentPat, hass, config, el, shadow.host);
+          if (currentPat) executeAction('hold', currentPat, ctx, el, shadow.host);
         }, 500);
       };
 
@@ -505,7 +524,8 @@ Object.assign(window.SupercardModules['interaction'], (() => {
 
         if (isHeld) return;
 
-        const currentPat = config.interactions.find(i => i.id === pat.id);
+        const ctx = shadow._sc_ctx;
+        const currentPat = currentPattern();
         if (!currentPat) return;
 
         const hasDoubleTap = currentPat.double_tap_action && currentPat.double_tap_action !== 'none';
@@ -514,15 +534,15 @@ Object.assign(window.SupercardModules['interaction'], (() => {
           if (clickTimer) {
             clearTimeout(clickTimer);
             clickTimer = null;
-            executeAction('double_tap', currentPat, hass, config, el, shadow.host);
+            executeAction('double_tap', currentPat, ctx, el, shadow.host);
           } else {
             clickTimer = setTimeout(() => {
               clickTimer = null;
-              executeAction('tap', currentPat, hass, config, el, shadow.host);
+              executeAction('tap', currentPat, ctx, el, shadow.host);
             }, 250);
           }
         } else {
-          executeAction('tap', currentPat, hass, config, el, shadow.host);
+          executeAction('tap', currentPat, ctx, el, shadow.host);
         }
       };
 

@@ -86,6 +86,21 @@ Object.assign(window.SupercardUtils, (() => {
   return /** @type {SupercardUtilsApi} */ ({ safeFloat, hexToRgb, rgbToHex, sampleGradient, getAvailableElements });
 })());
 
+// Entity ids referenced anywhere in a card config. Used by shouldUpdate to tell
+// a relevant hass update apart from the ones HA fires for every other entity.
+const SC_ENTITY_ID_RE = /^[a-z_]+\.[a-z0-9_]+$/;
+function collectEntityIds(node, out = new Set(), depth = 0) {
+  if (node == null || depth > 8) return out;
+  if (typeof node === 'string') {
+    if (SC_ENTITY_ID_RE.test(node)) out.add(node);
+  } else if (Array.isArray(node)) {
+    for (const v of node) collectEntityIds(v, out, depth + 1);
+  } else if (typeof node === 'object') {
+    for (const v of Object.values(node)) collectEntityIds(v, out, depth + 1);
+  }
+  return out;
+}
+
 class SupercardCore extends LitElement {
   static get properties() {
     return {
@@ -111,6 +126,28 @@ class SupercardCore extends LitElement {
   setConfig(config) {
     // FIX: No longer requires an entity!
     this.config = config;
+  }
+
+  // HA replaces the whole hass object on every state change in the instance, so
+  // without this the card would re-render - and re-run every module - for entities
+  // it never reads. Cached per config object; a new config recollects.
+  _relevantEntityIds() {
+    if (this._entityIdSource !== this.config) {
+      this._entityIdSource = this.config;
+      this._entityIds = collectEntityIds(this.config);
+    }
+    return this._entityIds;
+  }
+
+  shouldUpdate(changedProps) {
+    if (!this.hasUpdated) return true;
+    if (changedProps.size > 1 || !changedProps.has('hass')) return true;
+    const oldHass = changedProps.get('hass');
+    if (!oldHass || !this.hass) return true;
+    for (const id of this._relevantEntityIds()) {
+      if (oldHass.states[id] !== this.hass.states[id]) return true;
+    }
+    return false;
   }
 
   getCardSize() { return 3; }
@@ -243,9 +280,6 @@ class SupercardCore extends LitElement {
             }
           }
         }
-        if (window.SupercardLayout) {
-          window.SupercardLayout.arrange(this.renderRoot.querySelector('#module-overlay-slot'), this.config?.supercard || {});
-        }
       });
       this._resizeObserver.observe(this);
     }
@@ -266,9 +300,6 @@ class SupercardCore extends LitElement {
         module.onAfterRender(this.renderRoot, this.config?.supercard || {}, { overlayChanged: true });
       }
     });
-    if (window.SupercardLayout) {
-      window.SupercardLayout.arrange(this.renderRoot.querySelector('#module-overlay-slot'), this.config?.supercard || {});
-    }
   }
 
   render() {
@@ -319,11 +350,6 @@ class SupercardCore extends LitElement {
       else if (res?.htmlOverlay !== undefined) overlaySlots.push(html`<div class="sc-overlay-wrap-${modKey}" style="display:contents" .innerHTML=${res.htmlOverlay}></div>`);
     });
 
-    let injectedCSS = '';
-    Object.values(window.SupercardModules).forEach(mod => {
-      if (typeof mod.initCSS === 'function') injectedCSS += mod.initCSS();
-    });
-
     // FIX: The critical change! Optional chaining (?.) protects against crashes when stateObj is null.
     const uom = stateObj?.attributes?.unit_of_measurement ? ' ' + stateObj.attributes.unit_of_measurement : '';
     const headerText = slot.entity_name_override || stateObj?.attributes?.friendly_name || entityId || 'Supercard';
@@ -362,7 +388,6 @@ class SupercardCore extends LitElement {
     };
 
     return html`
-      <style>${injectedCSS}</style>
       <ha-card>
         <div class="supercard-container" id="main-container" style="${combinedStyles}" @click=${handleTouchOrClick} @touchstart=${handleTouchOrClick}>
 

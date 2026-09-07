@@ -924,31 +924,17 @@ if (!customElements.get('sc-gauge')) customElements.define('sc-gauge', ScGauge);
 window.SupercardModules['gauge'] = window.SupercardModules['gauge'] || {};
 Object.assign(window.SupercardModules['gauge'], (() => {
 
-  function update({ config }) {
+  function update({ config, hass }) {
     if (!config?.gauge_active) return {};
     const gauges = Array.isArray(config.gauges) && config.gauges.length > 0
       ? config.gauges
       : [config];
     return {
       litOverlay: html`${gauges.map((cfg, idx) => html`
-        <sc-gauge data-idx="${idx}" .config=${cfg} .globalEntities=${config.global_entities}></sc-gauge>
+        <sc-gauge data-idx="${idx}" .config=${cfg} .hass=${hass} .globalEntities=${config.global_entities}></sc-gauge>
       `)}`
     };
   }
 
-  function onAfterRender(shadow, config) {
-    if (!config?.gauge_active) return;
-    const gauges = Array.isArray(config.gauges) && config.gauges.length > 0
-      ? config.gauges
-      : [config];
-    const hass = document.querySelector('home-assistant')?.hass;
-    if (!hass) return;
-    shadow.querySelectorAll('sc-gauge').forEach(el => {
-      const idx = parseInt(el.getAttribute('data-idx'));
-      el.config = gauges[idx] || config;
-      el.hass = hass;
-    });
-  }
-
-  return /** @type {SupercardModule} */ ({ update, onAfterRender, initCSS: () => '' });
+  return /** @type {SupercardModule} */ ({ update });
 })());
