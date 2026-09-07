@@ -7,4 +7,3 @@ import './supercard-05-gauge.js';
 import './supercard-06-labels.js';
 import './supercard-07-fx-glass.js';
 import './supercard-08-interaction.js';
-import './supercard-10-debug.js';
