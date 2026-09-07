@@ -1163,6 +1163,6 @@ function renderCustomBlock(commitFn, hass, slot) {
     return html`<sc-gauge-editor .commitFn=${commitFn} .hass=${hass} .slot=${slot}></sc-gauge-editor>`;
   }
 
-return { editorFields, renderCustomBlock };
+return /** @type {SupercardModule} */ ({ editorFields, renderCustomBlock });
 
 })());

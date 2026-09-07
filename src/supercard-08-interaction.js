@@ -550,5 +550,5 @@ Object.assign(window.SupercardModules['interaction'], (() => {
 
   function editorFields() { return []; }
 
-  return { update, onAfterRender, renderCustomBlock, editorFields };
+  return /** @type {SupercardModule} */ ({ update, onAfterRender, renderCustomBlock, editorFields });
 })());

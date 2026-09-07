@@ -284,5 +284,5 @@ Object.assign(window.SupercardModules['debug'], (() => {
     ];
   }
 
-  return { update, editorFields, initCSS: () => '' };
+  return /** @type {SupercardModule} */ ({ update, editorFields, initCSS: () => '' });
 })());

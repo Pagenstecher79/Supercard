@@ -1,0 +1,27 @@
+{
+  // checkJs is off on purpose: this codebase's LitElement subclasses declare
+  // reactive properties via `static get properties()` rather than real class
+  // fields, and `lit` is imported from a CDN URL with no type declarations -
+  // turning checkJs on floods every file with unrelated "property does not
+  // exist" noise. What this config *does* give you without any of that:
+  // real hover/autocomplete/go-to-definition for window.SupercardUtils and
+  // the SupercardModule contract (see src/types/global.d.ts), since the TS
+  // language service in VS Code uses this file regardless of checkJs.
+  //
+  // To type-check one file for real, add `// @ts-check` as its first line -
+  // that opts just that file in without touching this project-wide setting.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

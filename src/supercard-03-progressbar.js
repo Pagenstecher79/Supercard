@@ -1471,5 +1471,5 @@ Object.assign(window.SupercardModules['progressbar'], (() => {
     return _cachedEditor;
   }
 
-  return { update, onAfterRender, initCSS: () => '', editorFields, renderCustomBlock };
+  return /** @type {SupercardModule} */ ({ update, onAfterRender, initCSS: () => '', editorFields, renderCustomBlock });
 })());

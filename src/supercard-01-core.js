@@ -21,8 +21,10 @@ window.SupercardModules = window.SupercardModules || {};
 // --- SHARED UTILS (number/color helpers used by multiple modules) ---
 window.SupercardUtils = window.SupercardUtils || {};
 Object.assign(window.SupercardUtils, (() => {
+  /** @type {(v: any, d: number) => number} */
   const safeFloat = (v, d) => { const f = parseFloat(v); return isNaN(f) ? d : f; };
 
+  /** @type {(hex: string) => [number, number, number] | null} */
   const hexToRgb = hex => {
     if (!hex || typeof hex !== 'string') return null;
     const h = hex.replace('#', '');
@@ -31,8 +33,14 @@ Object.assign(window.SupercardUtils, (() => {
     return null;
   };
 
+  /** @type {(r: number, g: number, b: number) => string} */
   const rgbToHex = (r, g, b) => '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
 
+  /**
+   * @param {{ pos: number, color: string }[]} stops
+   * @param {number} pct
+   * @returns {string}
+   */
   function sampleGradient(stops, pct) {
     const sorted = [...stops].sort((a, b) => a.pos - b.pos);
     const pos = pct * 100;
@@ -50,10 +58,14 @@ Object.assign(window.SupercardUtils, (() => {
     return sorted[sorted.length - 1].color;
   }
 
-  // Flat {id: label} map of elements available for targeting (color patterns,
-  // fx-glass, interactions). Used to look up a human label for a layout
-  // cell's content type; kept as one shared source so it can't drift between
-  // the modules that consume it.
+  /**
+   * Flat {id: label} map of elements available for targeting (color patterns,
+   * fx-glass, interactions). Used to look up a human label for a layout
+   * cell's content type; kept as one shared source so it can't drift between
+   * the modules that consume it.
+   * @param {any} slot
+   * @returns {Record<string, string>}
+   */
   function getAvailableElements(slot) {
     const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
     const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
@@ -71,7 +83,7 @@ Object.assign(window.SupercardUtils, (() => {
     return elements;
   }
 
-  return { safeFloat, hexToRgb, rgbToHex, sampleGradient, getAvailableElements };
+  return /** @type {SupercardUtilsApi} */ ({ safeFloat, hexToRgb, rgbToHex, sampleGradient, getAvailableElements });
 })());
 
 class SupercardCore extends LitElement {
@@ -789,6 +801,6 @@ Object.assign(window.SupercardModules['core'], (() => {
     return html`<sc-core-editor .commitFn=${commitFn} .hass=${hass} .slot=${slot}></sc-core-editor>`;
   }
 
-  return { renderCustomBlock };
+  return /** @type {SupercardModule} */ ({ renderCustomBlock });
 
 })());

@@ -933,5 +933,5 @@ Object.assign(window.SupercardModules['color'], (() => {
 
   function editorFields() { return []; }
 
-  return { update, renderCustomBlock, editorFields };
+  return /** @type {SupercardModule} */ ({ update, renderCustomBlock, editorFields });
 })());

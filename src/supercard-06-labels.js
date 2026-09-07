@@ -436,7 +436,8 @@ class ScLabelsEditor extends LitElement {
 customElements.define('sc-labels-editor', ScLabelsEditor);
 
 // --- ENGINE ---
-window.SupercardModules['labels'] = (() => {
+window.SupercardModules['labels'] = window.SupercardModules['labels'] || {};
+Object.assign(window.SupercardModules['labels'], (() => {
 
   function update({ hass, config }) {
     const list = Array.isArray(config.labels_list) ? config.labels_list : [];
@@ -572,5 +573,5 @@ window.SupercardModules['labels'] = (() => {
     </sc-labels-editor>`;
   }
 
-  return { update, renderCustomBlock };
-})();
+  return /** @type {SupercardModule} */ ({ update, renderCustomBlock });
+})());

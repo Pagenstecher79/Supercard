@@ -950,5 +950,5 @@ Object.assign(window.SupercardModules['gauge'], (() => {
     });
   }
 
-  return { update, onAfterRender, initCSS: () => '' };
+  return /** @type {SupercardModule} */ ({ update, onAfterRender, initCSS: () => '' });
 })());

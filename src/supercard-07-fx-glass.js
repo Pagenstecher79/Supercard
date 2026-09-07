@@ -714,5 +714,5 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
 
   function editorFields() { return []; }
 
-  return { update, renderCustomBlock, editorFields };
+  return /** @type {SupercardModule} */ ({ update, renderCustomBlock, editorFields });
 })());
