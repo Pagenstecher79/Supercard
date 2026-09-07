@@ -431,7 +431,8 @@ if (!customElements.get('sc-fx-glass-editor')) customElements.define('sc-fx-glas
 ScFxGlassEditor._expandedCache = {};
 
 // --- THE MODULE ---
-window.SupercardModules['fx_glass'] = (() => {
+window.SupercardModules['fx_glass'] = window.SupercardModules['fx_glass'] || {};
+Object.assign(window.SupercardModules['fx_glass'], (() => {
 
   function getElementSelector(targetId) {
     const id = targetId.replace('elm_', '');
@@ -729,4 +730,4 @@ window.SupercardModules['fx_glass'] = (() => {
   function editorFields() { return []; }
 
   return { update, renderCustomBlock, editorFields };
-})();
+})());

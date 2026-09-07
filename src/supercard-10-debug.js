@@ -250,7 +250,8 @@ if (!customElements.get('sc-debug-panel')) {
 // BRIDGE TO CORE
 // ==========================================
 window.SupercardModules = window.SupercardModules || {};
-window.SupercardModules['debug'] = (() => {
+window.SupercardModules['debug'] = window.SupercardModules['debug'] || {};
+Object.assign(window.SupercardModules['debug'], (() => {
   function update({ config, stateObj, stateVal }) {
     if (!config?.debug) return {};
 
@@ -284,4 +285,4 @@ window.SupercardModules['debug'] = (() => {
   }
 
   return { update, editorFields, initCSS: () => '' };
-})();
+})());

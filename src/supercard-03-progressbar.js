@@ -1457,7 +1457,8 @@ if (!customElements.get('sc-progressbar-editor')) customElements.define('sc-prog
 // 4. BRIDGE TO CORE
 // ==========================================
 window.SupercardModules = window.SupercardModules || {};
-window.SupercardModules['progressbar'] = (() => {
+window.SupercardModules['progressbar'] = window.SupercardModules['progressbar'] || {};
+Object.assign(window.SupercardModules['progressbar'], (() => {
   function update({ config }) {
     if (!config?.progressbar_active) return {};
     const bars = Array.isArray(config.progressbars) && config.progressbars.length > 0 ? config.progressbars : [];
@@ -1495,4 +1496,4 @@ window.SupercardModules['progressbar'] = (() => {
   }
 
   return { update, onAfterRender, initCSS: () => '', editorFields, renderCustomBlock };
-})();
+})());

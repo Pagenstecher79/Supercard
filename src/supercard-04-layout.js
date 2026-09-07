@@ -1066,7 +1066,8 @@ if (!customElements.get('sc-layout-editor')) ScLayoutEditor._expandedCache = {};
 customElements.define('sc-layout-editor', ScLayoutEditor);
 
 // --- BRIDGE TO CORE ---
-window.SupercardModules['layout'] = (() => {
+window.SupercardModules['layout'] = window.SupercardModules['layout'] || {};
+Object.assign(window.SupercardModules['layout'], (() => {
   function resolveElement(shadow, id) {
     if (id === 'icon')  return shadow.querySelector('#icon');
     if (id === 'name')  return shadow.querySelector('#header');
@@ -1112,4 +1113,4 @@ window.SupercardModules['layout'] = (() => {
   }
 
   return { update, onAfterRender, initCSS: () => '', editorFields: () => [], renderCustomBlock: (commitFn, hass, slot) => html`<sc-layout-editor .slot=${slot} .hass=${hass} @layout-update=${e => { if (e.detail) commitFn('__merge__', e.detail); }}></sc-layout-editor>` };
-})();
+})());

@@ -5,6 +5,11 @@ function getAvailableElements(slot) {
   const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
   const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
   for (let i = 0; i < gaugeCount; i++) elements[`gauge_${i}`] = `Gauge ${i + 1}`;
+  const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
+  for (let i = 0; i < pbCount; i++) {
+    const pb = slot.progressbars[i];
+    elements[`progressbar_${i}`] = pb?.label_text || `Progressbar ${i + 1}`;
+  }
   if (Array.isArray(slot.labels_list)) {
     slot.labels_list.forEach((l, idx) => {
       elements[`label_${idx}`] = `Label: ${l.label_text || l.entity || idx + 1}`;
@@ -517,7 +522,8 @@ if (!customElements.get('sc-color-styler')) {
 }
 
 // --- THE MODULE ---
-window.SupercardModules['color'] = (() => {
+window.SupercardModules['color'] = window.SupercardModules['color'] || {};
+Object.assign(window.SupercardModules['color'], (() => {
 
   const _hexToRgb = hex => { const h = hex.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; };
   const _rgbToHex = (r,g,b) => '#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
@@ -960,4 +966,4 @@ window.SupercardModules['color'] = (() => {
   function editorFields() { return []; }
 
   return { update, renderCustomBlock, editorFields };
-})();
+})());

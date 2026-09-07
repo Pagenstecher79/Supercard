@@ -5,6 +5,11 @@ function getAvailableElements(slot) {
   const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
   const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
   for (let i = 0; i < gaugeCount; i++) elements[`gauge_${i}`] = `Gauge ${i + 1}`;
+  const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
+  for (let i = 0; i < pbCount; i++) {
+    const pb = slot.progressbars[i];
+    elements[`progressbar_${i}`] = pb?.label_text || `Progressbar ${i + 1}`;
+  }
   if (Array.isArray(slot.labels_list)) {
     slot.labels_list.forEach((l, idx) => {
       elements[`label_${idx}`] = `Label: ${l.label_text || l.entity || idx + 1}`;
@@ -330,7 +335,8 @@ if (!customElements.get('sc-interaction-editor')) {
 ScInteractionEditor._expandedCache = {};
 
 // --- THE MODULE ---
-window.SupercardModules['interaction'] = (() => {
+window.SupercardModules['interaction'] = window.SupercardModules['interaction'] || {};
+Object.assign(window.SupercardModules['interaction'], (() => {
 
   function getCssSelector(target) {
     if (target === 'main') return 'ha-card .supercard-container';
@@ -560,4 +566,4 @@ window.SupercardModules['interaction'] = (() => {
   function editorFields() { return []; }
 
   return { update, onAfterRender, renderCustomBlock, editorFields };
-})();
+})());
