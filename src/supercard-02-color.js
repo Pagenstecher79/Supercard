@@ -1,5 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
+const SC = window.SupercardUtils;
+
 // --- HELPER FUNCTIONS ---
 const { getAvailableElements } = window.SupercardUtils;
 
@@ -26,6 +28,7 @@ class ScColorEditor extends LitElement {
     return {
       slot:      { type: Object },
       hass:      { type: Object },
+      commitFn:  { type: Function },
       _expanded: { type: Object, state: true }
     };
   }
@@ -36,20 +39,10 @@ class ScColorEditor extends LitElement {
   }
 
   static get styles() {
-    return css`
-      .inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
-      summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
-      summary::-webkit-details-marker { display: none; }
-      .inner-content { padding: 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); }
-      .pattern-card { background: var(--secondary-background-color, #1e1e1e); border: 1px solid var(--divider-color, #444); border-radius: 8px; padding: 10px; position: relative; }
-      .pattern-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; cursor: pointer; }
-      .pattern-content { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; margin-top: 8px; border-top: 1px dashed var(--divider-color, #333); }
-      .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; gap: 8px; }
-      .col { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
-      select, input[type="text"], input[type="number"], input[type="range"] { background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color); border: 1px solid var(--divider-color); border-radius: 4px; padding: 6px; }
-      .add-btn { background: transparent; border: 1px dashed var(--primary-color, #03a9f4); color: var(--primary-color, #03a9f4); padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; text-align: center; }
-      ha-switch { --switch-checked-button-color: var(--primary-color); scale: 0.8; }
-      .toggle-icon { font-size: 10px; margin-right: 8px; display: inline-block; width: 12px; text-align: center; }
+    return [SC.editorStyles, css`
+      .row { gap: 8px; }
+      .section-title { display: flex; justify-content: space-between; align-items: center; }
+      .toggle-icon { text-align: center; }
       .color-list { display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px; border: 1px solid var(--divider-color, #333); }
       .color-item { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; background: rgba(255,255,255,0.02); }
       .color-item-row { display: flex; align-items: center; gap: 8px; }
@@ -58,8 +51,6 @@ class ScColorEditor extends LitElement {
       .add-color-btn { background: rgba(3,169,244,0.1); border: 1px solid var(--primary-color); color: var(--primary-color); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px; font-weight: bold; flex: 1; }
       .action-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color,#555); color: var(--primary-text-color); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px; flex: 1; font-weight: bold; }
       .action-btn:hover { background: rgba(255,255,255,0.1); }
-      .color-row { display: flex; gap: 6px; align-items: center; }
-      .section-title { font-size: 11px; font-weight: bold; color: var(--primary-color); text-transform: uppercase; margin-bottom: -4px; margin-top: 8px; border-bottom: 1px solid var(--divider-color,#333); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
       .info-text { font-size: 11px; color: var(--secondary-text-color); margin-top: -8px; margin-bottom: 4px; }
       ha-selector { width: 100%; }
       .pos-preview-wrap { display: flex; align-items: center; justify-content: center; gap: 16px; width: 100%; margin: 8px 0; }
@@ -67,13 +58,15 @@ class ScColorEditor extends LitElement {
       .pos-dot { position: absolute; width: 12px; height: 12px; background: var(--primary-color,#03a9f4); border-radius: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 10px var(--primary-color), inset 0 0 4px rgba(255,255,255,0.8); pointer-events: none; }
       .icon-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color,#555); color: var(--secondary-text-color); width: 36px; height: 36px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
       .icon-btn:hover { background: rgba(255,255,255,0.1); color: var(--primary-color); border-color: var(--primary-color); }
-      option:disabled { color: rgba(255,255,255,0.3); font-style: italic; }
-    `;
+    `];
   }
 
   _commit(newList) {
-    this.dispatchEvent(new CustomEvent('color-update', { detail: { color_patterns: newList } }));
+    if (this.commitFn) this.commitFn('__merge__', { color_patterns: newList });
   }
+
+  /** Commit `list` with one field of entry `idx` changed. */
+  _set(list, idx, key, value) { this._commit(SC.withPatch(list, idx, key, value)); }
 
   _toggle(id, e) {
     if (e) e.stopPropagation();
@@ -114,7 +107,7 @@ class ScColorEditor extends LitElement {
                   <div style="display:flex;align-items:center;gap:8px">
                     <ha-switch .checked=${!!pat.enabled}
                       @click=${e => e.stopPropagation()}
-                      @change=${e => { const n = structuredClone(patterns); n[idx].enabled = e.target.checked; this._commit(n); }}>
+                      @change=${e => { this._set(patterns, idx, 'enabled', e.target.checked); }}>
                     </ha-switch>
 
                     <button type="button" title="Clone" @click=${e => {
@@ -139,11 +132,11 @@ class ScColorEditor extends LitElement {
                   <div class="pattern-content" style="display:flex; flex-direction:column; gap:8px;">
                     <div class="col">
                       <label>Name (internal)</label>
-                      <input type="text" .value=${pat.name || ''} @input=${e => { const n = structuredClone(patterns); n[idx].name = e.target.value; this._commit(n); }}>
+                      <input type="text" .value=${pat.name || ''} @input=${e => { this._set(patterns, idx, 'name', e.target.value); }}>
                     </div>
                     <div class="row">
                       <label>Target container</label>
-                      <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].target = e.target.value; this._commit(n); }}>
+                      <select style="width:60%" @change=${e => { this._set(patterns, idx, 'target', e.target.value); }}>
                         ${targets.map(t => {
                           const isLocked = t.id !== 'none' && t.id !== pat.target && usedTargets.includes(t.id);
                           return html`<option value=${t.id} ?selected=${pat.target === t.id} ?disabled=${isLocked}>
@@ -159,7 +152,7 @@ class ScColorEditor extends LitElement {
                         <div class="row">
                           <label>Automatic corner radius</label>
                           <ha-switch .checked=${isAutoBorder}
-                            @change=${e => { const n = structuredClone(patterns); n[idx].border_radius_auto = e.target.checked; this._commit(n); }}>
+                            @change=${e => { this._set(patterns, idx, 'border_radius_auto', e.target.checked); }}>
                           </ha-switch>
                         </div>
 
@@ -167,8 +160,8 @@ class ScColorEditor extends LitElement {
                           <div class="row">
                             <label>Corner radius (manual)</label>
                             <div style="display:flex;width:60%;gap:4px">
-                              <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} @input=${e => { const n = structuredClone(patterns); n[idx].border_radius = e.target.value; this._commit(n); }}>
-                              <select style="width:60px" @change=${e => { const n = structuredClone(patterns); n[idx].border_radius_unit = e.target.value; this._commit(n); }}>
+                              <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} @input=${e => { this._set(patterns, idx, 'border_radius', e.target.value); }}>
+                              <select style="width:60px" @change=${e => { this._set(patterns, idx, 'border_radius_unit', e.target.value); }}>
                                 <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
                                 <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
                               </select>
@@ -180,22 +173,22 @@ class ScColorEditor extends LitElement {
                           <div class="info-text" style="margin-top:0;">The colors are calculated dynamically by the effect.</div>
                           <div class="row"><label>Count (density)</label>
                             <input type="range" min="1" max="20" style="width:60%" .value=${pat.wave_count ?? 3}
-                              @input=${e => { const n = structuredClone(patterns); n[idx].wave_count = parseInt(e.target.value); this._commit(n); }}>
+                              @input=${e => { this._set(patterns, idx, 'wave_count', parseInt(e.target.value)); }}>
                           </div>
                           <div class="row"><label>Balance (peak vs. trough)</label>
                             <input type="range" min="5" max="95" style="width:60%" .value=${pat.wave_balance ?? 50}
-                              @input=${e => { const n = structuredClone(patterns); n[idx].wave_balance = parseInt(e.target.value); this._commit(n); }}>
+                              @input=${e => { this._set(patterns, idx, 'wave_balance', parseInt(e.target.value)); }}>
                           </div>
                           <div class="col"><label>Line/wave color (peak)</label>
                             <div class="color-row">
-                              <input type="color" .value=${pat.wave_c1 || '#03a9f4'} @input=${e => { const n = structuredClone(patterns); n[idx].wave_c1 = e.target.value; this._commit(n); }}>
-                              <input type="text" .value=${pat.wave_c1 || '#03a9f4'} style="flex:1" @input=${e => { const n = structuredClone(patterns); n[idx].wave_c1 = e.target.value; this._commit(n); }}>
+                              <input type="color" .value=${pat.wave_c1 || '#03a9f4'} @input=${e => { this._set(patterns, idx, 'wave_c1', e.target.value); }}>
+                              <input type="text" .value=${pat.wave_c1 || '#03a9f4'} style="flex:1" @input=${e => { this._set(patterns, idx, 'wave_c1', e.target.value); }}>
                             </div>
                           </div>
                           <div class="col"><label>Background color (trough)</label>
                             <div class="color-row">
-                              <input type="color" .value=${pat.wave_c2 || '#transparent'} @input=${e => { const n = structuredClone(patterns); n[idx].wave_c2 = e.target.value; this._commit(n); }}>
-                              <input type="text" .value=${pat.wave_c2 || 'transparent'} style="flex:1" @input=${e => { const n = structuredClone(patterns); n[idx].wave_c2 = e.target.value; this._commit(n); }}>
+                              <input type="color" .value=${pat.wave_c2 || '#transparent'} @input=${e => { this._set(patterns, idx, 'wave_c2', e.target.value); }}>
+                              <input type="text" .value=${pat.wave_c2 || 'transparent'} style="flex:1" @input=${e => { this._set(patterns, idx, 'wave_c2', e.target.value); }}>
                             </div>
                           </div>
                           <div style="font-size:11px; font-weight:bold; color:var(--primary-color); margin-top:4px;">Gradient preview</div>
@@ -207,7 +200,7 @@ class ScColorEditor extends LitElement {
                         ` : html`
                           ${pat.animation !== 'fluid' ? html`
                             <div class="row"><label>Background type</label>
-                              <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].bg_type = e.target.value; this._commit(n); }}>
+                              <select style="width:60%" @change=${e => { this._set(patterns, idx, 'bg_type', e.target.value); }}>
                                 <option value="solid"          ?selected=${pat.bg_type === 'solid'}>Solid (static)</option>
                                 <option value="solid_gradient" ?selected=${pat.bg_type === 'solid_gradient'}>Solid (dynamic from gradient)</option>
                                 <option value="linear"         ?selected=${pat.bg_type === 'linear'}>Gradient (linear)</option>
@@ -219,7 +212,7 @@ class ScColorEditor extends LitElement {
                             <div class="info-text" style="color:var(--secondary-text-color); margin-top:0;">Generates an endless, organically flowing vector animation.</div>
                             <div class="row" style="margin-top:4px;">
                               <label>Fluid style (viscosity)</label>
-                              <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].fluid_style = e.target.value; this._commit(n); }}>
+                              <select style="width:60%" @change=${e => { this._set(patterns, idx, 'fluid_style', e.target.value); }}>
                                 <option value="aurora" ?selected=${!pat.fluid_style || pat.fluid_style === 'aurora'}>Aurora (gentle mesh, GentleRain)</option>
                                 <option value="gooey"  ?selected=${pat.fluid_style === 'gooey'}>Liquid (lava/water, WbONyK)</option>
                                 <option value="smoke"     ?selected=${pat.fluid_style === 'smoke'}>Smoke / fog</option>
@@ -267,13 +260,13 @@ class ScColorEditor extends LitElement {
                         ${needsAngle ? html`
                           <div class="row" style="margin-top:8px;"><label>Angle (degrees)</label>
                             <input type="range" min="0" max="360" style="width:60%" .value=${pat.gradient_angle ?? 90}
-                              @input=${e => { const n = structuredClone(patterns); n[idx].gradient_angle = parseInt(e.target.value); this._commit(n); }}>
+                              @input=${e => { this._set(patterns, idx, 'gradient_angle', parseInt(e.target.value)); }}>
                           </div>` : ''}
 
                         <div class="row">
                           <label>Opacity (%)</label>
                           <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 100}
-                            @input=${e => { const n = structuredClone(patterns); n[idx].opacity = parseInt(e.target.value); this._commit(n); }}>
+                            @input=${e => { this._set(patterns, idx, 'opacity', parseInt(e.target.value)); }}>
                         </div>
                       </div>
                     </details>
@@ -285,7 +278,7 @@ class ScColorEditor extends LitElement {
 
                           <div class="col" style="margin-bottom: 4px;">
                             <label style="font-size:11px; color:var(--secondary-text-color);">Data source</label>
-                            <select style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color);" @change=${e => { const n = structuredClone(patterns); n[idx].global_id = e.target.value; this._commit(n); }}>
+                            <select style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color);" @change=${e => { this._set(patterns, idx, 'global_id', e.target.value); }}>
                               <option value="manual" ?selected=${pat.global_id === 'manual' || !pat.global_id}>Manual selection</option>
                               ${(this.slot?.global_entities || []).map(ge => {
                                 const stateObj = ge.entity ? this.hass.states[ge.entity] : null;
@@ -371,11 +364,11 @@ class ScColorEditor extends LitElement {
                           <div class="row">
                             <div class="col" style="flex:1;margin-right:8px">
                               <label style="font-size:10px">X-axis (${pat.radial_x ?? 50}%)</label>
-                              <input type="range" min="0" max="100" .value=${pat.radial_x ?? 50} @input=${e => { const n = structuredClone(patterns); n[idx].radial_x = parseInt(e.target.value); this._commit(n); }}>
+                              <input type="range" min="0" max="100" .value=${pat.radial_x ?? 50} @input=${e => { this._set(patterns, idx, 'radial_x', parseInt(e.target.value)); }}>
                             </div>
                             <div class="col" style="flex:1">
                               <label style="font-size:10px">Y-axis (${pat.radial_y ?? 50}%)</label>
-                              <input type="range" min="0" max="100" .value=${pat.radial_y ?? 50} @input=${e => { const n = structuredClone(patterns); n[idx].radial_y = parseInt(e.target.value); this._commit(n); }}>
+                              <input type="range" min="0" max="100" .value=${pat.radial_y ?? 50} @input=${e => { this._set(patterns, idx, 'radial_y', parseInt(e.target.value)); }}>
                             </div>
                           </div>
                         </div>
@@ -387,7 +380,7 @@ class ScColorEditor extends LitElement {
                       <div class="inner-content" style="gap: 8px;">
                         <div class="info-text" style="margin-top:0;">Without a condition the background is always visible.</div>
                         <ha-selector .hass=${this.hass} .selector=${{ condition: {} }} .value=${pat.bg_condition}
-                          @value-changed=${e => { const n = structuredClone(patterns); n[idx].bg_condition = e.detail.value; this._commit(n); }}>
+                          @value-changed=${e => { this._set(patterns, idx, 'bg_condition', e.detail.value); }}>
                         </ha-selector>
                       </div>
                     </details>
@@ -396,7 +389,7 @@ class ScColorEditor extends LitElement {
                       <summary style="font-size: 13px; color: var(--primary-color);"><span>🎬 Animation &amp; mode</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
                       <div class="inner-content" style="gap: 8px;">
                         <div class="row"><label>Effect</label>
-                          <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].animation = e.target.value; this._commit(n); }}>
+                          <select style="width:60%" @change=${e => { this._set(patterns, idx, 'animation', e.target.value); }}>
                             <option value="none"           ?selected=${pat.animation==='none'}>None (background only)</option>
                             <option value="pulse"          ?selected=${pat.animation==='pulse'}>Pulse (opacity)</option>
                             <option value="pump"           ?selected=${pat.animation==='pump'}>Pump (scale in/out)</option>
@@ -413,15 +406,15 @@ class ScColorEditor extends LitElement {
                             <div class="col" style="width:100%; gap:12px;">
                               <div class="row" style="margin:0"><label>Start amplitude (contrast)</label>
                                 <input type="range" min="1" max="100" style="width:60%" .value=${pat.wobble_amplitude ?? 100}
-                                  @input=${e => { const n = structuredClone(patterns); n[idx].wobble_amplitude = parseInt(e.target.value); this._commit(n); }}>
+                                  @input=${e => { this._set(patterns, idx, 'wobble_amplitude', parseInt(e.target.value)); }}>
                               </div>
                               <div class="row" style="margin:0"><label>Range (spread)</label>
                                 <input type="range" min="1" max="10" style="width:60%" .value=${pat.wobble_freq ?? 4}
-                                  @input=${e => { const n = structuredClone(patterns); n[idx].wobble_freq = parseInt(e.target.value); this._commit(n); }}>
+                                  @input=${e => { this._set(patterns, idx, 'wobble_freq', parseInt(e.target.value)); }}>
                               </div>
                               <div class="row" style="margin:0"><label>Pause after effect (sec.)</label>
                                 <input type="range" step="0.5" min="0" max="10" style="width:60%" .value=${pat.wobble_pause ?? 2}
-                                  @input=${e => { const n = structuredClone(patterns); n[idx].wobble_pause = parseFloat(e.target.value); this._commit(n); }}>
+                                  @input=${e => { this._set(patterns, idx, 'wobble_pause', parseFloat(e.target.value)); }}>
                               </div>
                             </div>
                           </div>
@@ -430,19 +423,19 @@ class ScColorEditor extends LitElement {
                         ${pat.animation !== 'none' ? html`
                           <div class="row" style="margin-top:4px"><label>${isWobble ? 'Fade-out time (duration in sec.)' : 'Speed (sec.)'}</label>
                             <input type="range" step="0.1" min="0.5" max="20" style="width:60%" .value=${pat.anim_duration ?? 3}
-                              @input=${e => { const n = structuredClone(patterns); n[idx].anim_duration = parseFloat(e.target.value); this._commit(n); }}>
+                              @input=${e => { this._set(patterns, idx, 'anim_duration', parseFloat(e.target.value)); }}>
                           </div>` : ''}
 
                         ${pat.animation === 'pump' ? html`
                           <div class="row"><label>Pump expansion</label>
                             <input type="range" step="0.001" min="1.0" max="1.2" style="width:60%" .value=${pat.pump_scale ?? 1.1}
-                              @input=${e => { const n = structuredClone(patterns); n[idx].pump_scale = parseFloat(e.target.value); this._commit(n); }}>
+                              @input=${e => { this._set(patterns, idx, 'pump_scale', parseFloat(e.target.value)); }}>
                           </div>` : ''}
 
                         ${isWaveOrRipple ? html`
                           <div class="row"><label>Reverse direction</label>
                             <ha-switch .checked=${!!pat.wave_invert}
-                              @change=${e => { const n = structuredClone(patterns); n[idx].wave_invert = e.target.checked; this._commit(n); }}>
+                              @change=${e => { this._set(patterns, idx, 'wave_invert', e.target.checked); }}>
                             </ha-switch>
                           </div>` : ''}
                       </div>
@@ -454,7 +447,7 @@ class ScColorEditor extends LitElement {
                         <div class="inner-content" style="gap: 8px;">
                           <div class="info-text" style="margin-top:0;">Without a condition the animation is always active.</div>
                           <ha-selector .hass=${this.hass} .selector=${{ condition: {} }} .value=${pat.anim_condition}
-                            @value-changed=${e => { const n = structuredClone(patterns); n[idx].anim_condition = e.detail.value; this._commit(n); }}>
+                            @value-changed=${e => { this._set(patterns, idx, 'anim_condition', e.detail.value); }}>
                           </ha-selector>
                         </div>
                       </details>
@@ -823,18 +816,8 @@ Object.assign(window.SupercardModules['color'], (() => {
 
           if (pat.bg_type === 'solid_gradient') {
 
-            // --- ALIAS RESOLVER ---
-            let resolvedEntity = pat.gradient_entity;
-            let resolvedAttribute = pat.gradient_entity_attribute;
-
-            if (pat.global_id && pat.global_id !== 'manual') {
-              const globalEntities = config.global_entities || [];
-              const foundAlias = globalEntities.find(g => g.id === pat.global_id);
-              if (foundAlias) {
-                resolvedEntity = foundAlias.entity;
-                resolvedAttribute = foundAlias.attribute;
-              }
-            }
+            const { entity: resolvedEntity, attribute: resolvedAttribute } =
+              SC.resolveAlias(config.global_entities, pat, 'gradient_entity', 'gradient_entity_attribute');
 
             if (resolvedEntity) {
               const _ges = hass.states[resolvedEntity];
@@ -928,7 +911,7 @@ Object.assign(window.SupercardModules['color'], (() => {
   }
 
   function renderCustomBlock(commitFn, hass, slot) {
-    return html`<sc-color-editor .slot=${slot} .hass=${hass} @color-update=${e => commitFn('__merge__', e.detail)}></sc-color-editor>`;
+    return html`<sc-color-editor .slot=${slot} .hass=${hass} .commitFn=${commitFn}></sc-color-editor>`;
   }
 
   function editorFields() { return []; }

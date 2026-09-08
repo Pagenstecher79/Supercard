@@ -1,5 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
+const SC = window.SupercardUtils;
+
 window.SupercardModules = window.SupercardModules || {};
 window.SupercardModules['gauge'] = window.SupercardModules['gauge'] || {};
 
@@ -10,59 +12,61 @@ function editorFields() {}
 const STYLE_FIELDS = [
   { id: '_section_shape',      label: '── Shape & Position',    type: 'section' },
   { id: 'gauge_type',          label: 'Gauge type',             type: 'select', options: [ { value: 'full', label: 'Full 360°' }, { value: 'semi', label: 'Semi 270°' } ] },
-  { id: 'gauge_start_angle',   label: 'Start position (0-point)', type: 'select', options: [ { value: '-90', label: 'Top (12 o’clock)' }, { value: '90', label: 'Bottom (6 o’clock)' }, { value: '180', label: 'Left (9 o’clock)' }, { value: '0', label: 'Right (3 o’clock)' } ], showIf: { field: 'gauge_type', value: 'full' } },
+  { id: 'gauge_start_angle',   label: 'Start position (0-point)', type: 'select', options: [ { value: '-90', label: 'Top (12 o’clock)' }, { value: '90', label: 'Bottom (6 o’clock)' }, { value: '180', label: 'Left (9 o’clock)' }, { value: '0', label: 'Right (3 o’clock)' } ], condition: cfg => cfg.gauge_type === 'full' },
   { id: 'gauge_scale',         label: 'Scale',            type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1'  },
 
   { id: 'gauge_position_mode', label: 'Anchor point / position', type: '9-sector' },
   { id: 'gauge_size_responsive', label: 'Responsive size (auto scaling)', type: 'checkbox' },
-  { id: 'gauge_size_px',         label: 'Size (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', showIf: { field: 'gauge_size_responsive', notValue: true } },
+  // Stringified on purpose: a config written by hand can carry the string
+  // "true" instead of the boolean, and that has always counted as enabled here.
+  { id: 'gauge_size_px',         label: 'Size (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', condition: cfg => String(cfg.gauge_size_responsive) !== 'true' },
   { id: 'gauge_offset_x',      label: 'Offset X (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
   { id: 'gauge_offset_y',      label: 'Offset Y (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
 
   { id: '_section_frame',           label: '── Frame Ring',               type: 'section'  },
   { id: 'frame_ring_active',        label: 'Frame active',                 type: 'checkbox' },
-  { id: 'frame_ring_closed',        label: 'Closed circle',          type: 'checkbox', showIf: { field: 'frame_ring_active', value: true } },
-  { id: 'frame_ring_width',         label: 'Width',                       type: 'range',    min: 0, max: 3, step: 0.1,  placeholder: '1.5', showIf: { field: 'frame_ring_active', value: true } },
-  { id: 'frame_ring_gap',           label: 'Gap to gradient ring',   type: 'range',    min: 0, max: 3, step: 0.1,  placeholder: '1.5', showIf: { field: 'frame_ring_active', value: true } },
-  { id: 'frame_ring_color_type',    label: 'Color mode',                   type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ], showIf: { field: 'frame_ring_active', value: true } },
-  { id: 'frame_ring_color',         label: 'Color (fixed)',                  type: 'color',    showIf: [{ field: 'frame_ring_active', value: true }, { field: 'frame_ring_color_type', notValue: 'adaptive' }] },
-  { id: 'frame_ring_opacity',       label: 'Opacity',                    type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1.0', showIf: { field: 'frame_ring_active', value: true } },
+  { id: 'frame_ring_closed',        label: 'Closed circle',          type: 'checkbox', condition: cfg => !!cfg.frame_ring_active },
+  { id: 'frame_ring_width',         label: 'Width',                       type: 'range',    min: 0, max: 3, step: 0.1,  placeholder: '1.5', condition: cfg => !!cfg.frame_ring_active },
+  { id: 'frame_ring_gap',           label: 'Gap to gradient ring',   type: 'range',    min: 0, max: 3, step: 0.1,  placeholder: '1.5', condition: cfg => !!cfg.frame_ring_active },
+  { id: 'frame_ring_color_type',    label: 'Color mode',                   type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ], condition: cfg => !!cfg.frame_ring_active },
+  { id: 'frame_ring_color',         label: 'Color (fixed)',                  type: 'color',    condition: cfg => !!cfg.frame_ring_active && cfg.frame_ring_color_type !== 'adaptive' },
+  { id: 'frame_ring_opacity',       label: 'Opacity',                    type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1.0', condition: cfg => !!cfg.frame_ring_active },
 
   { id: '_section_bg',           label: '── Background',             type: 'section' },
   { id: 'bg_mode',               label: 'Background mode',          type: 'select', options: [ { value: 'none', label: 'None' }, { value: 'adaptive', label: 'Adaptive (theme)' }, { value: 'solid', label: 'Solid color' }, { value: 'linear', label: 'Linear gradient' }, { value: 'radial', label: 'Radial gradient' } ] },
-  { id: 'bg_gradient_preset',    label: 'Gradient type',                type: 'select', options: [ { value: 'classic', label: 'Classic (2 colors)' }, { value: 'manual', label: 'Manual (list)' } ], showIf: { field: 'bg_mode', value: ['linear','radial'] } },
-  { id: 'bg_threshold_unit',     label: 'Threshold unit',          type: 'select', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', value: 'manual' }] },
+  { id: 'bg_gradient_preset',    label: 'Gradient type',                type: 'select', options: [ { value: 'classic', label: 'Classic (2 colors)' }, { value: 'manual', label: 'Manual (list)' } ], condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) },
+  { id: 'bg_threshold_unit',     label: 'Threshold unit',          type: 'select', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset === 'manual' },
   { id: 'bg_opacity',            label: 'Opacity',                  type: 'range',    min: 0, max: 1, step: 0.01, placeholder: '1.0' },
-  { id: 'bg_color1',             label: 'Color 1 (inner / start)',    type: 'color',  showIf: [{ field: 'bg_mode', value: ['solid','linear','radial'] }, { field: 'bg_gradient_preset', notValue: 'manual' }] },
-  { id: 'bg_color2',             label: 'Color 2 (outer / end)',     type: 'color',  showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', notValue: 'manual' }] },
-  { id: 'bg_balance',            label: 'Balance (%)',                type: 'range',    min: 0, max: 100, step: 0.1, placeholder: '50', showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', notValue: 'manual' }] },
-  { id: 'bg_gradient_angle',     label: 'Angle (° linear only)',      type: 'range',    min: 0, max: 360, step: 1, placeholder: '135', showIf: { field: 'bg_mode', value: 'linear' } },
-  { id: 'bg_manual_stops',       type: 'bg_manual_stops', showIf: [{ field: 'bg_mode', value: ['linear','radial'] }, { field: 'bg_gradient_preset', value: 'manual' }] },
+  { id: 'bg_color1',             label: 'Color 1 (inner / start)',    type: 'color',  condition: cfg => ['solid', 'linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset !== 'manual' },
+  { id: 'bg_color2',             label: 'Color 2 (outer / end)',     type: 'color',  condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset !== 'manual' },
+  { id: 'bg_balance',            label: 'Balance (%)',                type: 'range',    min: 0, max: 100, step: 0.1, placeholder: '50', condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset !== 'manual' },
+  { id: 'bg_gradient_angle',     label: 'Angle (° linear only)',      type: 'range',    min: 0, max: 360, step: 1, placeholder: '135', condition: cfg => cfg.bg_mode === 'linear' },
+  { id: 'bg_manual_stops',       type: 'bg_manual_stops', condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset === 'manual' },
 
   { id: '_section_bg_threshold',          label: '── Background Color (Threshold)', type: 'subsection' },
   { id: 'bg_color_threshold_active',      label: 'Threshold active',            type: 'checkbox' },
-  { id: 'bg_color_threshold_operator',    label: 'Operator',                     type: 'select', options: [ { value: '>', label: '> Greater than' }, { value: '<', label: '< Less than' }, { value: '>=', label: '>= Greater or equal' }, { value: '<=', label: '<= Less or equal' }, { value: '==', label: '== Equal' } ], showIf: { field: 'bg_color_threshold_active', value: true } },
-  { id: 'bg_color_threshold_value',       label: 'Threshold',                  type: 'number',  placeholder: '80', showIf: { field: 'bg_color_threshold_active', value: true } },
-  { id: 'bg_color_threshold_hysteresis',  label: 'Hysteresis (%)',                type: 'range', min: 0, max: 10, step: 0.1, placeholder: '5', showIf: { field: 'bg_color_threshold_active', value: true } },
-  { id: 'bg_color_threshold_color',       label: 'New background color',        type: 'color', showIf: { field: 'bg_color_threshold_active', value: true } },
+  { id: 'bg_color_threshold_operator',    label: 'Operator',                     type: 'select', options: [ { value: '>', label: '> Greater than' }, { value: '<', label: '< Less than' }, { value: '>=', label: '>= Greater or equal' }, { value: '<=', label: '<= Less or equal' }, { value: '==', label: '== Equal' } ], condition: cfg => !!cfg.bg_color_threshold_active },
+  { id: 'bg_color_threshold_value',       label: 'Threshold',                  type: 'number',  placeholder: '80', condition: cfg => !!cfg.bg_color_threshold_active },
+  { id: 'bg_color_threshold_hysteresis',  label: 'Hysteresis (%)',                type: 'range', min: 0, max: 10, step: 0.1, placeholder: '5', condition: cfg => !!cfg.bg_color_threshold_active },
+  { id: 'bg_color_threshold_color',       label: 'New background color',        type: 'color', condition: cfg => !!cfg.bg_color_threshold_active },
 
   { id: '_section_threshold_anim',          label: '── Threshold Animation',           type: 'subsection'  },
   { id: 'bg_threshold_anim_active',         label: 'Animation active',                  type: 'checkbox' },
-  { id: 'bg_threshold_anim_operator',       label: 'Operator',                         type: 'select',   options: [ { value: '>', label: '> Greater than' }, { value: '<', label: '< Less than' }, { value: '>=', label: '>= Greater or equal' }, { value: '<=', label: '<= Less or equal' }, { value: '==', label: '== Equal' } ], showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_value',          label: 'Threshold',                      type: 'number',   placeholder: '80',  showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_hysteresis',     label: 'Hysteresis (%)',                    type: 'range',    min: 0, max: 10, step: 0.5, placeholder: '5', showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_type',           label: 'Animation type',                    type: 'select',   options: [ { value: 'pulse_bg', label: 'Pulse — background' }, { value: 'pulse_frame', label: 'Pulse — frame ring' }, { value: 'ripple', label: 'Ripple — water wave' }, { value: 'waves', label: 'Waves (linear traveling)' }, { value: 'wobble_radial', label: 'Water drop (radial fade-out)' }, { value: 'wobble_linear', label: 'Shockwave (linear fade-out)' } ], showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_color',          label: 'Animation color (C1)',             type: 'color',    showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_anim_color2',         label: 'Animation color 2 (trough)',          type: 'color',    showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_anim_duration',       label: 'Duration (s)',                        type: 'number',   step: 0.1, placeholder: '1.5', showIf: { field: 'bg_threshold_anim_active', value: true } },
-  { id: 'bg_threshold_wave_count',          label: 'Count (density)',                  type: 'range',    min: 1, max: 20, step: 1, placeholder: '3', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_wave_balance',        label: 'Balance (peak vs. trough)',           type: 'range',    min: 5, max: 95, step: 1, placeholder: '50', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_gradient_angle',      label: 'Angle (°)',                       type: 'range',    min: 0, max: 360, step: 1, placeholder: '90', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['waves', 'wobble_linear'] }] },
-  { id: 'bg_threshold_wobble_amplitude',    label: 'Start amplitude (contrast)',       type: 'range',    min: 1, max: 100, step: 1, placeholder: '100', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_wobble_freq',         label: 'Range (spread)',         type: 'range',    min: 1, max: 10, step: 1, placeholder: '4', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_wobble_pause',        label: 'Pause after effect (sec.)',         type: 'range',    min: 0, max: 10, step: 0.5, placeholder: '2', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['wobble_radial', 'wobble_linear'] }] },
-  { id: 'bg_threshold_anim_ripple_multi',   label: 'Multiple ripple rings (3×)',        type: 'checkbox', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: 'ripple' }] },
-  { id: 'bg_threshold_anim_ripple_inv',     label: 'Implosion (reverse direction)',    type: 'checkbox', showIf: [{ field: 'bg_threshold_anim_active', value: true }, { field: 'bg_threshold_anim_type', value: ['ripple', 'waves'] }] },
+  { id: 'bg_threshold_anim_operator',       label: 'Operator',                         type: 'select',   options: [ { value: '>', label: '> Greater than' }, { value: '<', label: '< Less than' }, { value: '>=', label: '>= Greater or equal' }, { value: '<=', label: '<= Less or equal' }, { value: '==', label: '== Equal' } ], condition: cfg => !!cfg.bg_threshold_anim_active },
+  { id: 'bg_threshold_anim_value',          label: 'Threshold',                      type: 'number',   placeholder: '80',  condition: cfg => !!cfg.bg_threshold_anim_active },
+  { id: 'bg_threshold_anim_hysteresis',     label: 'Hysteresis (%)',                    type: 'range',    min: 0, max: 10, step: 0.5, placeholder: '5', condition: cfg => !!cfg.bg_threshold_anim_active },
+  { id: 'bg_threshold_anim_type',           label: 'Animation type',                    type: 'select',   options: [ { value: 'pulse_bg', label: 'Pulse — background' }, { value: 'pulse_frame', label: 'Pulse — frame ring' }, { value: 'ripple', label: 'Ripple — water wave' }, { value: 'waves', label: 'Waves (linear traveling)' }, { value: 'wobble_radial', label: 'Water drop (radial fade-out)' }, { value: 'wobble_linear', label: 'Shockwave (linear fade-out)' } ], condition: cfg => !!cfg.bg_threshold_anim_active },
+  { id: 'bg_threshold_anim_color',          label: 'Animation color (C1)',             type: 'color',    condition: cfg => !!cfg.bg_threshold_anim_active },
+  { id: 'bg_threshold_anim_color2',         label: 'Animation color 2 (trough)',          type: 'color',    condition: cfg => !!cfg.bg_threshold_anim_active && ['waves', 'wobble_radial', 'wobble_linear'].includes(cfg.bg_threshold_anim_type) },
+  { id: 'bg_threshold_anim_duration',       label: 'Duration (s)',                        type: 'number',   step: 0.1, placeholder: '1.5', condition: cfg => !!cfg.bg_threshold_anim_active },
+  { id: 'bg_threshold_wave_count',          label: 'Count (density)',                  type: 'range',    min: 1, max: 20, step: 1, placeholder: '3', condition: cfg => !!cfg.bg_threshold_anim_active && ['waves', 'wobble_radial', 'wobble_linear'].includes(cfg.bg_threshold_anim_type) },
+  { id: 'bg_threshold_wave_balance',        label: 'Balance (peak vs. trough)',           type: 'range',    min: 5, max: 95, step: 1, placeholder: '50', condition: cfg => !!cfg.bg_threshold_anim_active && ['waves', 'wobble_radial', 'wobble_linear'].includes(cfg.bg_threshold_anim_type) },
+  { id: 'bg_threshold_gradient_angle',      label: 'Angle (°)',                       type: 'range',    min: 0, max: 360, step: 1, placeholder: '90', condition: cfg => !!cfg.bg_threshold_anim_active && ['waves', 'wobble_linear'].includes(cfg.bg_threshold_anim_type) },
+  { id: 'bg_threshold_wobble_amplitude',    label: 'Start amplitude (contrast)',       type: 'range',    min: 1, max: 100, step: 1, placeholder: '100', condition: cfg => !!cfg.bg_threshold_anim_active && ['wobble_radial', 'wobble_linear'].includes(cfg.bg_threshold_anim_type) },
+  { id: 'bg_threshold_wobble_freq',         label: 'Range (spread)',         type: 'range',    min: 1, max: 10, step: 1, placeholder: '4', condition: cfg => !!cfg.bg_threshold_anim_active && ['wobble_radial', 'wobble_linear'].includes(cfg.bg_threshold_anim_type) },
+  { id: 'bg_threshold_wobble_pause',        label: 'Pause after effect (sec.)',         type: 'range',    min: 0, max: 10, step: 0.5, placeholder: '2', condition: cfg => !!cfg.bg_threshold_anim_active && ['wobble_radial', 'wobble_linear'].includes(cfg.bg_threshold_anim_type) },
+  { id: 'bg_threshold_anim_ripple_multi',   label: 'Multiple ripple rings (3×)',        type: 'checkbox', condition: cfg => !!cfg.bg_threshold_anim_active && cfg.bg_threshold_anim_type === 'ripple' },
+  { id: 'bg_threshold_anim_ripple_inv',     label: 'Implosion (reverse direction)',    type: 'checkbox', condition: cfg => !!cfg.bg_threshold_anim_active && ['ripple', 'waves'].includes(cfg.bg_threshold_anim_type) },
 
   { id: '_section_data',        label: '── Data & Scaling',  type: 'section' },
   { id: 'min',                  label: 'Min value',               type: 'number', placeholder: '0'   },
@@ -76,28 +80,28 @@ const STYLE_FIELDS = [
   { id: 'stroke_width',        label: 'Ring thickness',            type: 'range',    min: 0, max: 5, step: 0.01,  placeholder: '3'    },
   { id: 'gradient_preset',   label: 'Color mode',             type: 'select', options: [ { value: 'manual', label: 'Manual (list)' }, { value: 'symmetriccustom', label: 'Symmetric (custom)' }, { value: 'symmetric', label: 'Symmetric (default)' }, { value: 'linear', label: 'Linear traffic light' } ] },
 
-  { id: 'gradient_mode',     label: 'Gradient type',           type: 'select', options: [ { value: 'smooth', label: 'Smooth' }, { value: 'stepped', label: 'Stepped' } ], showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
+  { id: 'gradient_mode',     label: 'Gradient type',           type: 'select', options: [ { value: 'smooth', label: 'Smooth' }, { value: 'stepped', label: 'Stepped' } ], condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
   { id: 'gradient_resolution', label: 'Gradient resolution', type: 'select', options: [ { value: 'auto', label: 'Automatic (size-dependent)' }, { value: 'coarse', label: 'Coarse (1× color zones)' }, { value: 'medium', label: 'Medium (12× color zones)' }, { value: 'fine', label: 'Fine (24×) — default' }, { value: 'superfine', label: 'Superfine (48×)' }, { value: 'ultrafine', label: 'Ultrafine (96×)' }, { value: 'megafine', label: 'Megafine (192×)' }  ]},
 
-  { id: 'threshold_unit',    label: 'Threshold unit',     type: 'select', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
-  { id: 'gradient_start',    label: 'Gradient start',        type: 'number', placeholder: 'auto', showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
-  { id: 'gradient_end',      label: 'Gradient end',         type: 'number', placeholder: 'auto', showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
+  { id: 'threshold_unit',    label: 'Threshold unit',     type: 'select', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
+  { id: 'gradient_start',    label: 'Gradient start',        type: 'number', placeholder: 'auto', condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
+  { id: 'gradient_end',      label: 'Gradient end',         type: 'number', placeholder: 'auto', condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
 
-  { id: 'manual_stops',      type: 'manual_stops', showIf: { field: 'gradient_preset', value: ['manual', undefined] } },
+  { id: 'manual_stops',      type: 'manual_stops', condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
 
-  { id: 'color1',     label: 'Outer color',    type: 'color',  showIf: { field: 'gradient_preset', value: ['symmetric','symmetriccustom'] } },
-  { id: 'color2',     label: 'Middle color',    type: 'color',  showIf: { field: 'gradient_preset', value: ['symmetric','symmetriccustom'] } },
-  { id: 'color3',     label: 'Center color',  type: 'color',  showIf: { field: 'gradient_preset', value: ['symmetric','symmetriccustom'] } },
-  { id: 'threshold1', label: 'Transition center→middle (%)', type: 'range', min: 0, max: 98, step: 1, placeholder: '40', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
-  { id: 'threshold2', label: 'Transition middle→outer (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '75', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
-  { id: 'threshold3', label: 'Gradient width transition 1 (%)', type: 'range', min: 0.5, max: 30, step: 0.5, placeholder: '8', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
-  { id: 'threshold4', label: 'Gradient width transition 2 (%)', type: 'range', min: 0.5, max: 30, step: 0.5, placeholder: '8', showIf: { field: 'gradient_preset', value: 'symmetriccustom' } },
+  { id: 'color1',     label: 'Outer color',    type: 'color',  condition: cfg => ['symmetric', 'symmetriccustom'].includes(cfg.gradient_preset) },
+  { id: 'color2',     label: 'Middle color',    type: 'color',  condition: cfg => ['symmetric', 'symmetriccustom'].includes(cfg.gradient_preset) },
+  { id: 'color3',     label: 'Center color',  type: 'color',  condition: cfg => ['symmetric', 'symmetriccustom'].includes(cfg.gradient_preset) },
+  { id: 'threshold1', label: 'Transition center→middle (%)', type: 'range', min: 0, max: 98, step: 1, placeholder: '40', condition: cfg => cfg.gradient_preset === 'symmetriccustom' },
+  { id: 'threshold2', label: 'Transition middle→outer (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '75', condition: cfg => cfg.gradient_preset === 'symmetriccustom' },
+  { id: 'threshold3', label: 'Gradient width transition 1 (%)', type: 'range', min: 0.5, max: 30, step: 0.5, placeholder: '8', condition: cfg => cfg.gradient_preset === 'symmetriccustom' },
+  { id: 'threshold4', label: 'Gradient width transition 2 (%)', type: 'range', min: 0.5, max: 30, step: 0.5, placeholder: '8', condition: cfg => cfg.gradient_preset === 'symmetriccustom' },
 
-  { id: 'color1',     label: 'Start color',    type: 'color',  showIf: { field: 'gradient_preset', value: 'linear' } },
-  { id: 'color2',     label: 'Middle color',    type: 'color',  showIf: { field: 'gradient_preset', value: 'linear' } },
-  { id: 'color3',     label: 'End color',     type: 'color',  showIf: { field: 'gradient_preset', value: 'linear' } },
-  { id: 'threshold1', label: 'Start spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '20', showIf: { field: 'gradient_preset', value: 'linear' } },
-  { id: 'threshold2', label: 'Mid spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '60', showIf: { field: 'gradient_preset', value: 'linear' } },
+  { id: 'color1',     label: 'Start color',    type: 'color',  condition: cfg => cfg.gradient_preset === 'linear' },
+  { id: 'color2',     label: 'Middle color',    type: 'color',  condition: cfg => cfg.gradient_preset === 'linear' },
+  { id: 'color3',     label: 'End color',     type: 'color',  condition: cfg => cfg.gradient_preset === 'linear' },
+  { id: 'threshold1', label: 'Start spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '20', condition: cfg => cfg.gradient_preset === 'linear' },
+  { id: 'threshold2', label: 'Mid spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '60', condition: cfg => cfg.gradient_preset === 'linear' },
 
   { id: '_section_pointer',       label: '── Pointer',                  type: 'section' },
   { id: 'pointer_type',           label: 'Pointer shape',                type: 'select',  options: [ { value: 'needle', label: 'Needle' }, { value: 'triangle', label: 'Triangle' } ] },
@@ -108,19 +112,19 @@ const STYLE_FIELDS = [
   { id: 'pivot_offset_x',         label: 'Pivot offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'   },
   { id: 'pivot_offset_y',         label: 'Pivot offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'  },
   { id: 'pointer_color_type',     label: 'Pointer color mode',          type: 'select',  options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
-  { id: 'pointer_color',          label: 'Pointer color (fixed)',         type: 'color',   showIf: { field: 'pointer_color_type', notValue: 'adaptive' } },
+  { id: 'pointer_color',          label: 'Pointer color (fixed)',         type: 'color',   condition: cfg => cfg.pointer_color_type !== 'adaptive' },
   { id: 'pointer_3d_effect',      label: '3D effect (plastic)',      type: 'checkbox' },
   { id: 'pointer_dot_color_type', label: 'Dot color mode',           type: 'select',  options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
-  { id: 'pointer_dot_color',      label: 'Dot color (fixed)',          type: 'color',   showIf: { field: 'pointer_dot_color_type', notValue: 'adaptive' } },
+  { id: 'pointer_dot_color',      label: 'Dot color (fixed)',          type: 'color',   condition: cfg => cfg.pointer_dot_color_type !== 'adaptive' },
   { id: 'pointer_shadow_type',    label: 'Pointer shadow',            type: 'select',  options: [ { value: 'none', label: 'None' }, { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
-  { id: 'pointer_shadow_color',   label: 'Shadow color',             type: 'color',   showIf: { field: 'pointer_shadow_type', value: 'fixed' } },
-  { id: 'pointer_shadow_blur',     label: 'Shadow blur',   type: 'range', min: 0,  max: 1, step: 0.01,  placeholder: '0.8', showIf: { field: 'pointer_shadow_type', notValue: 'none' } },
-  { id: 'pointer_shadow_offset_y', label: 'Shadow offset Y',        type: 'range', min: -5, max: 5, step: 0.1,  placeholder: '0.3', showIf: { field: 'pointer_shadow_type', notValue: 'none' } },
-  { id: 'pointer_shadow_opacity',  label: 'Shadow opacity',        type: 'range', min: 0,  max: 1, step: 0.05, placeholder: '0.4', showIf: { field: 'pointer_shadow_type', notValue: 'none' } },
-  { id: 'animation_duration',     label: 'Animation duration (s)',       type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '0.8', showIf: { field: 'animation_easing', notValue: 'spring' } },
-  { id: 'animation_spring_duration', label: 'Spring animation duration (s)', type: 'range', min: 0.1, max: 10, step: 0.1, placeholder: '1.5', showIf: { field: 'animation_easing', value: 'spring' } },
+  { id: 'pointer_shadow_color',   label: 'Shadow color',             type: 'color',   condition: cfg => cfg.pointer_shadow_type === 'fixed' },
+  { id: 'pointer_shadow_blur',     label: 'Shadow blur',   type: 'range', min: 0,  max: 1, step: 0.01,  placeholder: '0.8', condition: cfg => cfg.pointer_shadow_type !== 'none' },
+  { id: 'pointer_shadow_offset_y', label: 'Shadow offset Y',        type: 'range', min: -5, max: 5, step: 0.1,  placeholder: '0.3', condition: cfg => cfg.pointer_shadow_type !== 'none' },
+  { id: 'pointer_shadow_opacity',  label: 'Shadow opacity',        type: 'range', min: 0,  max: 1, step: 0.05, placeholder: '0.4', condition: cfg => cfg.pointer_shadow_type !== 'none' },
+  { id: 'animation_duration',     label: 'Animation duration (s)',       type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '0.8', condition: cfg => cfg.animation_easing !== 'spring' },
+  { id: 'animation_spring_duration', label: 'Spring animation duration (s)', type: 'range', min: 0.1, max: 10, step: 0.1, placeholder: '1.5', condition: cfg => cfg.animation_easing === 'spring' },
   { id: 'animation_dynamic_speed',label: 'Dynamic pointer acceleration', type: 'checkbox' },
-  { id: 'animation_dynamic_speed_invert', label: 'Invert acceleration (long paths fast)', type: 'checkbox', showIf: { field: 'animation_dynamic_speed', value: true } },
+  { id: 'animation_dynamic_speed_invert', label: 'Invert acceleration (long paths fast)', type: 'checkbox', condition: cfg => !!cfg.animation_dynamic_speed },
   { id: 'animation_easing',       label: 'Pointer settling (easing)', type: 'select', options: [
     { value: 'smooth', label: 'Smooth (default)' },
     { value: 'overshoot_light', label: 'Light overshoot' },
@@ -129,8 +133,8 @@ const STYLE_FIELDS = [
     { value: 'elastic', label: 'Elastic (rubber band)' },
     { value: 'spring', label: 'Physical spring (multi-bounce)' }
   ] },
-  { id: 'animation_spring_bounces', label: 'Number of overshoots', type: 'range', min: 1, max: 10, step: 1, placeholder: '3', showIf: { field: 'animation_easing', value: 'spring' } },
-  { id: 'animation_spring_amplitude', label: 'Spring amplitude (intensity %)', type: 'range', min: 0, max: 100, step: 1, placeholder: '50', showIf: { field: 'animation_easing', value: 'spring' } },
+  { id: 'animation_spring_bounces', label: 'Number of overshoots', type: 'range', min: 1, max: 10, step: 1, placeholder: '3', condition: cfg => cfg.animation_easing === 'spring' },
+  { id: 'animation_spring_amplitude', label: 'Spring amplitude (intensity %)', type: 'range', min: 0, max: 100, step: 1, placeholder: '50', condition: cfg => cfg.animation_easing === 'spring' },
 
   { id: '_section_ticks',           label: '── Ticks',                    type: 'section' },
   { id: 'tick_count',               label: 'Tick count',                 type: 'range',    min: 0, max: 50, step: 1,   placeholder: '0'   },
@@ -138,7 +142,7 @@ const STYLE_FIELDS = [
   { id: 'tick_width',               label: 'Tick width',                 type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '1'   },
   { id: 'tick_offset',              label: 'Tick offset from ring',        type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
   { id: 'tick_color_type',          label: 'Tick color mode',             type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
-  { id: 'tick_color',               label: 'Tick color (fixed)',            type: 'color',   showIf: { field: 'tick_color_type', notValue: 'adaptive' } },
+  { id: 'tick_color',               label: 'Tick color (fixed)',            type: 'color',   condition: cfg => cfg.tick_color_type !== 'adaptive' },
 
   { id: '_section_sub_ticks',       label: '── SubTicks',                 type: 'subsection' },
   { id: 'sub_tick_count',           label: 'Sub-tick count (between)',type: 'range',    min: 0, max: 10, step: 1,   placeholder: '0'   },
@@ -146,21 +150,21 @@ const STYLE_FIELDS = [
   { id: 'sub_tick_width',           label: 'Sub-tick width',             type: 'range',    min: 0, max: 3, step: 0.1,   placeholder: '0.5' },
   { id: 'sub_tick_offset',          label: 'Sub-tick offset from ring',    type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
   { id: 'sub_tick_color_type',      label: 'Sub-tick color mode',         type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
-  { id: 'sub_tick_color',           label: 'Sub-tick color (fixed)',        type: 'color',    showIf: { field: 'sub_tick_color_type', notValue: 'adaptive' } },
+  { id: 'sub_tick_color',           label: 'Sub-tick color (fixed)',        type: 'color',    condition: cfg => cfg.sub_tick_color_type !== 'adaptive' },
 
   { id: '_section_ticks_label',     label: '── Tick Label',               type: 'subsection'},
   { id: 'show_tick_labels',         label: 'Show tick labels',        type: 'checkbox' },
-  { id: 'tick_label_step',          label: 'Label interval',             type: 'range',    min: 0, max: 10, step: 1,   placeholder: '1',  showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'multiplier_divide_ticks',  label: 'Divide tick labels by multiplier', type: 'checkbox', showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_decimals',      label: 'Label decimal places',        type: 'range',    min: 0, max: 6, step: 1,   placeholder: '0',  showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_font_size',     label: 'Label font size',          type: 'range',    min: 0, max: 20, step: 0.5, placeholder: '7',  showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_offset',        label: 'Label distance from ring',      type: 'range',    min: -15, max: 15, step: 0.1,  placeholder: '-8', showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_label_step',          label: 'Label interval',             type: 'range',    min: 0, max: 10, step: 1,   placeholder: '1',  condition: cfg => !!cfg.show_tick_labels },
+  { id: 'multiplier_divide_ticks',  label: 'Divide tick labels by multiplier', type: 'checkbox', condition: cfg => !!cfg.show_tick_labels },
+  { id: 'tick_label_decimals',      label: 'Label decimal places',        type: 'range',    min: 0, max: 6, step: 1,   placeholder: '0',  condition: cfg => !!cfg.show_tick_labels },
+  { id: 'tick_label_font_size',     label: 'Label font size',          type: 'range',    min: 0, max: 20, step: 0.5, placeholder: '7',  condition: cfg => !!cfg.show_tick_labels },
+  { id: 'tick_label_offset',        label: 'Label distance from ring',      type: 'range',    min: -15, max: 15, step: 0.1,  placeholder: '-8', condition: cfg => !!cfg.show_tick_labels },
   { id: 'tick_label_spread',        label: 'Spread (collision protection)', type: 'range',    min: 0, max: 10, step: 0.1,  placeholder: '0'   },
-  { id: 'tick_label_extra_length',  label: 'Label tick extra length',      type: 'range',    min: 0, max: 4, step: 0.1,   placeholder: '0',  showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_color_type',    label: 'Label color mode',            type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_color',         label: 'Label color (fixed)',           type: 'color',    showIf: [{ field: 'show_tick_labels', value: true }, { field: 'tick_label_color_type', notValue: 'adaptive' }] },
-  { id: 'tick_label_inherit_color', label: 'Inherit color from tick',        type: 'checkbox', showIf: { field: 'show_tick_labels', value: true } },
-  { id: 'tick_label_crossfade_dur', label: 'Crossfade duration (s)',     type: 'range',    min: 0, max: 3, step: 0.1, placeholder: '0.4', showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'tick_label_extra_length',  label: 'Label tick extra length',      type: 'range',    min: 0, max: 4, step: 0.1,   placeholder: '0',  condition: cfg => !!cfg.show_tick_labels },
+  { id: 'tick_label_color_type',    label: 'Label color mode',            type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_tick_labels },
+  { id: 'tick_label_color',         label: 'Label color (fixed)',           type: 'color',    condition: cfg => !!cfg.show_tick_labels && cfg.tick_label_color_type !== 'adaptive' },
+  { id: 'tick_label_inherit_color', label: 'Inherit color from tick',        type: 'checkbox', condition: cfg => !!cfg.show_tick_labels },
+  { id: 'tick_label_crossfade_dur', label: 'Crossfade duration (s)',     type: 'range',    min: 0, max: 3, step: 0.1, placeholder: '0.4', condition: cfg => !!cfg.show_tick_labels },
 
   { id: '_section_custom_ticks',    label: '── Custom Ticks (Fixed Points)', type: 'subsection' },
   { id: 'custom_ticks',             type: 'custom_ticks' },
@@ -170,40 +174,40 @@ const STYLE_FIELDS = [
 
   { id: '_section_labels',        label: '── Value & Labels',           type: 'section' },
   { id: 'show_value',             label: 'Show value',              type: 'checkbox' },
-  { id: 'value_font_size',        label: 'Value font size',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  showIf: { field: 'show_value', value: true } },
-  { id: 'value_offset_y',         label: 'Value offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  showIf: { field: 'show_value', value: true } },
-  { id: 'value_color_type',       label: 'Value color mode',            type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'show_value', value: true } },
-  { id: 'value_color',            label: 'Value color (fixed)',           type: 'color',   showIf: [{ field: 'show_value', value: true }, { field: 'value_color_type', notValue: 'adaptive' }] },
-  { id: 'value_decimals',         label: 'Decimal places',             type: 'range',    min: 0, max: 6, step: 1, placeholder: '0',   showIf: { field: 'show_value', value: true } },
-  { id: 'value_show_raw_unit',    label: 'Show unit',           type: 'checkbox', showIf: { field: 'show_value', value: true } },
-  { id: 'value_replace_unit',     label: 'Replace original unit',  type: 'checkbox', showIf: [{ field: 'show_value', value: true }, { field: 'value_show_raw_unit', value: true }] },
-  { id: 'value_custom_unit',      label: 'Custom unit (suffix)',    type: 'text',     placeholder: 'e.g. W', showIf: [{ field: 'show_value', value: true }, { field: 'value_show_raw_unit', value: true }, { field: 'value_replace_unit', value: true }] },
+  { id: 'value_font_size',        label: 'Value font size',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  condition: cfg => !!cfg.show_value },
+  { id: 'value_offset_y',         label: 'Value offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value },
+  { id: 'value_color_type',       label: 'Value color mode',            type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_value },
+  { id: 'value_color',            label: 'Value color (fixed)',           type: 'color',   condition: cfg => !!cfg.show_value && cfg.value_color_type !== 'adaptive' },
+  { id: 'value_decimals',         label: 'Decimal places',             type: 'range',    min: 0, max: 6, step: 1, placeholder: '0',   condition: cfg => !!cfg.show_value },
+  { id: 'value_show_raw_unit',    label: 'Show unit',           type: 'checkbox', condition: cfg => !!cfg.show_value },
+  { id: 'value_replace_unit',     label: 'Replace original unit',  type: 'checkbox', condition: cfg => !!cfg.show_value && !!cfg.value_show_raw_unit },
+  { id: 'value_custom_unit',      label: 'Custom unit (suffix)',    type: 'text',     placeholder: 'e.g. W', condition: cfg => !!cfg.show_value && !!cfg.value_show_raw_unit && !!cfg.value_replace_unit },
 
   { id: 'show_scale_label',       label: 'Show scale label', type: 'checkbox' },
-  { id: 'scale_label_font_size',  label: 'Label font size',         type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '10',  showIf: { field: 'show_scale_label', value: true } },
-  { id: 'scale_label_offset_y',   label: 'Label offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', showIf: { field: 'show_scale_label', value: true } },
-  { id: 'scale_label_color_type', label: 'Label color mode',           type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'show_scale_label', value: true } },
-  { id: 'scale_label_color',      label: 'Label color (fixed)',          type: 'color',   showIf: [{ field: 'show_scale_label', value: true }, { field: 'scale_label_color_type', notValue: 'adaptive' }] },
+  { id: 'scale_label_font_size',  label: 'Label font size',         type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '10',  condition: cfg => !!cfg.show_scale_label },
+  { id: 'scale_label_offset_y',   label: 'Label offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', condition: cfg => !!cfg.show_scale_label },
+  { id: 'scale_label_color_type', label: 'Label color mode',           type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_scale_label },
+  { id: 'scale_label_color',      label: 'Label color (fixed)',          type: 'color',   condition: cfg => !!cfg.show_scale_label && cfg.scale_label_color_type !== 'adaptive' },
   { id: 'show_multiplier_label',  label: 'Show multiplier',     type: 'checkbox' },
-  { id: 'multiplier_divide_ticks',  label: 'Divide tick labels by multiplier', type: 'checkbox', showIf: { field: 'show_tick_labels', value: true } },
+  { id: 'multiplier_divide_ticks',  label: 'Divide tick labels by multiplier', type: 'checkbox', condition: cfg => !!cfg.show_tick_labels },
 
-  { id: 'multiplier_prepend',     label: 'Prefix (e.g. x)',            type: 'text',    placeholder: 'x',   showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_decimals',    label: 'Decimal places',             type: 'number',  placeholder: '0',   showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_font_size',   label: 'Font size',               type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '10',  showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_offset_x',    label: 'Offset X',                   type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',   showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_offset_y',    label: 'Offset Y',                   type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_color_type',  label: 'Color mode',                 type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'show_multiplier_label', value: true } },
-  { id: 'multiplier_color',       label: 'Color (fixed)',                type: 'color',   showIf: [{ field: 'show_multiplier_label', value: true }, { field: 'multiplier_color_type', notValue: 'adaptive' }] },
+  { id: 'multiplier_prepend',     label: 'Prefix (e.g. x)',            type: 'text',    placeholder: 'x',   condition: cfg => !!cfg.show_multiplier_label },
+  { id: 'multiplier_decimals',    label: 'Decimal places',             type: 'number',  placeholder: '0',   condition: cfg => !!cfg.show_multiplier_label },
+  { id: 'multiplier_font_size',   label: 'Font size',               type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '10',  condition: cfg => !!cfg.show_multiplier_label },
+  { id: 'multiplier_offset_x',    label: 'Offset X',                   type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',   condition: cfg => !!cfg.show_multiplier_label },
+  { id: 'multiplier_offset_y',    label: 'Offset Y',                   type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', condition: cfg => !!cfg.show_multiplier_label },
+  { id: 'multiplier_color_type',  label: 'Color mode',                 type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_multiplier_label },
+  { id: 'multiplier_color',       label: 'Color (fixed)',                type: 'color',   condition: cfg => !!cfg.show_multiplier_label && cfg.multiplier_color_type !== 'adaptive' },
 
   { id: '_section_gauge_label',    label: '── Gauge Label',       type: 'section' },
   { id: 'gauge_label_active',      label: 'Label active',          type: 'checkbox' },
-  { id: 'gauge_label_text',        label: 'Label text',           type: 'text',     placeholder: 'Gauge',  showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_offset_x',    label: 'Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_offset_y',    label: 'Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_color_type',  label: 'Color mode',           type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], showIf: { field: 'gauge_label_active', value: true } },
-  { id: 'gauge_label_color',       label: 'Color (fixed)',            type: 'color',    showIf: { field: 'gauge_label_color_type', value: 'fixed' } }
+  { id: 'gauge_label_text',        label: 'Label text',           type: 'text',     placeholder: 'Gauge',  condition: cfg => !!cfg.gauge_label_active },
+  { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   condition: cfg => !!cfg.gauge_label_active },
+  { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => !!cfg.gauge_label_active },
+  { id: 'gauge_label_offset_x',    label: 'Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.gauge_label_active },
+  { id: 'gauge_label_offset_y',    label: 'Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.gauge_label_active },
+  { id: 'gauge_label_color_type',  label: 'Color mode',           type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.gauge_label_active },
+  { id: 'gauge_label_color',       label: 'Color (fixed)',            type: 'color',    condition: cfg => cfg.gauge_label_color_type === 'fixed' }
 ];
 
 class ScGaugeEditor extends LitElement {
@@ -217,59 +221,42 @@ class ScGaugeEditor extends LitElement {
 
   constructor() {
     super();
-    this._openStates = {};
+    this._expanded = {};
     this._timeouts = {};
   }
 
   static get styles() {
-    return css`
-      * { box-sizing: border-box; }
-      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-      .col { display: flex; flex-direction: column; gap: 4px; }
-      label { font-size: 13px; color: var(--primary-text-color); }
-      input[type="text"], input[type="number"], select { padding: 7px 10px; border: 1px solid var(--divider-color,#444); background: var(--secondary-background-color,#2a2a2a); color: var(--primary-text-color); border-radius: 6px; width: 100%; font-size: 13px; transition: border-color 0.2s; }
-      input:focus { border-color: var(--primary-color); outline: none; }
-      input[type="color"] { width: 42px; height: 32px; padding: 2px; border-radius: 6px; border: 1px solid var(--divider-color,#444); background: none; cursor: pointer; }
-      .color-row { display: flex; align-items: center; gap: 8px; }
-      .color-row input[type="text"] { flex: 1; }
-      .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
-      .toggle input { opacity: 0; width: 0; height: 0; }
-      .toggle-slider { position: absolute; inset: 0; background: var(--divider-color,#555); border-radius: 20px; cursor: pointer; transition: background 0.2s; }
-      .toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
-      .toggle input:checked + .toggle-slider { background: var(--primary-color,#03a9f4); }
-      .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+    return [SC.formStyles, css`
+      input[type="text"], input[type="number"], select { transition: border-color 0.2s; }
       details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
-      details.inner-section summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; outline: none; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
-      details.inner-section summary::-webkit-details-marker { display: none; }
       .inner-content { padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); margin-top: 4px; padding-top: 12px; }
       ha-entity-picker, ha-selector { display: block; width: 100%; }
       .entity-row { display: flex; flex-direction: column; gap: 4px; }
-      input[type="range"] { width: 100%; accent-color: var(--primary-color,#03a9f4); }
       .field-wrapper { display: block; }
       button.add-btn { margin-top:4px; padding:8px; border-radius:8px; border:1px dashed var(--primary-color,#03a9f4); background:none; color:var(--primary-color,#03a9f4); cursor:pointer; font-size:13px; width:100%; }
-      .sector-grid { 
-        display: grid; 
-        grid-template-columns: repeat(3, 1fr); 
-        gap: 2px; 
-        width: 54px; 
-        height: 54px; 
-        margin-top: 4px; 
+      .sector-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2px;
+        width: 54px;
+        height: 54px;
+        margin-top: 4px;
       }
-      .sector-btn { 
-        background: var(--divider-color, #555); 
-        border-radius: 2px; 
-        cursor: pointer; 
-        transition: all 0.2s; 
+      .sector-btn {
+        background: var(--divider-color, #555);
+        border-radius: 2px;
+        cursor: pointer;
+        transition: all 0.2s;
       }
-      .sector-btn:hover { 
-        background: var(--primary-color, #03a9f4); 
-        opacity: 0.7; 
+      .sector-btn:hover {
+        background: var(--primary-color, #03a9f4);
+        opacity: 0.7;
       }
-      .sector-btn.active { 
-        background: var(--primary-color, #03a9f4); 
-        box-shadow: 0 0 4px rgba(3,169,244,0.5); 
+      .sector-btn.active {
+        background: var(--primary-color, #03a9f4);
+        box-shadow: 0 0 4px rgba(3,169,244,0.5);
       }
-    `;
+    `];
   }
 
   render() {
@@ -314,7 +301,7 @@ class ScGaugeEditor extends LitElement {
   _addGauge(gauges) {
     const newGauges = structuredClone(gauges);
     newGauges.push({ entity: '', gauge_attribute: '' });
-    this._openStates[`gauge_${newGauges.length - 1}`] = true;
+    this._expanded[`gauge_${newGauges.length - 1}`] = true;
     this.commitFn('gauges', newGauges);
   }
 
@@ -353,18 +340,8 @@ class ScGaugeEditor extends LitElement {
   _renderGaugePanel(entry, idx, gauges) {
     // --- ALIAS TITLE PREVIEW ---
     let title = entry.name || '';
-    let resolvedEntity = entry.entity;
-    let isAlias = false;
-    let aliasObj = null;
-
-    if (entry.global_id && entry.global_id !== 'manual') {
-      const foundAlias = (this.slot?.global_entities || []).find(g => g.id === entry.global_id);
-      if (foundAlias) {
-        resolvedEntity = foundAlias.entity;
-        isAlias = true;
-        aliasObj = foundAlias;
-      }
-    }
+    const { entity: resolvedEntity, match: aliasObj } = SC.resolveAlias(this.slot?.global_entities, entry);
+    const isAlias = !!aliasObj;
 
     if (!title && resolvedEntity && this.hass?.states[resolvedEntity]) {
       const s = this.hass.states[resolvedEntity];
@@ -379,18 +356,16 @@ class ScGaugeEditor extends LitElement {
     }
     
     const stateKey = `gauge_${idx}`;
-    if (this._openStates[stateKey] === undefined) this._openStates[stateKey] = false;
+    if (this._expanded[stateKey] === undefined) this._expanded[stateKey] = false;
 
     const updateEntry = (key, val) => {
-      const newGauges = structuredClone(gauges);
-      newGauges[idx][key] = val;
-      this.commitFn('gauges', newGauges);
+      this.commitFn('gauges', SC.withPatch(gauges, idx, key, val));
     };
 
     return html`
       <details class="inner-section" 
-        ?open=${this._openStates[stateKey]} 
-        @toggle=${e => this._openStates[stateKey] = e.target.open}
+        ?open=${this._expanded[stateKey]} 
+        @toggle=${e => this._expanded[stateKey] = e.target.open}
         @dragstart=${(e) => {
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', idx);
@@ -527,21 +502,6 @@ class ScGaugeEditor extends LitElement {
     `;
   }
 
-  static evalShowIf(spec, entry) {
-    if (!spec) return true;
-    const conditions = Array.isArray(spec) ? spec : [spec];
-    return conditions.every(cond => {
-      const act = entry[cond.field];
-      if (cond.notValue !== undefined) {
-        const nv = cond.notValue;
-        return Array.isArray(nv) ? !nv.includes(act) : String(act) !== String(nv);
-      }
-      const exp = cond.value;
-      if (Array.isArray(exp)) return exp.includes(act);
-      if (typeof exp === 'boolean') return (act === undefined ? false : Boolean(act)) === exp;
-      return String(act) === String(exp);
-    });
-  }
 
   _renderStopsEditor(stopsArray, isAbsolute, onUpdate, resolution) {
     const mStops = Array.isArray(stopsArray) ? stopsArray : [];
@@ -726,10 +686,10 @@ class ScGaugeEditor extends LitElement {
         return renderItems(sec.items);
       } else {
         const detailKey = `g_${idx}_${sec.title}`;
-        if (this._openStates[detailKey] === undefined) this._openStates[detailKey] = false;
+        if (this._expanded[detailKey] === undefined) this._expanded[detailKey] = false;
         
         return html`
-          <details class="inner-section" ?open=${this._openStates[detailKey]} @toggle=${e => this._openStates[detailKey] = e.target.open}>
+          <details class="inner-section" ?open=${this._expanded[detailKey]} @toggle=${e => this._expanded[detailKey] = e.target.open}>
             <summary style="display:flex; justify-content:space-between; align-items:center;">
               <span style="flex: 1;">${sec.title}</span>
               ${cloneableSections.includes(sec.title) && gauges.length > 1 ? html`
@@ -746,9 +706,9 @@ class ScGaugeEditor extends LitElement {
               
               ${sec.subsections.map(subsec => {
                 const subDetailKey = `g_${idx}_${sec.title}_${subsec.title}`;
-                if (this._openStates[subDetailKey] === undefined) this._openStates[subDetailKey] = false;
+                if (this._expanded[subDetailKey] === undefined) this._expanded[subDetailKey] = false;
                 return html`
-                  <details class="inner-section" style="margin-top: 8px; border-color: var(--divider-color, #444); background: rgba(0,0,0,0.15);" ?open=${this._openStates[subDetailKey]} @toggle=${e => this._openStates[subDetailKey] = e.target.open}>
+                  <details class="inner-section" style="margin-top: 8px; border-color: var(--divider-color, #444); background: rgba(0,0,0,0.15);" ?open=${this._expanded[subDetailKey]} @toggle=${e => this._expanded[subDetailKey] = e.target.open}>
                     <summary style="font-size: 13px; font-weight: 500;">
                       ↳ ${subsec.title}
                       <span style="font-size:10px;">▼</span>
@@ -768,15 +728,13 @@ class ScGaugeEditor extends LitElement {
 
   _renderLitField(field, entry, idx, gauges) {
     if (!field) return html``;
-    if (field.showIf && !ScGaugeEditor.evalShowIf(field.showIf, entry)) return html``;
+    if (field.condition && !field.condition(entry)) return html``;
 
     let content;
     const val = entry[field.id];
     
     const updateDirect = (newVal) => {
-      const newGauges = structuredClone(gauges);
-      newGauges[idx][field.id] = newVal;
-      this.commitFn('gauges', newGauges);
+      this.commitFn('gauges', SC.withPatch(gauges, idx, field.id, newVal));
     };
 
     const updateDebounced = (newVal) => {
@@ -794,9 +752,7 @@ class ScGaugeEditor extends LitElement {
               Tip: thresholds can be given as absolute values or in %.
             </div>
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
-              const n = structuredClone(gauges);
-              n[idx].manual_stops = newStops;
-              this.commitFn('gauges', n);
+              this.commitFn('gauges', SC.withPatch(gauges, idx, 'manual_stops', newStops));
             }, entry.gradient_resolution)} </div>
         `;
         break;
@@ -806,9 +762,7 @@ class ScGaugeEditor extends LitElement {
         content = html`
           <div class="col" style="gap:8px;">
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
-              const n = structuredClone(gauges);
-              n[idx].bg_manual_stops = newStops;
-              this.commitFn('gauges', n);
+              this.commitFn('gauges', SC.withPatch(gauges, idx, 'bg_manual_stops', newStops));
             }, entry.gradient_resolution)} </div>
         `;
         break;

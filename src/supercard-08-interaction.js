@@ -1,5 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
+const SC = window.SupercardUtils;
+
 // --- HELPER FUNCTIONS FOR TARGET SELECTION ---
 const { getAvailableElements } = window.SupercardUtils;
 
@@ -63,23 +65,11 @@ class ScInteractionEditor extends LitElement {
   }
 
   static get styles() {
-    return css`
-      .inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
-      summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
-      summary::-webkit-details-marker { display: none; }
-      .inner-content { padding: 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); }
-      .pattern-card { background: var(--secondary-background-color, #1e1e1e); border: 1px solid var(--divider-color, #444); border-radius: 8px; padding: 10px; position: relative; transition: opacity 0.2s; }
-      .pattern-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; cursor: pointer; user-select: none; }
-      .pattern-content { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; margin-top: 8px; border-top: 1px dashed var(--divider-color, #333); }
-      .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; gap: 8px; }
-      .col { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
-      select, input[type="text"], input[type="number"], input[type="range"] { background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color); border: 1px solid var(--divider-color); border-radius: 4px; padding: 6px; }
-      .add-btn { background: transparent; border: 1px dashed var(--primary-color, #03a9f4); color: var(--primary-color, #03a9f4); padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; text-align: center; }
-      ha-switch { --switch-checked-button-color: var(--primary-color); scale: 0.8; }
-      .toggle-icon { font-size: 10px; margin-right: 8px; display: inline-block; width: 12px; text-align: center; }
-      .drag-handle { cursor: grab; padding-right: 8px; color: var(--secondary-text-color); }
-      .section-title { font-size: 11px; font-weight: bold; color: var(--primary-color); text-transform: uppercase; margin-bottom: -4px; margin-top: 8px; border-bottom: 1px solid var(--divider-color,#333); padding-bottom: 4px; }
-      option:disabled { color: rgba(255,255,255,0.3); font-style: italic; }
+    return [SC.editorStyles, css`
+      .row { gap: 8px; }
+      .toggle-icon { text-align: center; }
+      .pattern-card { transition: opacity 0.2s; }
+      .pattern-header { user-select: none; }
       optgroup { color: var(--primary-color); font-weight: bold; font-style: normal; }
       optgroup option { color: var(--primary-text-color); font-weight: normal; }
       .action-box { background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -95,7 +85,7 @@ class ScInteractionEditor extends LitElement {
       .action-icon-btn ha-icon { --mdc-icon-size: 22px; }
       .action-icon-label { font-size: 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
       ha-entity-picker { width: 100%; }
-    `;
+    `];
   }
 
   _commit(newList) {
@@ -103,6 +93,9 @@ class ScInteractionEditor extends LitElement {
       this.commitFn('__merge__', { interactions: newList });
     }
   }
+
+  /** Commit `list` with one field of entry `idx` changed. */
+  _set(list, idx, key, value) { this._commit(SC.withPatch(list, idx, key, value)); }
 
   _toggle(id, e) {
     if (e) e.stopPropagation();
@@ -112,7 +105,7 @@ class ScInteractionEditor extends LitElement {
 
   _renderActionBlock(pat, idx, patterns, prefix, label) {
     const actionType = pat[`${prefix}_action`] || 'none';
-    const setAction = (val) => { const n = structuredClone(patterns); n[idx][`${prefix}_action`] = val; this._commit(n); };
+    const setAction = (val) => { this._set(patterns, idx, `${prefix}_action`, val); };
 
     return html`
       <div class="action-box">
@@ -140,7 +133,7 @@ class ScInteractionEditor extends LitElement {
           <div class="col" style="margin-top:8px;">
             <label>Target entity (Entity ID)</label>
             <ha-entity-picker .hass=${this.hass} .allowCustomEntity=${true} .value=${pat[`${prefix}_entity`] || ''}
-              @value-changed=${e => { const n = structuredClone(patterns); n[idx][`${prefix}_entity`] = e.detail.value; this._commit(n); }}>
+              @value-changed=${e => { this._set(patterns, idx, `${prefix}_entity`, e.detail.value); }}>
             </ha-entity-picker>
           </div>
         ` : ''}
@@ -149,12 +142,12 @@ class ScInteractionEditor extends LitElement {
           <div class="col" style="margin-top:8px;">
             <label>Service</label>
             <input type="text" placeholder="light.turn_on" .value=${pat[`${prefix}_service`] || ''}
-              @input=${e => { const n = structuredClone(patterns); n[idx][`${prefix}_service`] = e.target.value; this._commit(n); }}>
+              @input=${e => { this._set(patterns, idx, `${prefix}_service`, e.target.value); }}>
           </div>
           <div class="col" style="margin-top:8px;">
             <label>Data (JSON, optional)</label>
             <input type="text" placeholder='{"brightness": 255}' .value=${pat[`${prefix}_data`] || ''}
-              @input=${e => { const n = structuredClone(patterns); n[idx][`${prefix}_data`] = e.target.value; this._commit(n); }}>
+              @input=${e => { this._set(patterns, idx, `${prefix}_data`, e.target.value); }}>
           </div>
         ` : ''}
 
@@ -162,7 +155,7 @@ class ScInteractionEditor extends LitElement {
           <div class="col" style="margin-top:8px;">
             <label>Path</label>
             <input type="text" placeholder="/lovelace/dashboard" .value=${pat[`${prefix}_nav`] || ''}
-              @input=${e => { const n = structuredClone(patterns); n[idx][`${prefix}_nav`] = e.target.value; this._commit(n); }}>
+              @input=${e => { this._set(patterns, idx, `${prefix}_nav`, e.target.value); }}>
           </div>
         ` : ''}
       </div>
@@ -228,7 +221,7 @@ class ScInteractionEditor extends LitElement {
                   <div style="display:flex;align-items:center;gap:8px">
                     <ha-switch .checked=${!!pat.enabled}
                       @click=${e => e.stopPropagation()}
-                      @change=${e => { const n = structuredClone(patterns); n[idx].enabled = e.target.checked; this._commit(n); }}>
+                      @change=${e => { this._set(patterns, idx, 'enabled', e.target.checked); }}>
                     </ha-switch>
 
                     <button type="button" title="Clone" @click=${e => {
@@ -252,7 +245,7 @@ class ScInteractionEditor extends LitElement {
                   <div class="pattern-content">
                     <div class="row">
                       <label>Target element</label>
-                      <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].target = e.target.value; this._commit(n); }}>
+                      <select style="width:60%" @change=${e => { this._set(patterns, idx, 'target', e.target.value); }}>
                         ${(() => {
                           const groups = {};
                           targets.forEach(t => {
@@ -283,12 +276,12 @@ class ScInteractionEditor extends LitElement {
                     <div class="row">
                       <label>Click depth (scale)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Max. press depth</span></label>
                       <input type="range" min="0" max="100" style="width:60%" .value=${pat.scale_depth ?? 50}
-                        @input=${e => { const n = structuredClone(patterns); n[idx].scale_depth = parseInt(e.target.value); this._commit(n); }}>
+                        @input=${e => { this._set(patterns, idx, 'scale_depth', parseInt(e.target.value)); }}>
                     </div>
                     <div class="row">
                       <label>Continuous rotation<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Very fast</span></label>
                       <input type="range" min="0" max="100" style="width:60%" .value=${pat.rotate_speed ?? 0}
-                        @input=${e => { const n = structuredClone(patterns); n[idx].rotate_speed = parseInt(e.target.value); this._commit(n); }}>
+                        @input=${e => { this._set(patterns, idx, 'rotate_speed', parseInt(e.target.value)); }}>
                     </div>
                   </div>
                 ` : ''}

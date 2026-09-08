@@ -1,7 +1,12 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
+const SC = window.SupercardUtils;
+
 // --- AVAILABLE ELEMENTS ---
-function getAvailableElements(slot) {
+// Grouped, and with four sub-targets per label, so this is not the flat
+// SC.getAvailableElements the other editors use - but which gauges and bars
+// exist comes from the same place.
+function getLayoutTargets(slot) {
   const elements = [
     { id: 'empty', label: 'Empty', group: 'Basic' },
     { id: 'icon', label: 'Icon (main entity)', group: 'Basic' },
@@ -9,16 +14,9 @@ function getAvailableElements(slot) {
     { id: 'state', label: 'State / value', group: 'Basic' }
   ];
 
-  const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
-  for (let i = 0; i < gaugeCount; i++) {
-    elements.push({ id: `gauge_${i}`, label: `Gauge ${i + 1}`, group: 'Gauges' });
-  }
-
-  const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
-  for (let i = 0; i < pbCount; i++) {
-    const pb = slot.progressbars[i];
-    elements.push({ id: `progressbar_${i}`, label: pb?.label_text || `Progressbar ${i + 1}`, group: 'Progressbars' });
-  }
+  const { gauges, bars } = SC.listElements(slot);
+  for (const g of gauges) elements.push({ ...g, group: 'Gauges' });
+  for (const b of bars) elements.push({ ...b, group: 'Progressbars' });
 
   if (Array.isArray(slot.labels_list)) {
     slot.labels_list.forEach((lbl, idx) => {
@@ -313,6 +311,7 @@ class ScLayoutEditor extends LitElement {
     return {
       slot: { type: Object },
       hass: { type: Object },
+      commitFn: { type: Function },
       _expanded: { type: Object, state: true },
       _dragState: { type: Object, state: true }
     };
@@ -376,8 +375,16 @@ class ScLayoutEditor extends LitElement {
   }
 
   _commit(newLayout) {
-    this.dispatchEvent(new CustomEvent('layout-update', { detail: { layout_rows: newLayout } }));
+    this._merge({ layout_rows: newLayout });
   }
+
+  /** The single write path out of this editor. */
+  _merge(patch) {
+    if (this.commitFn) this.commitFn('__merge__', patch);
+  }
+
+  /** Commit `list` with one field of entry `idx` changed. */
+  _set(list, idx, key, value) { this._commit(SC.withPatch(list, idx, key, value)); }
 
   _toggleExpand(key, e) {
     if (e) e.stopPropagation();
@@ -792,13 +799,13 @@ class ScLayoutEditor extends LitElement {
   render() {
     if (!this.slot) return html``;
     const layout = Array.isArray(this.slot.layout_rows) ? this.slot.layout_rows : [];
-    const allElements = getAvailableElements(this.slot);
+    const allElements = getLayoutTargets(this.slot);
     const usedElements = layout.flatMap(r => r.cells.flatMap(c => getCellItems(c).map(i => i.id))).filter(Boolean);
 
     return html`
       <details class="inner-section">
         <summary>── Layout & Free-form Area <div style="display:flex; align-items:center; gap:8px;">
-          <ha-switch .checked=${!!this.slot.layout_active} @click=${e => e.stopPropagation()} @change=${e => this.dispatchEvent(new CustomEvent('layout-update', { detail: { layout_active: e.target.checked } }))}></ha-switch>
+          <ha-switch .checked=${!!this.slot.layout_active} @click=${e => e.stopPropagation()} @change=${e => this._merge({ layout_active: e.target.checked })}></ha-switch>
           <span>▼</span>
         </summary>
         <div class="inner-content">
@@ -810,19 +817,19 @@ class ScLayoutEditor extends LitElement {
             <div class="row">
               <label>Icon</label>
               <ha-switch .checked=${this.slot.hide_icon !== true} @change=${e => {
-                this.dispatchEvent(new CustomEvent('layout-update', { detail: { hide_icon: !e.target.checked } }));
+                this._merge({ hide_icon: !e.target.checked });
               }}></ha-switch>
             </div>
             <div class="row" style="margin-top: 8px;">
               <label>Name (entity)</label>
               <ha-switch .checked=${this.slot.hide_entity_name !== true} @change=${e => {
-                this.dispatchEvent(new CustomEvent('layout-update', { detail: { hide_entity_name: !e.target.checked } }));
+                this._merge({ hide_entity_name: !e.target.checked });
               }}></ha-switch>
             </div>
             <div class="row" style="margin-top: 8px;">
               <label>State (value)</label>
               <ha-switch .checked=${this.slot.hide_entity_state !== true} @change=${e => {
-                this.dispatchEvent(new CustomEvent('layout-update', { detail: { hide_entity_state: !e.target.checked } }));
+                this._merge({ hide_entity_state: !e.target.checked });
               }}></ha-switch>
             </div>
           </div>
@@ -832,7 +839,7 @@ class ScLayoutEditor extends LitElement {
               <div class="row">
                 <label style="color: var(--warning-color, #ff9800); font-weight: bold;">🛠 Show Grid (Global)</label>
                 <ha-switch .checked=${!!this.slot.layout_debug} @change=${e => {
-                    this.dispatchEvent(new CustomEvent('layout-update', { detail: { layout_debug: e.target.checked } }));
+                    this._merge({ layout_debug: e.target.checked });
                 }}></ha-switch>
               </div>
               <div style="font-size:11px; color:var(--secondary-text-color); margin-top:4px;">
@@ -876,7 +883,7 @@ class ScLayoutEditor extends LitElement {
                   <label>Row height (%)</label>
                   <div style="display:flex; align-items:center; width:60%; gap:8px;">
                     <input type="range" min="0" max="100" step="1" style="flex:1" .value=${row.flex ?? 0} @input=${e => {
-                      const n = structuredClone(layout); n[rIdx].flex = parseInt(e.target.value); this._commit(n);
+                      this._set(layout, rIdx, 'flex', parseInt(e.target.value));
                     }}>
                     <span style="font-size:11px; width:30px; text-align:right;">${(row.flex > 0) ? row.flex + '%' : 'Auto'}</span>
                   </div>
@@ -1112,5 +1119,5 @@ Object.assign(window.SupercardModules['layout'], (() => {
     });
   }
 
-  return /** @type {SupercardModule} */ ({ update, onAfterRender, editorFields: () => [], renderCustomBlock: (commitFn, hass, slot) => html`<sc-layout-editor .slot=${slot} .hass=${hass} @layout-update=${e => { if (e.detail) commitFn('__merge__', e.detail); }}></sc-layout-editor>` });
+  return /** @type {SupercardModule} */ ({ update, onAfterRender, editorFields: () => [], renderCustomBlock: (commitFn, hass, slot) => html`<sc-layout-editor .slot=${slot} .hass=${hass} .commitFn=${commitFn}></sc-layout-editor>` });
 })());
