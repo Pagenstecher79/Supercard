@@ -13,11 +13,13 @@ npm run watch      # same, rebuilding on change
 npm run typecheck  # tsc -p jsconfig.json --noEmit   (NOT `npx tsc`, see below)
 ```
 
-The `ha:*` scripts in `package.json` are **broken**: they drive a `docker/`
-directory (`prepare.mjs`, `docker-compose.yml`, `reset.mjs`) that is not in the
-repository and never has been. There is no working way to run the card in a
-real Home Assistant from a fresh checkout - deploy a build to an instance by
-hand instead.
+There is no automated way to run the card in a real Home Assistant. Build, then
+copy `dist/supercard.js` over the installed file on an instance (HACS puts it
+at `/hacsfiles/Supercard/supercard.js`) and hard-refresh - and do not add a
+second resource entry for a test build, see the registration note below.
+(A set of `ha:*` scripts used to sit in `package.json` driving a `docker/`
+directory that was never in the repository; they were removed rather than left
+looking usable.)
 
 `package.json`'s `"version"` is **not** the version of record and has read
 `1.0.0` across every release so far. The version is the git tag; there is no
@@ -39,13 +41,19 @@ checks nothing.
 `supercard-01-core.js` populates `window.SupercardUtils` and every other module
 destructures from it at module scope.
 
-**Do not add files to the root `index.js`.** The build entry is `src/index.js`.
-The root `index.js` is a stale leftover whose imports do not resolve.
+The build entry is `src/index.js`. A new module has to be imported there or it
+is simply absent from the bundle - nothing warns you.
 
 Modules register themselves on `window.SupercardModules[name]` and implement any
 subset of the `SupercardModule` contract in `src/types/global.d.ts`:
 `update`, `onAfterRender`, `editorFields`, `renderCustomBlock`. The card renders
 them in the fixed order in `moduleOrder` (`supercard-01-core.js`).
+
+`supercard-10-debug.js` is **deliberately not imported**. It is a developer
+panel for inspecting which modules loaded, kept out of the bundle for design
+reasons. `moduleOrder` still lists `debug`, so adding the import to
+`src/index.js` locally is all it takes to use it. Do not "fix" the missing
+import.
 
 Stacking is governed by the `SC_LAYERS` dictionary in `supercard-01-core.js`.
 Use those constants; never write a bare `z-index` number.
@@ -200,5 +208,10 @@ a GitHub release - live, immediately, to everyone who has the card installed.
 
 Never commit, push, or tag on your own initiative. Build locally, report what
 you found, and wait for an explicit go-ahead.
+
+The release body is the **annotated tag's message**, with GitHub's generated
+notes appended under a rule. So write the tag message for users:
+`git tag -a vX.Y.Z -m "..."`. A lightweight tag yields no intro - the workflow
+guards against falling back to the commit message.
 
 `dist/` is gitignored; the release workflow builds it. Never commit build output.
