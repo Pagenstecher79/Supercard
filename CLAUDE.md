@@ -11,8 +11,18 @@ Vanilla JS + LitElement, no framework, no transpile step beyond Vite's bundling.
 npm run build      # src/index.js -> dist/supercard.js (Vite lib mode)
 npm run watch      # same, rebuilding on change
 npm run typecheck  # tsc -p jsconfig.json --noEmit   (NOT `npx tsc`, see below)
-npm run ha         # build + seed + run Home Assistant in Docker
 ```
+
+The `ha:*` scripts in `package.json` are **broken**: they drive a `docker/`
+directory (`prepare.mjs`, `docker-compose.yml`, `reset.mjs`) that is not in the
+repository and never has been. There is no working way to run the card in a
+real Home Assistant from a fresh checkout - deploy a build to an instance by
+hand instead.
+
+`package.json`'s `"version"` is **not** the version of record and has read
+`1.0.0` across every release so far. The version is the git tag; there is no
+`hacs.json`, and HACS reads the tag. Do not bump the field expecting it to
+matter, and do not trust it when identifying a build.
 
 There are no unit tests. `npm test` runs vitest, which reports "No test files
 found" and exits 1. That is the expected state, not a failure to fix. Verify
