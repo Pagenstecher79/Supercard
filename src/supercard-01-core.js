@@ -37,6 +37,78 @@ Object.assign(window.SupercardUtils, (() => {
   const rgbToHex = (r, g, b) => '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
 
   /**
+   * Look up a `var(--x)` against the document root. Anything else is handed
+   * back untouched. Split out from toRgb because a var() that stays a var()
+   * keeps following the theme, so only callers that need a concrete number
+   * right now (contrast maths, gradient sampling) should resolve one.
+   * @type {(v: string) => string}
+   */
+  const resolveVar = v => {
+    if (typeof v !== 'string' || !v.startsWith('var(')) return v;
+    const m = v.match(/var\(([^),]+)/);
+    return m ? getComputedStyle(document.documentElement).getPropertyValue(m[1].trim()).trim() : v;
+  };
+
+  /**
+   * The one colour reader. Accepts everything the editors can produce - an
+   * [r,g,b] array, #rgb / #rrggbb, or an rgb()/rgba() string - and returns
+   * [r,g,b], or null when the value is not a colour we can read.
+   * @param {any} value
+   * @param {{ resolveVars?: boolean }} [opts]
+   * @returns {[number, number, number] | null}
+   */
+  function toRgb(value, opts = {}) {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'string') return null;
+    let v = value.trim();
+    if (opts.resolveVars) v = resolveVar(v);
+    if (v.startsWith('#')) return hexToRgb(v);
+    if (v.startsWith('rgb')) {
+      const m = v.match(/\d+/g);
+      if (m && m.length >= 3) return [parseInt(m[0]), parseInt(m[1]), parseInt(m[2])];
+    }
+    return null;
+  }
+
+  /**
+   * A copy of `list` with one field of one entry replaced. The editors are
+   * built on immutable commits - clone, change, hand the new list to the
+   * commit function - and writing that out by hand at every input meant a
+   * hundred chances to forget the clone and mutate the live config instead.
+   * @template T
+   * @param {T[]} list
+   * @param {number} idx
+   * @param {string} key
+   * @param {any} value
+   * @returns {T[]}
+   */
+  function withPatch(list, idx, key, value) {
+    const next = structuredClone(list);
+    next[idx][key] = value;
+    return next;
+  }
+
+  /**
+   * Resolve a config entry's entity/attribute through the global alias list.
+   * Every module that can be pointed at a global entity needs this, so it
+   * lives here rather than being re-typed per module. `match` is the alias
+   * record itself for callers that also want its name.
+   *
+   * @param {{ id: string, entity: string, attribute: string, alias?: string }[]} list
+   * @param {any} cfg
+   * @param {string} [entityKey]
+   * @param {string} [attrKey]
+   */
+  function resolveAlias(list, cfg, entityKey = 'entity', attrKey = 'attribute') {
+    const id = cfg?.global_id;
+    if (id && id !== 'manual') {
+      const found = (list || []).find(g => g.id === id);
+      if (found) return { entity: found.entity, attribute: found.attribute, alias: found.alias || '', match: found };
+    }
+    return { entity: cfg?.[entityKey], attribute: cfg?.[attrKey], alias: '', match: null };
+  }
+
+  /**
    * @param {{ pos: number, color: string }[]} stops
    * @param {number} pct
    * @returns {string}
@@ -59,22 +131,32 @@ Object.assign(window.SupercardUtils, (() => {
   }
 
   /**
+   * The gauges and progress bars a slot contains, as {id, label} records.
+   * The target lists differ per editor - flat here, grouped in layout, with
+   * extra per-label sub-targets there - but *which* gauges and bars exist is
+   * one question with one answer, so it is answered once.
+   * @param {any} slot
+   */
+  function listElements(slot) {
+    const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
+    const gauges = Array.from({ length: gaugeCount }, (_, i) => ({ id: `gauge_${i}`, label: `Gauge ${i + 1}` }));
+    const bars = (Array.isArray(slot.progressbars) ? slot.progressbars : [])
+      .map((pb, i) => ({ id: `progressbar_${i}`, label: pb?.label_text || `Progressbar ${i + 1}` }));
+    return { gauges, bars };
+  }
+
+  /**
    * Flat {id: label} map of elements available for targeting (color patterns,
-   * fx-glass, interactions). Used to look up a human label for a layout
-   * cell's content type; kept as one shared source so it can't drift between
-   * the modules that consume it.
+   * fx-glass, interactions). The layout editor builds its own grouped list
+   * from listElements instead, because it also offers per-label sub-targets.
    * @param {any} slot
    * @returns {Record<string, string>}
    */
   function getAvailableElements(slot) {
     const elements = { 'empty': 'Empty', 'icon': 'Icon', 'name': 'Entity name', 'state': 'State (value)' };
-    const gaugeCount = Array.isArray(slot.gauges) ? slot.gauges.length : (slot.gauge_active ? 1 : 0);
-    for (let i = 0; i < gaugeCount; i++) elements[`gauge_${i}`] = `Gauge ${i + 1}`;
-    const pbCount = Array.isArray(slot.progressbars) ? slot.progressbars.length : 0;
-    for (let i = 0; i < pbCount; i++) {
-      const pb = slot.progressbars[i];
-      elements[`progressbar_${i}`] = pb?.label_text || `Progressbar ${i + 1}`;
-    }
+    const { gauges, bars } = listElements(slot);
+    for (const g of gauges) elements[g.id] = g.label;
+    for (const b of bars) elements[b.id] = b.label;
     if (Array.isArray(slot.labels_list)) {
       slot.labels_list.forEach((l, idx) => {
         elements[`label_${idx}`] = `Label: ${l.label_text || l.entity || idx + 1}`;
@@ -83,8 +165,68 @@ Object.assign(window.SupercardUtils, (() => {
     return elements;
   }
 
-  return /** @type {SupercardUtilsApi} */ ({ safeFloat, hexToRgb, rgbToHex, sampleGradient, getAvailableElements });
+  // --- SHARED EDITOR CHROME ---------------------------------------------
+  // Both blocks below were copy-pasted into every editor module and had
+  // started to drift apart. As one CSSResult each, the browser parses a
+  // single stylesheet that all the adopting shadow roots share, and a change
+  // to the editor look is a change in one place.
+  //
+  // Modules keep their own block after these in the styles array, so a module
+  // that genuinely wants a different value just restates that one property.
+
+  // Used by the module editors that list pattern/label cards (color,
+  // progressbar, labels, fx-glass, interaction). Identified by ha-switch.
+  const editorStyles = css`
+    .inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
+    summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
+    summary::-webkit-details-marker { display: none; }
+    .inner-content { padding: 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); }
+    .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+    .col { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+    select, input[type="text"], input[type="number"], input[type="range"] { background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color); border: 1px solid var(--divider-color); border-radius: 4px; padding: 6px; }
+    .add-btn { background: transparent; border: 1px dashed var(--primary-color, #03a9f4); color: var(--primary-color, #03a9f4); padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; text-align: center; }
+    ha-switch { --switch-checked-button-color: var(--primary-color); scale: 0.8; }
+    .toggle-icon { font-size: 10px; margin-right: 8px; display: inline-block; width: 12px; }
+    .section-title { font-size: 11px; font-weight: bold; color: var(--primary-color); text-transform: uppercase; border-bottom: 1px solid var(--divider-color,#333); padding-bottom: 4px; margin-top: 8px; margin-bottom: -4px; }
+    .color-row { display: flex; align-items: center; gap: 6px; }
+    .color-row input[type="text"] { flex: 1; }
+    .pattern-card { background: var(--secondary-background-color, #1e1e1e); border: 1px solid var(--divider-color, #444); border-radius: 8px; padding: 10px; position: relative; }
+    .pattern-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; cursor: pointer; }
+    .pattern-content { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; margin-top: 8px; border-top: 1px dashed var(--divider-color, #333); }
+    .drag-handle { cursor: grab; padding-right: 8px; color: var(--secondary-text-color); }
+    option:disabled { color: rgba(255,255,255,0.3); font-style: italic; }
+  `;
+
+  // Used by the compact config forms (core's two editors, the gauge editor).
+  // Identified by the hand-rolled .toggle switch instead of ha-switch.
+  const formStyles = css`
+    * { box-sizing: border-box; }
+    label { font-size: 13px; color: var(--primary-text-color); }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .col { display: flex; flex-direction: column; gap: 4px; }
+    input[type="text"], input[type="number"], select { padding: 7px 10px; border: 1px solid var(--divider-color,#444); background: var(--secondary-background-color,#2a2a2a); color: var(--primary-text-color); border-radius: 6px; width: 100%; font-size: 13px; }
+    input:focus { border-color: var(--primary-color); outline: none; }
+    input[type="range"] { width: 100%; accent-color: var(--primary-color,#03a9f4); }
+    input[type="color"] { width: 42px; height: 32px; padding: 2px; border-radius: 6px; border: 1px solid var(--divider-color,#444); background: none; cursor: pointer; }
+    .color-row { display: flex; align-items: center; gap: 8px; }
+    .color-row input[type="text"] { flex: 1; }
+    .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--divider-color,#555); border-radius: 20px; cursor: pointer; transition: background 0.2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--primary-color,#03a9f4); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+    details.inner-section summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; outline: none; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
+    details.inner-section summary::-webkit-details-marker { display: none; }
+  `;
+
+  return /** @type {SupercardUtilsApi} */ ({
+    safeFloat, hexToRgb, rgbToHex, toRgb, resolveVar, sampleGradient,
+    getAvailableElements, listElements, resolveAlias, withPatch, editorStyles, formStyles
+  });
 })());
+
+const SC_UTILS = window.SupercardUtils;
 
 // Entity ids referenced anywhere in a card config. Used by shouldUpdate to tell
 // a relevant hass update apart from the ones HA fires for every other entity.
@@ -428,28 +570,11 @@ class ScGenericModuleEditor extends LitElement {
   constructor() { super(); this._timeouts = {}; }
 
   static get styles() {
-    return css`
-      * { box-sizing: border-box; }
-      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-      .col { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
-      label { font-size: 13px; color: var(--primary-text-color); }
-      input[type="text"], input[type="number"], select { padding: 7px 10px; border: 1px solid var(--divider-color,#444); background: var(--secondary-background-color,#2a2a2a); color: var(--primary-text-color); border-radius: 6px; width: 100%; font-size: 13px; }
-      input:focus { border-color: var(--primary-color); outline: none; }
-      input[type="range"] { width: 100%; accent-color: var(--primary-color,#03a9f4); }
-      .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
-      .toggle input { opacity: 0; width: 0; height: 0; }
-      .toggle-slider { position: absolute; inset: 0; background: var(--divider-color,#555); border-radius: 20px; cursor: pointer; transition: background 0.2s; }
-      .toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
-      .toggle input:checked + .toggle-slider { background: var(--primary-color,#03a9f4); }
-      .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+    return [SC_UTILS.formStyles, css`
+      .row, .col { margin-bottom: 8px; }
       details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-bottom: 8px; }
-      details.inner-section summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; outline: none; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
-      details.inner-section summary::-webkit-details-marker { display: none; }
       .inner-content { padding: 0 12px 12px 12px; display: flex; flex-direction: column; border-top: 1px solid var(--divider-color,#444); margin-top: 4px; padding-top: 12px; }
-      .color-row { display: flex; align-items: center; gap: 8px; }
-      .color-row input[type="text"] { flex: 1; }
-      input[type="color"] { width: 42px; height: 32px; padding: 2px; border-radius: 6px; border: 1px solid var(--divider-color,#444); background: none; cursor: pointer; }
-    `;
+    `];
   }
 
   static evalShowIf(spec, slot) {
@@ -584,25 +709,12 @@ Object.assign(window.SupercardModules['core'], (() => {
     static get properties() { return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Object }, _expanded: { state: true } }; }
     constructor() { super(); this._expanded = {}; }
     static get styles() {
-      return css`
-        * { box-sizing: border-box; }
-        .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-        .col { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
-        label { font-size: 13px; color: var(--primary-text-color); }
-        input[type="text"], input[type="number"], select { padding: 7px 10px; border: 1px solid var(--divider-color,#444); background: var(--secondary-background-color,#2a2a2a); color: var(--primary-text-color); border-radius: 6px; width: 100%; font-size: 13px; }
-        input:focus { border-color: var(--primary-color); outline: none; }
-        .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
-        .toggle input { opacity: 0; width: 0; height: 0; }
-        .toggle-slider { position: absolute; inset: 0; background: var(--divider-color,#555); border-radius: 20px; cursor: pointer; transition: background 0.2s; }
-        .toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
-        .toggle input:checked + .toggle-slider { background: var(--primary-color,#03a9f4); }
-        .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+      return [SC_UTILS.formStyles, css`
+        .row, .col { margin-bottom: 8px; }
         details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-bottom: 8px; }
-        details.inner-section summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; outline: none; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
-        details.inner-section summary::-webkit-details-marker { display: none; }
         .inner-content { padding: 0 12px 12px 12px; display: flex; flex-direction: column; border-top: 1px solid var(--divider-color,#444); margin-top: 4px; padding-top: 12px; }
         ha-entity-picker { display: block; width: 100%; }
-      `;
+      `];
     }
     // --- NEW METHODS FOR GLOBAL ENTITIES ---
     _addGlobalEntity() {

@@ -1,3 +1,5 @@
+import type { CSSResult } from 'lit';
+
 export {};
 
 declare global {
@@ -35,8 +37,30 @@ declare global {
     safeFloat: (v: any, d: number) => number;
     hexToRgb: (hex: string) => [number, number, number] | null;
     rgbToHex: (r: number, g: number, b: number) => string;
+    /** Reads [r,g,b] arrays, #rgb/#rrggbb and rgb()/rgba(); var() only with resolveVars. */
+    toRgb: (value: any, opts?: { resolveVars?: boolean }) => [number, number, number] | null;
+    /** Looks up a var(--x) against the document root; anything else passes through. */
+    resolveVar: (v: string) => string;
     sampleGradient: (stops: { pos: number; color: string }[], pct: number) => string;
     getAvailableElements: (slot: any) => Record<string, string>;
+    /** The gauges and progress bars a slot contains, as {id, label} records. */
+    listElements: (slot: any) => {
+      gauges: { id: string; label: string }[];
+      bars: { id: string; label: string }[];
+    };
+    /** Resolves entity/attribute through the global alias list. */
+    resolveAlias: (
+      list: { id: string; entity: string; attribute: string; alias?: string }[],
+      cfg: any,
+      entityKey?: string,
+      attrKey?: string
+    ) => { entity: string; attribute: string; alias: string; match: any };
+    /** A copy of `list` with one field of entry `idx` replaced. */
+    withPatch: <T>(list: T[], idx: number, key: string, value: any) => T[];
+    /** Shared chrome for the card-list module editors (ha-switch family). */
+    editorStyles: CSSResult;
+    /** Shared chrome for the compact config forms (.toggle family). */
+    formStyles: CSSResult;
   }
 
   interface Window {

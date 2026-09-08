@@ -1,20 +1,12 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
+const SC = window.SupercardUtils;
+
 // --- HELPER FUNCTIONS ---
-const { safeFloat, hexToRgb } = window.SupercardUtils;
+const { safeFloat } = window.SupercardUtils;
 const polarToCart = (cx, cy, r, deg) => { const rad = deg * Math.PI / 180; return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }; };
 
-const toRgbArray = v => {
-  if (Array.isArray(v)) return v; 
-  if (typeof v === 'string') {
-    if (v.startsWith('#')) return hexToRgb(v);
-    if (v.startsWith('rgb')) {
-      const m = v.match(/\d+/g);
-      if (m && m.length >= 3) return [parseInt(m[0]), parseInt(m[1]), parseInt(m[2])];
-    }
-  }
-  return null; 
-};
+const toRgbArray = SC.toRgb;
 const interpolateColor = (c1, c2, f) => {
   const a = toRgbArray(c1) || [128,128,128]; const b = toRgbArray(c2) || [128,128,128];
   return [Math.round(a[0]+f*(b[0]-a[0])), Math.round(a[1]+f*(b[1]-a[1])), Math.round(a[2]+f*(b[2]-a[2]))];
@@ -286,17 +278,9 @@ class ScGauge extends LitElement {
   render() {
     if (!this.config || !this.hass) return html``;
     
-    // --- ALIAS RESOLVER FIX ---
-    let resolvedEntity = this.config.entity || '';
-    let resolvedAttribute = this.config.gauge_attribute || null;
-
-    if (this.config.global_id && this.config.global_id !== 'manual') {
-      const foundAlias = (this.globalEntities || []).find(g => g.id === this.config.global_id);
-      if (foundAlias) {
-        resolvedEntity = foundAlias.entity;
-        resolvedAttribute = foundAlias.attribute;
-      }
-    }
+    const _alias = SC.resolveAlias(this.globalEntities, this.config, 'entity', 'gauge_attribute');
+    const resolvedEntity = _alias.entity || '';
+    const resolvedAttribute = _alias.attribute || null;
 
     const stateObj = resolvedEntity ? this.hass.states[resolvedEntity] : null;
     

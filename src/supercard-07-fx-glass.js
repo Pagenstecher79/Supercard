@@ -1,5 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
+const SC = window.SupercardUtils;
+
 // --- NEW UI ELEMENT: X/Y SHADOW PAD (light source) ---
 class ScShadowPad extends LitElement {
   static get properties() {
@@ -133,35 +135,26 @@ class ScFxGlassEditor extends LitElement {
   }
 
   static get styles() {
-    return css`
-      .inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
-      summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
-      summary::-webkit-details-marker { display: none; }
-      .inner-content { padding: 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); }
-      .pattern-card { background: var(--secondary-background-color, #1e1e1e); border: 1px solid var(--divider-color, #444); border-radius: 8px; padding: 10px; position: relative; transition: opacity 0.2s; }
-      .pattern-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; cursor: pointer; user-select: none; }
-      .pattern-content { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; margin-top: 8px; border-top: 1px dashed var(--divider-color, #333); }
-      .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; gap: 8px; }
-      .col { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
-      select, input[type="text"], input[type="number"], input[type="range"] { background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color); border: 1px solid var(--divider-color); border-radius: 4px; padding: 6px; }
+    return [SC.editorStyles, css`
+      .row { gap: 8px; }
+      .toggle-icon { text-align: center; }
+      .pattern-card { transition: opacity 0.2s; }
+      .pattern-header { user-select: none; }
       select optgroup { background: var(--secondary-background-color, #1e1e1e); color: var(--primary-color); font-weight: bold; font-style: normal; }
       select option { color: var(--primary-text-color); font-weight: normal; }
-      .add-btn { background: transparent; border: 1px dashed var(--primary-color, #03a9f4); color: var(--primary-color, #03a9f4); padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; text-align: center; }
-      ha-switch { --switch-checked-button-color: var(--primary-color); scale: 0.8; }
-      .toggle-icon { font-size: 10px; margin-right: 8px; display: inline-block; width: 12px; text-align: center; }
-      .drag-handle { cursor: grab; padding-right: 8px; color: var(--secondary-text-color); }
-      .section-title { font-size: 11px; font-weight: bold; color: var(--primary-color); text-transform: uppercase; margin-bottom: -4px; margin-top: 8px; border-bottom: 1px solid var(--divider-color,#333); padding-bottom: 4px; }
       input[type="color"] { padding: 0; width: 60%; height: 32px; cursor: pointer; border: 1px solid var(--divider-color); }
       input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
       input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
-      option:disabled { color: rgba(255,255,255,0.3); font-style: italic; }
       .auto-magic-box { background: rgba(3,169,244,0.1); padding: 8px 10px; border-radius: 6px; font-size: 11px; color: var(--primary-color); display: flex; flex-direction: column; gap: 8px; border: 1px dashed rgba(3,169,244,0.3); }
-    `;
+    `];
   }
 
   _commit(newList) {
     if (this.commitFn) this.commitFn('__merge__', { fx_glass_patterns: newList });
   }
+
+  /** Commit `list` with one field of entry `idx` changed. */
+  _set(list, idx, key, value) { this._commit(SC.withPatch(list, idx, key, value)); }
 
   _toggle(id, e) {
     if (e) e.stopPropagation();
@@ -225,7 +218,7 @@ class ScFxGlassEditor extends LitElement {
                     <span style="font-size:10px;color:${pat.target === 'none' ? '#f44' : 'var(--secondary-text-color)'};margin-left:8px;font-weight:normal;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom;">(${targetLabel})</span>
                   </div>
                   <div style="display:flex;align-items:center;gap:8px">
-                    <ha-switch .checked=${!!pat.enabled} @click=${e => e.stopPropagation()} @change=${e => { const n = structuredClone(patterns); n[idx].enabled = e.target.checked; this._commit(n); }}></ha-switch>
+                    <ha-switch .checked=${!!pat.enabled} @click=${e => e.stopPropagation()} @change=${e => { this._set(patterns, idx, 'enabled', e.target.checked); }}></ha-switch>
                     <button type="button" title="Clone" @click=${e => { e.preventDefault(); e.stopPropagation(); const n = structuredClone(patterns); const clone = structuredClone(pat); clone.id = Date.now(); clone.target = 'none'; n.splice(idx + 1, 0, clone); this._commit(n); this.requestUpdate(); }} style="background:none;border:none;color:var(--primary-color);cursor:pointer;padding:4px;font-size:14px;">⧉</button>
                     <button type="button" title="Delete" @click=${e => { e.preventDefault(); e.stopPropagation(); const n = [...patterns]; n.splice(idx, 1); this._commit(n); }} style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">✕</button>
                   </div>
@@ -235,7 +228,7 @@ class ScFxGlassEditor extends LitElement {
                   <div class="pattern-content">
                     <div class="row">
                       <label>Target / element</label>
-                      <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].target = e.target.value; this._commit(n); }}>
+                      <select style="width:60%" @change=${e => { this._set(patterns, idx, 'target', e.target.value); }}>
                         ${Object.values(targetGroups).map(group => html`
                           <optgroup label="${group.label}">
                             ${group.items.map(t => {
@@ -257,20 +250,20 @@ class ScFxGlassEditor extends LitElement {
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid rgba(3,169,244,0.3); padding-top:8px;">
                           <label>Manual correction (show sliders)</label>
-                          <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].manual_override = e.target.checked; this._commit(n); }}></ha-switch>
+                          <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { this._set(patterns, idx, 'manual_override', e.target.checked); }}></ha-switch>
                         </div>
                       </div>
                     ` : ''}
 
                     <div class="row" style="background: rgba(244,67,54,0.1); padding: 8px; border-radius: 6px; border: 1px dashed rgba(244,67,54,0.3);">
                       <label style="color:#f44336; font-weight:bold;">🛠 Debug mode (show boxes)<br><span style="font-size:10px; font-weight:normal;">Shows the container in green and the glass in dashed pink.</span></label>
-                      <ha-switch style="--switch-checked-button-color: #f44336; --switch-checked-track-color: rgba(244,67,54,0.5);" .checked=${pat.debug_mask ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].debug_mask = e.target.checked; this._commit(n); }}></ha-switch>
+                      <ha-switch style="--switch-checked-button-color: #f44336; --switch-checked-track-color: rgba(244,67,54,0.5);" .checked=${pat.debug_mask ?? false} @change=${e => { this._set(patterns, idx, 'debug_mask', e.target.checked); }}></ha-switch>
                     </div>
 
                     ${showManualControls ? html`
                       <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;">
                         <label style="color:var(--primary-color)">Lock shape (1:1 aspect ratio)<br><span style="font-size:10px;color:var(--secondary-text-color)">Forces a perfect square/circle (cqmin).</span></label>
-                        <ha-switch .checked=${pat.force_square ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].force_square = e.target.checked; this._commit(n); }}></ha-switch>
+                        <ha-switch .checked=${pat.force_square ?? false} @change=${e => { this._set(patterns, idx, 'force_square', e.target.checked); }}></ha-switch>
                       </div>
                       <div class="row">
                         <label>Edge distance (inset / padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
@@ -281,9 +274,9 @@ class ScFxGlassEditor extends LitElement {
                             step="1"
                             style="flex:1"
                             .value=${pat.padding ?? 0}
-                            @input=${e => { const n = structuredClone(patterns); n[idx].padding = parseInt(e.target.value); this._commit(n); }}>
+                            @input=${e => { this._set(patterns, idx, 'padding', parseInt(e.target.value)); }}>
                           <span style="font-size:11px; min-width:24px; text-align:right;">${pat.padding ?? 0}</span>
-                          <select style="width:60px" @change=${e => { const n = structuredClone(patterns); n[idx].padding_unit = e.target.value; this._commit(n); }}>
+                          <select style="width:60px" @change=${e => { this._set(patterns, idx, 'padding_unit', e.target.value); }}>
                             <option value="px" ?selected=${pat.padding_unit === 'px' || !pat.padding_unit}>px</option>
                             <option value="%" ?selected=${pat.padding_unit === '%'}>%</option>
                           </select>
@@ -292,8 +285,8 @@ class ScFxGlassEditor extends LitElement {
                       <div class="row">
                         <label>Corner radius (border-radius)</label>
                         <div style="display:flex;width:60%;gap:4px">
-                          <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} placeholder="Auto" @input=${e => { const n = structuredClone(patterns); n[idx].border_radius = e.target.value; this._commit(n); }}>
-                          <select style="width:60px" @change=${e => { const n = structuredClone(patterns); n[idx].border_radius_unit = e.target.value; this._commit(n); }}>
+                          <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} placeholder="Auto" @input=${e => { this._set(patterns, idx, 'border_radius', e.target.value); }}>
+                          <select style="width:60px" @change=${e => { this._set(patterns, idx, 'border_radius_unit', e.target.value); }}>
                             <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
                             <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
                           </select>
@@ -304,45 +297,45 @@ class ScFxGlassEditor extends LitElement {
                     <div class="section-title">🍩 Ring / Donut Mask</div>
                     <div class="row">
                       <label style="color:var(--primary-color)">Hide center (hard edge)<br><span style="font-size:10px;color:var(--secondary-text-color)">Blur & color only affect the edge exactly.</span></label>
-                      <ha-switch .checked=${pat.ring_effect ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].ring_effect = e.target.checked; this._commit(n); }}></ha-switch>
+                      <ha-switch .checked=${pat.ring_effect ?? false} @change=${e => { this._set(patterns, idx, 'ring_effect', e.target.checked); }}></ha-switch>
                     </div>
                     ${pat.ring_effect ? html`
                       <div class="row" style="padding-top: 4px;">
                         <label>Use custom mask thickness<br><span style="font-size:10px;color:var(--secondary-text-color)">Off = thickness matches the bevel width exactly (${pat.bevel_width ?? pat.bevel_size ?? 2}px)</span></label>
-                        <ha-switch .checked=${pat.use_custom_ring_width ?? false} @change=${e => { const n = structuredClone(patterns); n[idx].use_custom_ring_width = e.target.checked; this._commit(n); }}></ha-switch>
+                        <ha-switch .checked=${pat.use_custom_ring_width ?? false} @change=${e => { this._set(patterns, idx, 'use_custom_ring_width', e.target.checked); }}></ha-switch>
                       </div>
                       ${pat.use_custom_ring_width ? html`
                         <div class="row"><label>Mask thickness (px)</label>
-                          <input type="range" min="1" max="50" step="0.5" style="width:60%" .value=${pat.ring_width ?? 5} @input=${e => { const n = structuredClone(patterns); n[idx].ring_width = parseFloat(e.target.value); this._commit(n); }}>
+                          <input type="range" min="1" max="50" step="0.5" style="width:60%" .value=${pat.ring_width ?? 5} @input=${e => { this._set(patterns, idx, 'ring_width', parseFloat(e.target.value)); }}>
                         </div>
                       ` : ''}
                       <div class="row"><label>Effect strength in center (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = blur & color completely hollow</span></label>
-                        <input type="range" min="0" max="100" style="width:60%" .value=${pat.ring_center_opacity ?? 0} @input=${e => { const n = structuredClone(patterns); n[idx].ring_center_opacity = parseInt(e.target.value); this._commit(n); }}>
+                        <input type="range" min="0" max="100" style="width:60%" .value=${pat.ring_center_opacity ?? 0} @input=${e => { this._set(patterns, idx, 'ring_center_opacity', parseInt(e.target.value)); }}>
                       </div>
                     ` : ''}
 
                     <div class="section-title">🔍 Optics (Magnifier & Curvature)</div>
                     <div class="row"><label>Magnify content (zoom)</label>
-                      <input type="range" step="0.01" min="1" max="1.5" style="width:60%" .value=${pat.zoom ?? 1} @input=${e => { const n = structuredClone(patterns); n[idx].zoom = parseFloat(e.target.value); this._commit(n); }}>
+                      <input type="range" step="0.01" min="1" max="1.5" style="width:60%" .value=${pat.zoom ?? 1} @input=${e => { this._set(patterns, idx, 'zoom', parseFloat(e.target.value)); }}>
                     </div>
                     <div class="row"><label>Convex 3D shine (%)</label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.glare ?? 0} @input=${e => { const n = structuredClone(patterns); n[idx].glare = parseInt(e.target.value); this._commit(n); }}>
+                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.glare ?? 0} @input=${e => { this._set(patterns, idx, 'glare', parseInt(e.target.value)); }}>
                     </div>
 
                     <div class="section-title">💧 Glass & Blur</div>
                     <div class="row"><label>Blur strength (px)</label>
-                      <input type="range" step="0.01" min="0" max="2" style="width:60%" .value=${pat.blur ?? 10} @input=${e => { const n = structuredClone(patterns); n[idx].blur = parseFloat(e.target.value); this._commit(n); }}>
+                      <input type="range" step="0.01" min="0" max="2" style="width:60%" .value=${pat.blur ?? 10} @input=${e => { this._set(patterns, idx, 'blur', parseFloat(e.target.value)); }}>
                     </div>
                     <div class="row"><label>Background opacity (%)</label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 10} @input=${e => { const n = structuredClone(patterns); n[idx].opacity = parseInt(e.target.value); this._commit(n); }}>
+                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 10} @input=${e => { this._set(patterns, idx, 'opacity', parseInt(e.target.value)); }}>
                     </div>
                     <div class="row"><label>Color (hex picker)</label>
-                      <input type="color" .value=${pat.bg_rgb || '#ffffff'} @input=${e => { const n = structuredClone(patterns); n[idx].bg_rgb = e.target.value; this._commit(n); }}>
+                      <input type="color" .value=${pat.bg_rgb || '#ffffff'} @input=${e => { this._set(patterns, idx, 'bg_rgb', e.target.value); }}>
                     </div>
 
                     <div class="section-title">🌒 Light Refraction & Bevel (Physics)</div>
                     <div class="row"><label>Glass style</label>
-                      <select style="width:60%" @change=${e => { const n = structuredClone(patterns); n[idx].shadow_style = e.target.value; this._commit(n); }}>
+                      <select style="width:60%" @change=${e => { this._set(patterns, idx, 'shadow_style', e.target.value); }}>
                         <option value="none" ?selected=${pat.shadow_style === 'none'}>Flat (no edges)</option>
                         <option value="frosted" ?selected=${pat.shadow_style === 'frosted'}>Frosted (soft edges)</option>
                         <option value="liquid" ?selected=${pat.shadow_style === 'liquid'}>Liquid (physical refraction)</option>
@@ -371,17 +364,17 @@ class ScFxGlassEditor extends LitElement {
 
                       <div class="row"><label>Bevel width (px)<br><span style="font-size:10px;color:var(--secondary-text-color)">Extent of the edge inward</span></label>
                         <input type="range" step="0.1" min="0" max="30" style="width:60%" .value=${pat.bevel_width ?? pat.bevel_size ?? 2}
-                          @input=${e => { const n = structuredClone(patterns); n[idx].bevel_width = parseFloat(e.target.value); this._commit(n); }}>
+                          @input=${e => { this._set(patterns, idx, 'bevel_width', parseFloat(e.target.value)); }}>
                       </div>
 
                       <div class="row"><label>Glass thickness (depth)<br><span style="font-size:10px;color:var(--secondary-text-color)">Controls the steepness & refraction</span></label>
                         <input type="range" step="0.5" min="0" max="20" style="width:60%" .value=${pat.glass_thickness ?? 5}
-                          @input=${e => { const n = structuredClone(patterns); n[idx].glass_thickness = parseFloat(e.target.value); this._commit(n); }}>
+                          @input=${e => { this._set(patterns, idx, 'glass_thickness', parseFloat(e.target.value)); }}>
                       </div>
 
                       <div class="row"><label>Base brightness (light)</label>
                         <input type="range" step="0.001" min="0" max="1" style="width:60%" .value=${pat.light_brightness ?? 0.4}
-                          @input=${e => { const n = structuredClone(patterns); n[idx].light_brightness = parseFloat(e.target.value); this._commit(n); }}>
+                          @input=${e => { this._set(patterns, idx, 'light_brightness', parseFloat(e.target.value)); }}>
                       </div>
                     ` : ''}
                   </div>
@@ -564,13 +557,9 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
       const zoom = pat.zoom !== undefined ? parseFloat(pat.zoom) : 1;
       const glare = (pat.glare ?? 0) / 100;
 
-      let rgbString = '255, 255, 255';
-      if (pat.bg_rgb) {
-        if (pat.bg_rgb.startsWith('#')) {
-          const hex = pat.bg_rgb.replace('#', '');
-          rgbString = `${parseInt(hex.substring(0, 2), 16)}, ${parseInt(hex.substring(2, 4), 16)}, ${parseInt(hex.substring(4, 6), 16)}`;
-        } else rgbString = pat.bg_rgb;
-      }
+      // Falls back to the raw value so a plain "r, g, b" string still works.
+      const bgRgb = pat.bg_rgb ? SC.toRgb(pat.bg_rgb) : null;
+      const rgbString = bgRgb ? bgRgb.join(', ') : (pat.bg_rgb || '255, 255, 255');
 
       let backgroundCSS = `rgba(${rgbString}, ${opacity})`;
       if (glare > 0) {

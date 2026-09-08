@@ -1,5 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 
+const SC = window.SupercardUtils;
+
 // ==========================================
 // 1. HELPER FUNCTIONS
 // ==========================================
@@ -11,19 +13,15 @@ const parseDim = (v, fallback, unit = 'px') => {
   return /^-?\d+(\.\d+)?$/.test(s) ? `${s}${unit}` : s;
 };
 
+// A concrete hex, for contrast maths and for feeding CSS directly. Theme
+// vars are resolved here because the caller needs a number now; a hex is
+// passed through verbatim so #rrggbbaa keeps its alpha.
 function extractHex(c) {
   if (!c) return '#000000';
-  c = c.trim();
-  if (c.startsWith('var(')) {
-    const m = c.match(/var\(([^),]+)/);
-    if (m) c = getComputedStyle(document.documentElement).getPropertyValue(m[1].trim()).trim();
-  }
-  if (c.startsWith('#')) return c;
-  if (c.startsWith('rgb')) {
-    const m = c.match(/\d+/g);
-    if (m && m.length >= 3) return rgbToHex(parseInt(m[0]), parseInt(m[1]), parseInt(m[2]));
-  }
-  return '#ffffff';
+  const s = SC.resolveVar(String(c).trim());
+  if (s.startsWith('#')) return s;
+  const rgb = SC.toRgb(s);
+  return rgb ? rgbToHex(rgb[0], rgb[1], rgb[2]) : '#ffffff';
 }
 
 function solveCubicBezier(x, p1x, p1y, p2x, p2y) {
@@ -232,19 +230,8 @@ class ScProgressbar extends LitElement {
   render() {
     if (!this.config || !this.hass) return html``;
 
-    // --- ALIAS DETECTION ---
-    let resolvedEntity = this.config.entity;
-    let resolvedAttribute = this.config.attribute;
-    let resolvedAliasName = '';
-    
-    if (this.config.global_id && this.config.global_id !== 'manual') {
-      const foundAlias = (this.globalEntities || []).find(g => g.id === this.config.global_id);
-      if (foundAlias) {
-        resolvedEntity = foundAlias.entity;
-        resolvedAttribute = foundAlias.attribute;
-        resolvedAliasName = foundAlias.alias || '';
-      }
-    }
+    const { entity: resolvedEntity, attribute: resolvedAttribute, alias: resolvedAliasName } =
+      SC.resolveAlias(this.globalEntities, this.config);
 
     const stateObj = resolvedEntity ? this.hass.states[resolvedEntity] : null;
     const rawVal = stateObj ? safeFloat((resolvedAttribute ? stateObj.attributes[resolvedAttribute] : stateObj.state), 0) : 0;
@@ -1063,53 +1050,43 @@ const STYLE_FIELDS = [
 
 class ScProgressbarEditor extends LitElement {
   static get properties() {
-    return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Function }, _openStates: { type: Object, state: true } };
+    return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Function }, _expanded: { type: Object, state: true } };
   }
 
   constructor() {
     super();
-    this._openStates = {};
+    this._expanded = {};
   }
 
   static get styles() {
-    return css`
-      .inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
-      summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; color: var(--primary-text-color); display: flex; justify-content: space-between; align-items: center; }
-      summary::-webkit-details-marker { display: none; }
-      .inner-content { padding: 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); }
-      .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
-      .col { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+    return [SC.editorStyles, css`
+      .add-btn { margin-top: 8px; }
+      .color-row { width: 100%; }
       .entity-row { display: flex; flex-direction: column; gap: 4px; font-size: 13px; margin-bottom: 8px; }
-      select, input[type="text"], input[type="number"], input[type="range"] { background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color); border: 1px solid var(--divider-color); border-radius: 4px; padding: 6px; }
-      .add-btn { background: transparent; border: 1px dashed var(--primary-color, #03a9f4); color: var(--primary-color, #03a9f4); padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; text-align: center; margin-top: 8px; }
       .sub-section { border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-top: 6px; }
       .sub-section > summary { padding: 7px 10px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--primary-color,#03a9f4); list-style: none; display: flex; align-items: center; gap: 6px; user-select: none; background: rgba(255,255,255,0.03); }
       .sub-section > summary::before { content: '▶'; font-size: 9px; transition: transform 0.15s; }
       .sub-section[open] > summary::before { transform: rotate(90deg); }
       .sub-content { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
-      .color-row { display: flex; align-items: center; gap: 6px; width: 100%; }
       .color-row input[type="color"] { width: 36px; height: 28px; padding: 0; border: none; background: none; cursor: pointer; flex-shrink: 0; }
-      .color-row input[type="text"] { flex: 1; }
       .stop-row { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.04); padding: 4px 6px; border-radius: 4px; }
       .stop-row input[type="color"] { width: 32px; height: 26px; padding: 0; border: none; background: none; cursor: pointer; flex-shrink: 0; }
       .stop-row input[type="text"] { flex: 1; min-width: 0; font-size: 11px; }
       .stop-row input[type="number"] { width: 50px; font-size: 11px; }
       .stop-row .del-btn { background: none; border: none; color: #f44; cursor: pointer; font-size: 14px; padding: 0; }
       .stops-preview { height: 8px; border-radius: 4px; margin: 4px 0; }
-      ha-switch { --switch-checked-button-color: var(--primary-color); scale: 0.8; }
       .field-wrapper { display: flex; flex-direction: column; gap: 4px; }
-      .section-title { font-size: 11px; font-weight: bold; color: var(--primary-color); text-transform: uppercase; border-bottom: 1px solid var(--divider-color,#333); padding-bottom: 4px; margin-top: 8px; margin-bottom: -4px; }
       .sector-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 90px; margin: 4px 0; }
       .sector-btn { aspect-ratio: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color, #444); border-radius: 3px; cursor: pointer; transition: all 0.2s ease; }
       .sector-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--primary-color); }
       .sector-btn.active { background: var(--primary-color, #03a9f4); border-color: var(--primary-color, #03a9f4); box-shadow: 0 0 8px var(--primary-color); }
-      `;
+    `];
   }
 
   _addProgressbar(bars) {
     const newBars = structuredClone(bars);
     newBars.push({ entity: '', attribute: '', label_text: '' });
-    this._openStates[`pb_${newBars.length - 1}`] = true;
+    this._expanded[`pb_${newBars.length - 1}`] = true;
     this.commitFn('progressbars', newBars);
   }
 
@@ -1271,7 +1248,7 @@ class ScProgressbarEditor extends LitElement {
 
   _renderFieldsGroup(fields, cfg, idx, bars) {
     let timeout;
-    const updateDirect    = (key, val) => { const n = structuredClone(bars); n[idx][key] = val; this.commitFn('progressbars', n); };
+    const updateDirect    = (key, val) => { this.commitFn('progressbars', SC.withPatch(bars, idx, key, val)); };
     const updateDebounced = (key, val) => { clearTimeout(timeout); timeout = setTimeout(() => updateDirect(key, val), 400); };
 
     const groups = [];
@@ -1288,10 +1265,10 @@ class ScProgressbarEditor extends LitElement {
         if (visibleFields.length === 0) return html``;
 
         const sKey = `s_${idx}_${g.label}`;
-        if (this._openStates[sKey] === undefined) this._openStates[sKey] = false;
+        if (this._expanded[sKey] === undefined) this._expanded[sKey] = false;
         return html`
-          <details class="sub-section" ?open=${this._openStates[sKey]}
-            @toggle=${e => { this._openStates[sKey] = e.target.open; this.requestUpdate(); }}>
+          <details class="sub-section" ?open=${this._expanded[sKey]}
+            @toggle=${e => { this._expanded[sKey] = e.target.open; this.requestUpdate(); }}>
             <summary>${g.label}</summary>
             <div class="sub-content">
               ${g.fields.map(f => this._renderField(f, cfg, v => updateDirect(f.id, v), v => updateDebounced(f.id, v)))}
@@ -1301,18 +1278,8 @@ class ScProgressbarEditor extends LitElement {
   }
 
   _renderBarPanel(entry, idx, bars) {
-    let resolvedEntity = entry.entity;
-    let isAlias = false;
-    let aliasObj = null;
-
-    if (entry.global_id && entry.global_id !== 'manual') {
-      const foundAlias = (this.slot?.global_entities || []).find(g => g.id === entry.global_id);
-      if (foundAlias) {
-        resolvedEntity = foundAlias.entity;
-        isAlias = true;
-        aliasObj = foundAlias;
-      }
-    }
+    const { entity: resolvedEntity, match: aliasObj } = SC.resolveAlias(this.slot?.global_entities, entry);
+    const isAlias = !!aliasObj;
 
     let title = '';
     if (isAlias) {
@@ -1333,11 +1300,11 @@ class ScProgressbarEditor extends LitElement {
     }
 
     const stateKey = `pb_${idx}`;
-    if (this._openStates[stateKey] === undefined) this._openStates[stateKey] = false;
-    const updateEntry = (key, val) => { const n = structuredClone(bars); n[idx][key] = val; this.commitFn('progressbars', n); };
+    if (this._expanded[stateKey] === undefined) this._expanded[stateKey] = false;
+    const updateEntry = (key, val) => { this.commitFn('progressbars', SC.withPatch(bars, idx, key, val)); };
 
     return html`
-      <details class="inner-section" ?open=${this._openStates[stateKey]} @toggle=${e => this._openStates[stateKey] = e.target.open}>
+      <details class="inner-section" ?open=${this._expanded[stateKey]} @toggle=${e => this._expanded[stateKey] = e.target.open}>
         <summary style="opacity: ${entry.active !== false ? '1' : '0.6'};">
           <span>${title}</span>
           <div style="display:flex; gap:12px; align-items:center;" @click=${e => e.stopPropagation()}>
@@ -1356,7 +1323,7 @@ class ScProgressbarEditor extends LitElement {
                 if(clone.label_text) clone.label_text += ' (Copy)';
                 n.splice(idx + 1, 0, clone);
                 this.commitFn('progressbars', n);
-                this._openStates[`pb_${idx + 1}`] = true;
+                this._expanded[`pb_${idx + 1}`] = true;
                 this.requestUpdate();
               }}>⧉</button>
             <button title="Move up" ?disabled=${idx === 0}
@@ -1443,11 +1410,11 @@ class ScProgressbarEditor extends LitElement {
   render() {
     if (!this.slot) return html``;
     const bars = Array.isArray(this.slot.progressbars) ? this.slot.progressbars : [];
-    if (this._openStates['_main'] === undefined) this._openStates['_main'] = false;
+    if (this._expanded['_main'] === undefined) this._expanded['_main'] = false;
 
     return html`
-      <details class="inner-section" ?open=${this._openStates['_main']}
-        @toggle=${e => { this._openStates['_main'] = e.target.open; this.requestUpdate(); }}>
+      <details class="inner-section" ?open=${this._expanded['_main']}
+        @toggle=${e => { this._expanded['_main'] = e.target.open; this.requestUpdate(); }}>
         <summary>── Progressbars
           <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
             <span style="font-size:10px; opacity:.6; font-weight:400;">
