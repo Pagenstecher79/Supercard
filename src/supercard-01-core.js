@@ -1,4 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { reportedRows, isHeightPinned } from "./canvas-model.js";
 
 // --- CENTRAL LAYER DICTIONARY ---
 export const SC_LAYERS = {
@@ -255,11 +256,15 @@ class SupercardCore extends LitElement {
     return { grid_columns: 3, grid_rows: 3, grid_min_columns: 1, grid_min_rows: 1 };
   }
 
+  // What Home Assistant's sections grid asks the card for. The config's own
+  // `grid_options` is spread over this by hui-card, so everything here is a
+  // default the layout tab may override - which is the whole point: it is the
+  // same value in both places, and the canvas editor writes the same key.
   getGridOptions() {
     const slot = this.config?.supercard || {};
     return {
       columns: slot.grid_columns || 3,
-      rows: slot.grid_rows || 3,
+      rows: reportedRows(slot),
       min_columns: 1,
       min_rows: 1
     };
@@ -469,7 +474,10 @@ class SupercardCore extends LitElement {
     let overlaySlots = [];
     let moduleData = {};
 
-    const renderConfig = { ...slot, __moduleData: moduleData };
+    // Modules are handed the slot, not the card config, so the one fact about
+    // the card's box that the layout renderer needs travels with it.
+    const renderConfig = { ...slot, __moduleData: moduleData,
+                           __heightPinned: isHeightPinned(this.config) };
 
     Object.entries(window.SupercardModules).forEach(([modKey, module]) => {
       if (typeof module.update !== 'function') return;
@@ -641,7 +649,14 @@ class SupercardModularEditor extends LitElement {
     const newConfig = structuredClone(this.config);
     if (!newConfig.supercard) newConfig.supercard = {};
 
-    if (key === '__merge__') {
+    if (key === '__card__') {
+      // The Lovelace card config itself, not the slot: `grid_options` is HA's
+      // own key and lives there, so the canvas editor's height control and the
+      // layout tab write the same field rather than two that have to agree.
+      for (const [k, v] of Object.entries(value)) {
+        if (v === undefined) delete newConfig[k]; else newConfig[k] = v;
+      }
+    } else if (key === '__merge__') {
       Object.assign(newConfig.supercard, value);
     } else {
       newConfig.supercard[key] = value;
@@ -689,7 +704,7 @@ class SupercardModularEditor extends LitElement {
           }
 
           if (typeof mod.renderCustomBlock === 'function') {
-            const customBlock = mod.renderCustomBlock((k, v) => this._commit(k, v), this.hass, slot);
+            const customBlock = mod.renderCustomBlock((k, v) => this._commit(k, v), this.hass, slot, this.config);
             if (customBlock) blocks.push(customBlock);
           }
 

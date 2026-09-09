@@ -9,6 +9,9 @@ import {
   resolveCanvas,
   resolveSnap,
   applyDrag,
+  gridRowsToPx,
+  reportedRows,
+  isHeightPinned,
 } from './canvas-model.js';
 import fixtures from './__fixtures__/real-layouts.json' with { type: 'json' };
 
@@ -478,5 +481,53 @@ describe('applyDrag', () => {
   it('places freely when snapping is off', () => {
     expect(applyDrag({ ...canvas, snap: 0 }, el, 'move', { dx: 13, dy: -7 }))
       .toEqual({ x: 113, y: 43, w: 80, h: 40 });
+  });
+});
+
+
+describe('gridRowsToPx', () => {
+  it('matches hui-grid-section: rows * (56 + 8) - 8', () => {
+    expect(gridRowsToPx(1)).toBe(56);
+    expect(gridRowsToPx(2)).toBe(120);
+    expect(gridRowsToPx(4)).toBe(248);
+  });
+
+  it('never returns less than one row', () => {
+    expect(gridRowsToPx(0)).toBe(56);
+    expect(gridRowsToPx(-3)).toBe(56);
+    expect(gridRowsToPx(undefined)).toBe(56);
+    expect(gridRowsToPx('nonsense')).toBe(56);
+  });
+});
+
+describe('reportedRows', () => {
+  it('lets a canvas card size itself', () => {
+    expect(reportedRows({ canvas: { w: 400, h: 200, elements: [] } })).toBe('auto');
+  });
+
+  it('keeps the fixed default for a row/cell card, whose rows are percentages', () => {
+    expect(reportedRows({})).toBe(3);
+    expect(reportedRows(undefined)).toBe(3);
+    expect(reportedRows({ layout_rows: [] })).toBe(3);
+  });
+
+  it('honours an explicit grid_rows on a row/cell card', () => {
+    expect(reportedRows({ grid_rows: 6 })).toBe(6);
+    expect(reportedRows({ grid_rows: 0 })).toBe(3);
+  });
+});
+
+describe('isHeightPinned', () => {
+  it('is pinned by a row count from the layout tab', () => {
+    expect(isHeightPinned({ grid_options: { rows: 4 } })).toBe(true);
+    expect(isHeightPinned({ grid_options: { rows: 1, columns: 6 } })).toBe(true);
+  });
+
+  it('is not pinned by auto height, or by no grid_options at all', () => {
+    expect(isHeightPinned({ grid_options: { rows: 'auto' } })).toBe(false);
+    expect(isHeightPinned({ grid_options: { columns: 6 } })).toBe(false);
+    expect(isHeightPinned({ grid_options: {} })).toBe(false);
+    expect(isHeightPinned({})).toBe(false);
+    expect(isHeightPinned(undefined)).toBe(false);
   });
 });

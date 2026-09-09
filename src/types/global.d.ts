@@ -23,11 +23,17 @@ declare global {
     onAfterRender?: (shadow: ShadowRoot, config: any, extra?: any) => void;
     /** Declarative field list rendered by the generic module-editor form. */
     editorFields?: () => any[];
-    /** Custom LitElement editor block rendered in the main modular editor. */
+    /**
+     * Custom LitElement editor block rendered in the main modular editor.
+     * `cardConfig` is the whole Lovelace card config, for the few settings
+     * that are Home Assistant's rather than ours (`grid_options`); commit
+     * those with the `__card__` key.
+     */
     renderCustomBlock?: (
       commitFn: (key: string, value: any) => void,
       hass: any,
-      slot: any
+      slot: any,
+      cardConfig?: any
     ) => any;
     /** Extra <style> text injected once per render. */
   }

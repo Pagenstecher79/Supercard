@@ -330,7 +330,94 @@ actually produced in the browser:
   `items`**. The legacy path is not a relic to tolerate, it is the majority
   case.
 
-## 5. Build order
+## 5. The card's height
+
+A fixed aspect ratio and Home Assistant's height control are two answers to
+the same question, and the first version of the canvas let them disagree in
+silence. This is how they are joined.
+
+### What Home Assistant does
+
+In a sections view every card reports `getGridOptions()`, and the card's own
+`grid_options` in the Lovelace config is spread over the result — so anything
+the card reports is a *default* the layout tab may override. `hui-grid-section`
+then reads the merged value:
+
+- `rows: N` → the card gets `grid-row: span N` **and** an explicit height,
+  `N * (row-height + row-gap) - row-gap`, i.e. `N * 64 - 8` px with the default
+  theme.
+- `rows: "auto"` → no explicit height at all. The card is as tall as it
+  renders. This is Home Assistant's own default (`DEFAULT_GRID_SIZE`), and the
+  layout tab exposes it as the **auto height** switch.
+
+### Why a canvas card cannot report a row count
+
+The canvas fixes a *ratio*. Turning that into a height needs the card's width,
+which is `columns / 12` of the section — and the section width is a layout
+result, not something the card can know when `getGridOptions()` is called. No
+row count is right.
+
+So a canvas card reports `rows: "auto"` and lets the box it actually gets be
+the answer. A row/cell card keeps reporting the fixed `3` it always has: its
+rows are percentages *of* a height, so it has no intrinsic height to offer and
+`auto` would collapse it to nothing. `reportedRows()` is that one rule.
+
+Supercard reported `rows: 3` for every card before this. That is the whole
+reason the layout tab offered nothing but a row count: the card had asked for
+a fixed height, and got one.
+
+### When the height is pinned anyway
+
+Someone can still set a row count — that is the point of the control. Then the
+card's box is fixed and the canvas has to fit inside it rather than define it.
+It is letterboxed: the ratio is kept, the canvas centres, nothing stretches.
+
+A `max-height: 100%` is *not* how to do that. It clamps the height and leaves
+the width at 100%, which breaks the ratio — the single thing the fixed ratio
+exists to prevent. Instead the width comes down from the height:
+
+```css
+width: min(100%, calc(100cqh * <w/h>));
+```
+
+against a wrapper that is a size container. That wrapper is emitted **only**
+when the height is pinned, because `container-type: size` needs a definite
+height; against an indefinite one it would contain the card to nothing. Which
+mode applies travels to the renderer as `__heightPinned` on the render config,
+next to the existing `__moduleData` — modules are handed the slot, and this is
+a fact about the card.
+
+Measured, canvas `400 × 200` in a 300 px column:
+
+| box | canvas | ratio |
+|---|---|---|
+| 300 × auto | 300 × 150 | 2.0 |
+| 300 × 400 (too tall) | 300 × 150 | 2.0 |
+| 300 × 100 (too short) | 200 × 100 | 2.0 |
+| 300 × 150 (exact) | 300 × 150 | 2.0 |
+
+The previous build put a 300 × 150 canvas into the 300 × 100 box and clipped
+50 px off the bottom.
+
+### One value, two places
+
+`grid_options.rows` is Home Assistant's field, so the canvas editor writes
+*that* rather than a setting of its own — through a new `__card__` commit key,
+since `commitFn` otherwise writes into `config.supercard`. The **Card height**
+row in the canvas editor and the layout tab's height control are two views of
+one value; there is nothing to keep in step.
+
+### `card_height` is not a second pin
+
+The core editor's **Absolute height (px)** publishes `--sc-explicit-height` on
+`#main-container`, while `:host` is what reads it. A custom property does not
+travel back up to the host, so the field has never had any effect — in this
+build or any before it. It is therefore not treated as pinning the height:
+doing so would shrink every canvas card carrying a stale value. Fixing it is a
+separate decision, because it would change the size of cards that have quietly
+ignored the setting for as long as it has existed.
+
+## 6. Build order
 
 1. ~~**The migration function alone**, pure.~~ `src/canvas-model.js`.
 2. ~~**Verify it against real configurations.**~~ 23 real layouts; migration
@@ -341,6 +428,8 @@ actually produced in the browser:
    0.0013 percentage points.
 4. ~~**The editor.**~~ `sc-canvas-editor`, reachable once a card has a
    `canvas`, with a Convert button offered on cards that do not.
+5. ~~**The card height.**~~ `rows: "auto"` reported, letterboxing when a row
+   count is set, and one height control in both places - see §5.
 
 What is left is the part no amount of arithmetic settles: **switching cards
 over**. Today conversion is a button someone presses. Making it automatic
