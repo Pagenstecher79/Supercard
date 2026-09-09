@@ -238,3 +238,56 @@ export function resolveCanvas(slot) {
   migrationCache.set(rows, canvas);
   return canvas;
 }
+
+/**
+ * The step placement snaps to, in virtual units.
+ *
+ * Tri-state, so one field cannot contradict another: `snap` unset means snap
+ * to the visible grid, `0` means free placement, a positive number is its own
+ * step. Free placement still returns a step - 1 unit - because a canvas is a
+ * grid of integers underneath and half a unit is not a position anyone means.
+ *
+ * @param {{ grid?: number, snap?: number }} canvas
+ * @returns {number}
+ */
+export function resolveSnap(canvas) {
+  const snap = canvas?.snap;
+  if (snap === 0) return 1;
+  if (typeof snap === 'number' && snap > 0) return snap;
+  const grid = canvas?.grid;
+  return typeof grid === 'number' && grid > 0 ? grid : 1;
+}
+
+/**
+ * Move or resize one element, snapped and kept inside the canvas.
+ *
+ * Pure, so the drag maths can be tested without a pointer: the editor turns
+ * pointer positions into a delta in virtual units and this decides where the
+ * element actually lands.
+ *
+ * @param {{ w: number, h: number, grid?: number, snap?: number }} canvas
+ * @param {{ x: number, y: number, w: number, h: number }} start element as the drag began
+ * @param {'move'|'resize'} mode
+ * @param {{ dx: number, dy: number }} delta in virtual units
+ * @returns {{ x: number, y: number, w: number, h: number }}
+ */
+export function applyDrag(canvas, start, mode, delta) {
+  const step = resolveSnap(canvas);
+  const snap = v => Math.round(v / step) * step;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+  if (mode === 'resize') {
+    return {
+      x: start.x,
+      y: start.y,
+      w: clamp(snap(start.w + delta.dx), step, canvas.w - start.x),
+      h: clamp(snap(start.h + delta.dy), step, canvas.h - start.y),
+    };
+  }
+  return {
+    x: clamp(snap(start.x + delta.dx), 0, canvas.w - start.w),
+    y: clamp(snap(start.y + delta.dy), 0, canvas.h - start.h),
+    w: start.w,
+    h: start.h,
+  };
+}

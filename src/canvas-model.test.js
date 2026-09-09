@@ -7,6 +7,8 @@ import {
   migrateLayoutToCanvas,
   targetedCells,
   resolveCanvas,
+  resolveSnap,
+  applyDrag,
 } from './canvas-model.js';
 import fixtures from './__fixtures__/real-layouts.json' with { type: 'json' };
 
@@ -424,5 +426,57 @@ describe('resolveCanvas', () => {
   it('has nothing to render without a layout', () => {
     expect(resolveCanvas({})).toBeNull();
     expect(resolveCanvas({ layout_rows: [] })).toBeNull();
+  });
+});
+
+describe('resolveSnap', () => {
+  it('snaps to the visible grid when snap is unset', () => {
+    expect(resolveSnap({ grid: 20 })).toBe(20);
+  });
+  it('reads snap 0 as free placement, one unit at a time', () => {
+    expect(resolveSnap({ grid: 20, snap: 0 })).toBe(1);
+  });
+  it('prefers an explicit step over the grid', () => {
+    expect(resolveSnap({ grid: 20, snap: 5 })).toBe(5);
+  });
+  it('falls back to one unit with nothing configured', () => {
+    expect(resolveSnap({})).toBe(1);
+    expect(resolveSnap(undefined)).toBe(1);
+  });
+});
+
+describe('applyDrag', () => {
+  const canvas = { w: 400, h: 200, grid: 10 };
+  const el = { x: 100, y: 50, w: 80, h: 40 };
+
+  it('moves by the delta, snapped to the grid', () => {
+    // 113 -> 110 and 43 -> 40: both snapped, neither merely rounded toward
+    // where the pointer was.
+    expect(applyDrag(canvas, el, 'move', { dx: 13, dy: -7 }))
+      .toEqual({ x: 110, y: 40, w: 80, h: 40 });
+  });
+
+  it('keeps a moved element inside the canvas', () => {
+    expect(applyDrag(canvas, el, 'move', { dx: 9999, dy: 9999 }))
+      .toEqual({ x: 320, y: 160, w: 80, h: 40 });
+    expect(applyDrag(canvas, el, 'move', { dx: -9999, dy: -9999 }))
+      .toEqual({ x: 0, y: 0, w: 80, h: 40 });
+  });
+
+  it('resizes without moving the origin', () => {
+    expect(applyDrag(canvas, el, 'resize', { dx: 24, dy: 11 }))
+      .toEqual({ x: 100, y: 50, w: 100, h: 50 });
+  });
+
+  it('never resizes past the canvas edge, or below one step', () => {
+    expect(applyDrag(canvas, el, 'resize', { dx: 9999, dy: 9999 }))
+      .toEqual({ x: 100, y: 50, w: 300, h: 150 });
+    expect(applyDrag(canvas, el, 'resize', { dx: -9999, dy: -9999 }))
+      .toEqual({ x: 100, y: 50, w: 10, h: 10 });
+  });
+
+  it('places freely when snapping is off', () => {
+    expect(applyDrag({ ...canvas, snap: 0 }, el, 'move', { dx: 13, dy: -7 }))
+      .toEqual({ x: 113, y: 43, w: 80, h: 40 });
   });
 });

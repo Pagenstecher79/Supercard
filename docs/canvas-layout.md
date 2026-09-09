@@ -332,14 +332,17 @@ actually produced in the browser:
 
 ## 5. Build order
 
-1. **The migration function alone**, pure, with the old and new shapes as
-   input and output. No editor, no renderer.
-2. **Verify it against real configurations** — the demo dashboard in
-   `docker/config/supercard-demo.yaml`, and whatever real cards can be
-   collected. For each: migrate, render both models, compare the resulting
-   boxes. They must agree to within a rounding error, since the arithmetic is
-   exact.
-3. **The renderer** against the new model, with the old one still present.
-4. **The editor** last, once there is something correct to edit.
+1. ~~**The migration function alone**, pure.~~ `src/canvas-model.js`.
+2. ~~**Verify it against real configurations.**~~ 23 real layouts; migration
+   output compared with the boxes the current renderer draws, worst deviation
+   0.0023 percentage points over 55 boxes.
+3. ~~**The renderer** against the new model, with the old one still present.~~
+   Both paths compared over the same 23 layouts, 104 boxes, worst deviation
+   0.0013 percentage points.
+4. ~~**The editor.**~~ `sc-canvas-editor`, reachable once a card has a
+   `canvas`, with a Convert button offered on cards that do not.
 
-Steps 1 and 2 are where the risk is. Step 4 is where the work is.
+What is left is the part no amount of arithmetic settles: **switching cards
+over**. Today conversion is a button someone presses. Making it automatic
+means choosing an aspect ratio for every existing card at once, and that is a
+release decision, not a code one - see §4.
