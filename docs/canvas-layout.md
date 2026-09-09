@@ -279,10 +279,51 @@ So the migration should rewrite cell targets:
 - cell held **several** → no faithful answer exists; keep the pattern, point
   it at `main`, and report it
 
-The second case is lossy. It is also, judging by the shapes in the default
-layouts, rare — but "rare" is worth counting before shipping, not after.
+The second case is lossy — and counting it against 30 real cards says it is
+not rare at all. Of **17 cell targets in the wild, exactly one** has a single
+element to be rewritten to:
+
+| | count |
+|---|---|
+| rewritten exactly (cell held one element) | 1 |
+| fell back to `main` (cell held several) | 8 |
+| **cell was empty** | **8** |
+
+That last row is the one this design did not anticipate. A pattern can target
+a cell that holds *nothing* — because painting a region with no element in it
+is exactly what someone does to get a coloured or animated background block.
+Those eight targets have no element to inherit, so nothing in the flat model
+can carry them.
+
+Which means the descoping of animated surfaces has a consequence worth saying
+out loud: **an empty targeted cell *is* an animated surface**, and half the
+cell targets in a real dashboard are that. They cannot be migrated, only
+dropped or reproduced by placeable surfaces later. So either
+
+- the canvas grows a plain "surface" element early (a box with no entity,
+  which colour and fx-glass can target like any other element) — which is the
+  descoped feature, arriving anyway because migration needs it; or
+- migration drops those patterns and says so, and the cards lose their
+  decorative regions until surfaces exist.
+
+The first is more work now and loses nothing. The second is honest but visibly
+degrades existing cards. This needs deciding before the migration is wired in.
 
 ---
+
+### Verified against real configurations
+
+The arithmetic in `src/canvas-model.js` was run against 30 Supercards from a
+live dashboard, and its output compared with the boxes the current renderer
+actually produced in the browser:
+
+- **14 cards, 55 element boxes, worst deviation 0.0023 percentage points** —
+  floating-point noise, no mismatches.
+- 127 elements produced across all 30 configs: no non-finite, non-positive or
+  negative geometry, nothing outside the canvas.
+- Cell shapes in the wild: **68 legacy `cell.content` against 30 modern
+  `items`**. The legacy path is not a relic to tolerate, it is the majority
+  case.
 
 ## 5. Build order
 
