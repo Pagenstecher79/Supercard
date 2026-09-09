@@ -417,7 +417,85 @@ doing so would shrink every canvas card carrying a stale value. Fixing it is a
 separate decision, because it would change the size of cards that have quietly
 ignored the setting for as long as it has existed.
 
-## 6. Build order
+## 6. Gauges are square
+
+A gauge is drawn into a square viewBox whatever its type. A "semi" gauge is a
+270° arc in that same box, not half of one, so there is no gauge shape that
+wants a wide or a tall element.
+
+The renderer has always known this: `::slotted(sc-gauge)` sizes the gauge
+`100cqmin` — the smaller side of its slot. So a gauge has never been able to
+come out oval. What a non-square slot produced instead was a *small* gauge
+with empty space beside it, and no way to tell from the editor why: the
+element you were dragging was not the thing you saw.
+
+So on the canvas a gauge element is locked to a square, and the lock lives in
+the model rather than in the drag handler:
+
+```js
+isSquareLocked(el)   // gauge_N, and not a surface
+squareElement(el)    // the largest square inside it, anchored by `inner`
+```
+
+`applyDrag` consults the first when it resizes, `migrateLayoutToCanvas` applies
+the second, and the editor renders one **size** field instead of a `w` and an
+`h` that would have to be kept in step. A surface over a gauge is never locked
+— it is a plain box for a pattern to paint, and squaring it would repaint a
+different region.
+
+### Why `w === h` is the whole test
+
+Canvas units look anisotropic and are not. An element's box is a percentage of
+`canvas.w` × `canvas.h`, and the canvas element itself carries
+`aspect-ratio: canvas.w / canvas.h`, so with `W/H = canvas.w/canvas.h`:
+
+```
+width  px = el.w / canvas.w × W  =  el.w / canvas.h
+height px = el.h / canvas.h × H  =  el.h / canvas.h
+```
+
+The ratio cancels. One virtual unit is the same number of pixels on both axes,
+whatever shape the canvas is, so square on screen is exactly `el.w === el.h` —
+and both sides can snap to the grid without the shape drifting off it.
+
+### Squaring on conversion changes the box, not the picture
+
+`squareElement` anchors the square using the element's own `inner` code, the
+same two characters the renderer turns into flex alignment. A `cc` gauge was
+already being drawn as a centred square of the smaller side; after squaring,
+the element *is* that square. Nothing moves. What changes is that the box now
+means something: drag it bigger and the gauge gets bigger.
+
+Because migration only runs when someone presses **Convert**, this affects
+conversions from here on and never rewrites a card that is already converted.
+Existing canvas cards keep their boxes until a gauge in them is resized.
+
+### The size lives in one place
+
+With the element square, `100cqmin` is the element, so the element's size *is*
+the gauge's size — but only for a gauge in responsive mode. A gauge in fixed
+mode draws itself `gauge_size_px` pixels wide inside the slot and ignores the
+box entirely, which on a canvas is a setting that can only contradict the one
+next to it.
+
+So `SC.gaugeIsResponsive(gaugeConfig, onCanvas)` answers yes for anything on a
+canvas, and the gauge editor hides **Responsive size** and **Size (px)** there.
+The helper is shared because fx-glass has to reach the same answer: it picks
+`cqmin` or `px` units for the glass ring from it, and a disagreement measures
+the ring in pixels against a gauge measured in container units.
+
+Off the canvas the helper reproduces today's test exactly, including its known
+mismatch: the editor hides the pixel field when `gauge_size_responsive` is the
+*string* `"true"`, while the renderer only accepts the boolean, so such a card
+shows no control and still draws at `gauge_size_px`. Widening the test would
+resize those cards, so it is left alone and recorded here.
+
+The one behaviour this changes for an existing card: a canvas card whose gauge
+was in fixed-pixel mode now fills its element instead. `gauge_position_mode`
+and the two offsets only ever applied in fixed mode, so they stop applying
+there too — as they already did for every responsive gauge.
+
+## 7. Build order
 
 1. ~~**The migration function alone**, pure.~~ `src/canvas-model.js`.
 2. ~~**Verify it against real configurations.**~~ 23 real layouts; migration
@@ -430,6 +508,8 @@ ignored the setting for as long as it has existed.
    `canvas`, with a Convert button offered on cards that do not.
 5. ~~**The card height.**~~ `rows: "auto"` reported, letterboxing when a row
    count is set, and one height control in both places - see §5.
+6. ~~**Gauges sized by their element.**~~ Square-locked gauge elements, and one
+   size control rather than two that contradict - see §6.
 
 What is left is the part no amount of arithmetic settles: **switching cards
 over**. Today conversion is a button someone presses. Making it automatic

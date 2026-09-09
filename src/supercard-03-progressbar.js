@@ -1097,7 +1097,7 @@ class ScProgressbarEditor extends LitElement {
   }
 
   _renderField(field, cfg, updateDirect, updateDebounced) {
-    if (field.condition && !field.condition(cfg)) return html``;
+    if (field.condition && !field.condition(cfg, this.slot)) return html``;
     let content;
     const val = cfg[field.id];
 
@@ -1261,7 +1261,7 @@ class ScProgressbarEditor extends LitElement {
 
     return html`
       ${groups.map(g => {
-        const visibleFields = g.fields.filter(f => !f.condition || f.condition(cfg));
+        const visibleFields = g.fields.filter(f => !f.condition || f.condition(cfg, this.slot));
         if (visibleFields.length === 0) return html``;
 
         const sKey = `s_${idx}_${g.label}`;

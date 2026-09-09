@@ -16,10 +16,12 @@ const STYLE_FIELDS = [
   { id: 'gauge_scale',         label: 'Scale',            type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1'  },
 
   { id: 'gauge_position_mode', label: 'Anchor point / position', type: '9-sector' },
-  { id: 'gauge_size_responsive', label: 'Responsive size (auto scaling)', type: 'checkbox' },
+  // Both are hidden on a canvas, where the element's box is the size and a
+  // second, contradicting figure here would be a trap rather than a setting.
+  { id: 'gauge_size_responsive', label: 'Responsive size (auto scaling)', type: 'checkbox', condition: (cfg, slot) => !slot?.canvas },
   // Stringified on purpose: a config written by hand can carry the string
   // "true" instead of the boolean, and that has always counted as enabled here.
-  { id: 'gauge_size_px',         label: 'Size (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', condition: cfg => String(cfg.gauge_size_responsive) !== 'true' },
+  { id: 'gauge_size_px',         label: 'Size (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', condition: (cfg, slot) => !slot?.canvas && String(cfg.gauge_size_responsive) !== 'true' },
   { id: 'gauge_offset_x',      label: 'Offset X (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
   { id: 'gauge_offset_y',      label: 'Offset Y (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
 
@@ -728,7 +730,7 @@ class ScGaugeEditor extends LitElement {
 
   _renderLitField(field, entry, idx, gauges) {
     if (!field) return html``;
-    if (field.condition && !field.condition(entry)) return html``;
+    if (field.condition && !field.condition(entry, this.slot)) return html``;
 
     let content;
     const val = entry[field.id];

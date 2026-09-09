@@ -63,6 +63,12 @@ declare global {
     ) => { entity: string; attribute: string; alias: string; match: any };
     /** A copy of `list` with one field of entry `idx` replaced. */
     withPatch: <T>(list: T[], idx: number, key: string, value: any) => T[];
+    /**
+     * Whether a gauge takes its size from the box it sits in. Always true on a
+     * canvas, where the element is the size control; otherwise the gauge's own
+     * `gauge_size_responsive`. The renderer and fx-glass must agree on it.
+     */
+    gaugeIsResponsive: (gaugeConfig: any, onCanvas?: boolean) => boolean;
     /** Shared chrome for the card-list module editors (ha-switch family). */
     editorStyles: CSSResult;
     /** Shared chrome for the compact config forms (.toggle family). */

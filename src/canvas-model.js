@@ -101,6 +101,49 @@ export function cellWidths(row) {
 }
 
 /**
+ * Whether an element has to stay square.
+ *
+ * A gauge is drawn into a square viewBox whatever its type - a semi gauge is
+ * a 270 degree arc in the same box, not half of one - so a non-square slot can
+ * only ever letterbox it: `100cqmin` shrinks the gauge to the smaller side and
+ * leaves the rest empty. Locking the element to a square instead makes the
+ * element's size *be* the gauge's size, which is the one thing a canvas should
+ * mean, and removes the only way to draw a box a gauge cannot fill.
+ *
+ * Surfaces are plain boxes for a pattern to paint and are never locked.
+ *
+ * @param {any} el
+ * @returns {boolean}
+ */
+export function isSquareLocked(el) {
+  return !el?.surface && typeof el?.id === 'string' && el.id.startsWith('gauge_');
+}
+
+/**
+ * The largest square inside an element, anchored the way its content already
+ * sits inside it.
+ *
+ * `inner` is a two-character code - vertical then horizontal - that the
+ * renderer turns into flex alignment. Reusing it here is what makes squaring
+ * an element a no-op on screen: the gauge was already being drawn as a
+ * centred (or corner-aligned) square of exactly this side length, so only the
+ * box around it changes.
+ *
+ * @param {any} el
+ * @returns {any} the element with square geometry
+ */
+export function squareElement(el) {
+  const side = Math.min(el.w, el.h);
+  const inner = typeof el.inner === 'string' ? el.inner : 'cc';
+  const fy = { t: 0, c: 0.5, b: 1 }[inner[0]] ?? 0.5;
+  const fx = { l: 0, c: 0.5, r: 1 }[inner[1]] ?? 0.5;
+  return { ...el,
+    x: el.x + (el.w - side) * fx,
+    y: el.y + (el.h - side) * fy,
+    w: side, h: side };
+}
+
+/**
  * Flatten layout_rows into absolutely placed canvas elements.
  *
  * Rows top to bottom, cells left to right, items in array order - the same
@@ -163,13 +206,18 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts 
 
       for (const item of getCellItems(cell)) {
         const { x, y, w, h, ...rest } = item;
-        elements.push({
+        const placed = {
           ...rest,
           x: (leftPct + x / 100 * cellPct) / 100 * canvas.w,
           y: (topPct + y / 100 * rowPct) / 100 * canvas.h,
           w: (w / 100 * cellPct) / 100 * canvas.w,
           h: (h / 100 * rowPct) / 100 * canvas.h,
-        });
+        };
+        // Squaring a gauge here changes the box, not the picture: the gauge
+        // was already drawn as an aligned square of the smaller side. What it
+        // buys is that the element the editor hands you afterwards is the
+        // gauge, so dragging it bigger makes the gauge bigger.
+        elements.push(isSquareLocked(placed) ? squareElement(placed) : placed);
       }
 
       leftPct += cellPct;
@@ -266,7 +314,8 @@ export function resolveSnap(canvas) {
  * element actually lands.
  *
  * @param {{ w: number, h: number, grid?: number, snap?: number }} canvas
- * @param {{ x: number, y: number, w: number, h: number }} start element as the drag began
+ * @param {{ x: number, y: number, w: number, h: number, id?: string, surface?: boolean }} start
+ *   element as the drag began; `id` is what decides whether it is square-locked
  * @param {'move'|'resize'} mode
  * @param {{ dx: number, dy: number }} delta in virtual units
  * @returns {{ x: number, y: number, w: number, h: number }}
@@ -277,6 +326,19 @@ export function applyDrag(canvas, start, mode, delta) {
   const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
   if (mode === 'resize') {
+    if (isSquareLocked(start)) {
+      // One side length, taken from whichever axis was dragged further, so a
+      // corner drag follows the pointer in both. Units are isotropic on the
+      // canvas - the box carries the same w/h ratio the coordinates do, so it
+      // cancels - which is why a square on screen is simply w === h, and why
+      // both sides can snap to the grid without the shape drifting.
+      const side = clamp(
+        Math.max(snap(start.w + delta.dx), snap(start.h + delta.dy)),
+        step,
+        Math.min(canvas.w - start.x, canvas.h - start.y),
+      );
+      return { x: start.x, y: start.y, w: side, h: side };
+    }
     return {
       x: start.x,
       y: start.y,

@@ -90,6 +90,33 @@ Object.assign(window.SupercardUtils, (() => {
   }
 
   /**
+   * Whether a gauge sizes itself from the box it is in rather than from a
+   * pixel figure of its own.
+   *
+   * On a canvas the answer is always yes: the element *is* the size control
+   * there, and a second one in the gauge editor could only contradict it. Off
+   * the canvas it is the gauge's own setting.
+   *
+   * Both the renderer and fx-glass have to reach the same answer - fx-glass
+   * picks `cqmin` or `px` units from it - so it is decided once, here.
+   *
+   * The strict `=== true` is deliberate and pre-dates this helper. The gauge
+   * editor hides the pixel field on `String(v) === 'true'`, so a config
+   * carrying the *string* "true" - which a hand-written one can - hides the
+   * control while the gauge still renders at that pixel size. Widening the
+   * test here would fix the mismatch and silently resize those cards, which is
+   * a decision of its own; this helper reproduces today's behaviour.
+   *
+   * @param {any} gaugeConfig one entry of `gauges`
+   * @param {boolean} [onCanvas] whether the card renders from a canvas
+   * @returns {boolean}
+   */
+  function gaugeIsResponsive(gaugeConfig, onCanvas) {
+    if (onCanvas) return true;
+    return gaugeConfig?.gauge_size_responsive === true;
+  }
+
+  /**
    * Resolve a config entry's entity/attribute through the global alias list.
    * Every module that can be pointed at a global entity needs this, so it
    * lives here rather than being re-typed per module. `match` is the alias
@@ -223,7 +250,8 @@ Object.assign(window.SupercardUtils, (() => {
 
   return /** @type {SupercardUtilsApi} */ ({
     safeFloat, hexToRgb, rgbToHex, toRgb, resolveVar, sampleGradient,
-    getAvailableElements, listElements, resolveAlias, withPatch, editorStyles, formStyles
+    getAvailableElements, listElements, resolveAlias, withPatch, gaugeIsResponsive,
+    editorStyles, formStyles
   });
 })());
 

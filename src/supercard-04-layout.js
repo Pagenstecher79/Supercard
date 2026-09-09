@@ -1,6 +1,6 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { getCellItems, resolveCanvas, resolveSnap, applyDrag, DEFAULT_CANVAS,
-         gridRowsToPx } from "./canvas-model.js";
+import { getCellItems, resolveCanvas, resolveSnap, applyDrag, isSquareLocked,
+         DEFAULT_CANVAS, gridRowsToPx } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
 
@@ -1241,7 +1241,7 @@ class ScCanvasEditor extends LitElement {
     this._drag = {
       idx, mode, rect,
       startX: e.clientX, startY: e.clientY,
-      origin: { x: el.x, y: el.y, w: el.w, h: el.h },
+      origin: { id: el.id, surface: el.surface, x: el.x, y: el.y, w: el.w, h: el.h },
     };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   }
@@ -1270,8 +1270,11 @@ class ScCanvasEditor extends LitElement {
   _add(id) {
     const c = structuredClone(this._canvas);
     const step = resolveSnap(c);
+    const w = Math.min(c.w, step * 4), h = Math.min(c.h, step * 4);
+    const side = Math.min(w, h);
+    const square = isSquareLocked({ id });
     c.elements.push({ id, x: 0, y: 0,
-      w: Math.min(c.w, step * 4), h: Math.min(c.h, step * 4), inner: 'cc' });
+      w: square ? side : w, h: square ? side : h, inner: 'cc' });
     this._sel = id;
     this._commit(c);
   }
@@ -1382,10 +1385,14 @@ class ScCanvasEditor extends LitElement {
             <div class="el-row ${this._sel === el.id ? 'sel' : ''}">
               <span class="el-name" @click=${() => { this._sel = el.id; }}>${el.id}</span>
               ${this._sel === el.id ? html`
-                ${['x', 'y', 'w', 'h'].map(k => html`
-                  <input class="num" type="number" step=${step} .value=${Math.round(el[k])}
-                         title=${k}
-                         @change=${e => this._setEl(idx, { [k]: parseFloat(e.target.value) || 0 })}>`)}
+                ${(isSquareLocked(el) ? ['x', 'y', 'size'] : ['x', 'y', 'w', 'h']).map(k => html`
+                  <input class="num" type="number" step=${step}
+                         .value=${Math.round(k === 'size' ? Math.min(el.w, el.h) : el[k])}
+                         title=${k === 'size' ? 'size - a gauge is always square' : k}
+                         @change=${e => {
+                           const v = parseFloat(e.target.value) || 0;
+                           this._setEl(idx, k === 'size' ? { w: v, h: v } : { [k]: v });
+                         }}>`)}
               ` : ''}
               <button class="icon-btn" title="Backward" @click=${() => this._move(idx, -1)}>↑</button>
               <button class="icon-btn" title="Forward" @click=${() => this._move(idx, 1)}>↓</button>
@@ -1400,7 +1407,7 @@ class ScCanvasEditor extends LitElement {
           </select>
           <button class="add-btn" style="width:auto; padding:6px 10px;" @click=${this._addSurface}>＋ Surface</button>
         </div>
-        <div class="hint">Later in the list draws on top. A surface is a plain box for a colour or glass pattern to paint.</div>
+        <div class="hint">Later in the list draws on top. A surface is a plain box for a colour or glass pattern to paint. A gauge stays square, and fills its box - its size is set here, not in the gauge editor.</div>
       </div>`;
   }
 }
@@ -1441,6 +1448,19 @@ Object.assign(window.SupercardModules['layout'], (() => {
       if (el.slot !== slotName) el.slot = slotName;
       if (el.parentElement !== renderer) renderer.appendChild(el);
     };
+
+    // Which elements exist is the model's answer, and the canvas is a model of
+    // its own - reading layout_rows here would leave anything placed after the
+    // conversion unslotted, rendering it outside the canvas at the card's
+    // default position. Converted cards keep their rows, which is the only
+    // reason this went unnoticed.
+    if (Array.isArray(config.canvas?.elements)) {
+      config.canvas.elements.forEach(el => {
+        if (el.surface || el.id?.startsWith('label_')) return;
+        assignSlot(resolveElement(shadow, el.id), el.id);
+      });
+      return;
+    }
 
     const rows = Array.isArray(config.layout_rows) ? config.layout_rows : [];
     rows.forEach(row => {
