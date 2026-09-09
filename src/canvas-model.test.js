@@ -14,6 +14,10 @@ import {
   isHeightPinned,
   isSquareLocked,
   squareElement,
+  gridColumnsToPx,
+  gridSize,
+  canvasFromGrid,
+  rescaleCanvas,
 } from './canvas-model.js';
 import fixtures from './__fixtures__/real-layouts.json' with { type: 'json' };
 
@@ -648,5 +652,90 @@ describe('migration squares gauges', () => {
         if (isSquareLocked(el)) expect(el.w).toBeCloseTo(el.h, 9);
       }
     }
+  });
+});
+
+describe('gridColumnsToPx', () => {
+  // Measured on a real dashboard, which is where the reference width comes
+  // from: a full-width card was 480px and a six-column one 236.
+  it('reproduces the widths a real section gives', () => {
+    expect(gridColumnsToPx(12)).toBeCloseTo(480, 6);
+    expect(gridColumnsToPx(6)).toBeCloseTo(236, 6);
+    expect(gridColumnsToPx(3)).toBeCloseTo(114, 6);
+  });
+
+  it('treats a full-width card as the whole section', () => {
+    expect(gridColumnsToPx('full')).toBeCloseTo(gridColumnsToPx(12), 6);
+  });
+
+  it('clamps nonsense into the grid rather than inventing a width', () => {
+    expect(gridColumnsToPx(0)).toBeCloseTo(gridColumnsToPx(1), 6);
+    expect(gridColumnsToPx(99)).toBeCloseTo(gridColumnsToPx(12), 6);
+    expect(gridColumnsToPx(undefined)).toBeCloseTo(gridColumnsToPx(1), 6);
+  });
+});
+
+describe('gridSize', () => {
+  it('prefers what the layout tab set', () => {
+    expect(gridSize({ grid_options: { columns: 6, rows: 4 } }, { grid_columns: 9 }))
+      .toEqual({ columns: 6, rows: 4 });
+  });
+
+  it('falls back to the defaults the card reports', () => {
+    expect(gridSize({}, { grid_columns: 9, grid_rows: 5 })).toEqual({ columns: 9, rows: 5 });
+    expect(gridSize({}, {})).toEqual({ columns: 3, rows: 3 });
+    expect(gridSize(undefined, undefined)).toEqual({ columns: 3, rows: 3 });
+  });
+
+  it('does not mistake auto height for a row count', () => {
+    expect(gridSize({ grid_options: { rows: 'auto' } }, { grid_rows: 5 }).rows).toBe(5);
+  });
+});
+
+describe('canvasFromGrid', () => {
+  it('gives the six-by-four card the shape worked out by hand', () => {
+    // 236 x 248 px, scaled so the longer side is 400.
+    expect(canvasFromGrid({ grid_options: { columns: 6, rows: 4 } }, {}))
+      .toEqual({ w: 381, h: 400 });
+  });
+
+  it('keeps the ratio of the box it came from', () => {
+    for (const [columns, rows] of [[12, 4], [3, 2], [6, 8], [1, 1]]) {
+      const c = canvasFromGrid({ grid_options: { columns, rows } }, {});
+      expect(c.w / c.h).toBeCloseTo(gridColumnsToPx(columns) / gridRowsToPx(rows), 2);
+      expect(Math.max(c.w, c.h)).toBe(400);
+    }
+  });
+});
+
+describe('rescaleCanvas', () => {
+  it('carries the layout across as the same proportions', () => {
+    const canvas = { w: 400, h: 200, elements: [
+      { id: 'progressbar_0', x: 100, y: 50, w: 200, h: 100 },
+    ] };
+    const out = rescaleCanvas(canvas, { w: 200, h: 400 });
+    expect(out).toMatchObject({ w: 200, h: 400 });
+    expect(out.elements[0]).toMatchObject({ x: 50, y: 100, w: 100, h: 200 });
+  });
+
+  it('re-squares gauges, which two different factors would have flattened', () => {
+    const canvas = { w: 400, h: 200, elements: [{ id: 'gauge_0', x: 0, y: 0, w: 100, h: 100 }] };
+    const out = rescaleCanvas(canvas, { w: 200, h: 400 });
+    expect(out.elements[0].w).toBe(out.elements[0].h);
+    expect(out.elements[0].w).toBe(50);
+  });
+
+  it('leaves everything but the geometry alone', () => {
+    const canvas = { w: 400, h: 200, grid: 10, snap: 5,
+      elements: [{ id: 'label_0', x: 0, y: 0, w: 10, h: 10, overflow: false }] };
+    const out = rescaleCanvas(canvas, { w: 800, h: 400 });
+    expect(out.grid).toBe(10);
+    expect(out.snap).toBe(5);
+    expect(out.elements[0].overflow).toBe(false);
+  });
+
+  it('is a no-op when the shape has not changed', () => {
+    const canvas = { w: 400, h: 200, elements: [{ id: 'x', x: 1, y: 2, w: 3, h: 4 }] };
+    expect(rescaleCanvas(canvas, { w: 400, h: 200 })).toEqual(canvas);
   });
 });

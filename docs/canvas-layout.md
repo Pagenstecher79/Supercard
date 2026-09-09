@@ -495,7 +495,71 @@ was in fixed-pixel mode now fills its element instead. `gauge_position_mode`
 and the two offsets only ever applied in fixed mode, so they stop applying
 there too — as they already did for every responsive gauge.
 
-## 7. Build order
+## 7. The canvas takes the card's shape
+
+Conversion used to migrate into `DEFAULT_CANVAS`, a flat 400 × 200. Every card
+that was not 2:1 therefore changed shape the moment it was converted — and a
+gauge, which fits the smaller side of its box, shrank. That was the visible
+symptom: a converted gauge card next to an unconverted one, the same size on
+the dashboard, with a much smaller gauge in it.
+
+### The box a card actually occupies
+
+Home Assistant's section is `HA_COLUMN_COUNT` equal columns with a gap; a card
+spanning *n* of them is *n* columns plus the *n − 1* gaps between. So both
+axes come out of `grid_options`:
+
+```
+width  = n × colUnit + (n − 1) × 8      colUnit = (sectionWidth − 11 × 8) / 12
+height = rows × 56 + (rows − 1) × 8     = rows × 64 − 8
+```
+
+Measured against real cards on a real dashboard, with a section 480px wide:
+
+| columns | width | rows | height |
+|---|---|---|---|
+| 12 | 480 | 3 | 184 |
+| 6 | 236 | 4 | 248 |
+| 3 | 114 | 8 | 504 |
+
+`gridColumnsToPx` reproduces all of them. A six-column, four-row card is
+236 × 248, which scaled to a longer side of 400 is **381 × 400** — the shape
+`canvasFromGrid` now hands Convert.
+
+### Why the section width is a reference, not a measurement
+
+A section's width is a layout result: it changes with the viewport, and it is
+not knowable from inside a card at the moment someone presses Convert.
+`HA_SECTION_WIDTH` is therefore a fixed reference, measured on a real
+dashboard. Only the *ratio* between a column and a row is ever used, so what
+the constant decides is how wide a column counts relative to a row — and on a
+narrower section the card is narrower and the canvas letterboxes, the same
+trade a fixed aspect ratio makes everywhere else.
+
+### One box, set in either place
+
+The canvas editor now sets **both** halves of that box — *Card width* in
+columns and *Card height* in rows — through `commitFn('__card__', …)`, so they
+are the same `grid_options` the Layout tab writes. Changing either one there
+also reshapes the canvas to match, via `rescaleCanvas`, which scales the
+element coordinates by the same two factors and re-squares the gauges (a
+square scaled by two different numbers stops being one).
+
+Both writes go out as a single `commitFn('__batch__', …)`. Two commits in one
+tick would lose the first: `_commit` clones `this.config`, and Home Assistant
+writes that back asynchronously, so the second clone is still the pre-edit one.
+
+The reshape is deliberately **not** done on render. A change made in the Layout
+tab instead surfaces as a *Match the card* button, shown only while the two
+shapes actually differ. A card that rewrites its own config for being displayed
+can corrupt a dashboard while nobody is watching; the editor asking once is the
+version of that which cannot.
+
+With the height on *Fit the canvas* there is no row count to match, and the
+button does not appear: the canvas is the height in that mode, and deriving one
+from the other in both directions is a circle.
+
+## 8. Build order
 
 1. ~~**The migration function alone**, pure.~~ `src/canvas-model.js`.
 2. ~~**Verify it against real configurations.**~~ 23 real layouts; migration
@@ -510,6 +574,8 @@ there too — as they already did for every responsive gauge.
    count is set, and one height control in both places - see §5.
 6. ~~**Gauges sized by their element.**~~ Square-locked gauge elements, and one
    size control rather than two that contradict - see §6.
+7. ~~**The canvas takes the card's shape.**~~ Convert derives it from
+   `grid_options`, and both halves of that box are settable here - see §7.
 
 What is left is the part no amount of arithmetic settles: **switching cards
 over**. Today conversion is a button someone presses. Making it automatic

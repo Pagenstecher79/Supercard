@@ -399,6 +399,102 @@ export function reportedRows(slot) {
 }
 
 /**
+ * The other axis of Home Assistant's sections grid.
+ *
+ * A section is `HA_COLUMN_COUNT` equal columns with a gap between them, and a
+ * card spanning `n` of them is `n` columns plus the `n-1` gaps they close up.
+ * The section's own width is a layout result and varies with the viewport, so
+ * `HA_SECTION_WIDTH` is a *reference* - measured on a real dashboard, where a
+ * full-width card came out at exactly 480px and a six-column one at 236.
+ *
+ * Only the ratio against `gridRowsToPx` is ever used, so the reference width
+ * decides how wide a column counts relative to a row and nothing else. On a
+ * narrower section the card is narrower and the canvas letterboxes, which is
+ * the same trade a fixed aspect ratio makes everywhere else.
+ */
+export const HA_COLUMN_COUNT = 12;
+export const HA_COLUMN_GAP = 8;
+export const HA_SECTION_WIDTH = 480;
+
+/**
+ * @param {number | 'full'} columns
+ * @returns {number} the card width that many grid columns give
+ */
+export function gridColumnsToPx(columns) {
+  const raw = columns === 'full' ? HA_COLUMN_COUNT : Math.round(Number(columns) || 0);
+  const n = Math.max(1, Math.min(HA_COLUMN_COUNT, raw));
+  const unit = (HA_SECTION_WIDTH - (HA_COLUMN_COUNT - 1) * HA_COLUMN_GAP) / HA_COLUMN_COUNT;
+  return n * unit + (n - 1) * HA_COLUMN_GAP;
+}
+
+/**
+ * The grid box a card currently occupies, from both places it can be set.
+ *
+ * `grid_options` is Home Assistant's, written by the layout tab and by our own
+ * controls; the `grid_*` keys on the slot are the defaults `getGridOptions`
+ * reports when it is not. Reading the same chain here is what makes a derived
+ * canvas match the card that is actually on the dashboard rather than a
+ * hypothetical one.
+ *
+ * @param {any} cardConfig the Lovelace card config
+ * @param {any} slot config.supercard
+ * @returns {{ columns: number | 'full', rows: number }}
+ */
+export function gridSize(cardConfig, slot) {
+  const g = cardConfig?.grid_options || {};
+  const columns = (typeof g.columns === 'number' || g.columns === 'full')
+    ? g.columns
+    : (Number(slot?.grid_columns) > 0 ? Number(slot.grid_columns) : 3);
+  const rows = typeof g.rows === 'number'
+    ? g.rows
+    : (Number(slot?.grid_rows) > 0 ? Number(slot.grid_rows) : 3);
+  return { columns, rows };
+}
+
+/**
+ * A canvas shaped like the card's grid box.
+ *
+ * Scaled so the longer side is `scale`, because the numbers are edited by
+ * hand: only the ratio carries meaning, and 400 x 420 reads better than
+ * 236 x 248. Element coordinates are fractions of these, and font sizes in
+ * the wild are container units, so the scale itself is free.
+ *
+ * @param {any} cardConfig
+ * @param {any} slot
+ * @param {number} [scale]
+ * @returns {{ w: number, h: number }}
+ */
+export function canvasFromGrid(cardConfig, slot, scale = 400) {
+  const { columns, rows } = gridSize(cardConfig, slot);
+  const w = gridColumnsToPx(columns);
+  const h = gridRowsToPx(rows);
+  const k = scale / Math.max(w, h);
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+
+/**
+ * The same picture in a differently shaped coordinate space.
+ *
+ * Every element is a fraction of `w` and `h`, so scaling both the canvas and
+ * the coordinates by the same factors leaves the layout where it was - as a
+ * proportion of a card that has itself changed shape. Gauges are re-squared
+ * afterwards: the two factors differ whenever the shape changes, and a square
+ * scaled by two different numbers stops being one.
+ *
+ * @param {any} canvas
+ * @param {{ w: number, h: number }} shape
+ * @returns {any} a new canvas
+ */
+export function rescaleCanvas(canvas, shape) {
+  const kx = shape.w / canvas.w, ky = shape.h / canvas.h;
+  const elements = (Array.isArray(canvas.elements) ? canvas.elements : []).map(el => {
+    const moved = { ...el, x: el.x * kx, y: el.y * ky, w: el.w * kx, h: el.h * ky };
+    return isSquareLocked(moved) ? squareElement(moved) : moved;
+  });
+  return { ...canvas, w: shape.w, h: shape.h, elements };
+}
+
+/**
  * Whether something outside the canvas has fixed the card's height, so the
  * canvas has to fit inside a box it did not choose rather than define one.
  *

@@ -672,11 +672,7 @@ class SupercardModularEditor extends LitElement {
     this.config = config;
   }
 
-  _commit(key, value) {
-    if (!this.config) return;
-    const newConfig = structuredClone(this.config);
-    if (!newConfig.supercard) newConfig.supercard = {};
-
+  _applyCommit(newConfig, key, value) {
     if (key === '__card__') {
       // The Lovelace card config itself, not the slot: `grid_options` is HA's
       // own key and lives there, so the canvas editor's height control and the
@@ -689,6 +685,22 @@ class SupercardModularEditor extends LitElement {
     } else {
       newConfig.supercard[key] = value;
       if (key === 'entity') newConfig.entity = value;
+    }
+  }
+
+  _commit(key, value) {
+    if (!this.config) return;
+    const newConfig = structuredClone(this.config);
+    if (!newConfig.supercard) newConfig.supercard = {};
+
+    // One edit that has to touch both the card config and the slot arrives as
+    // a batch, because two commits in one tick lose the first: this clones
+    // `this.config`, and Home Assistant only writes that back asynchronously,
+    // so the second clone would still be the pre-edit one.
+    if (key === '__batch__') {
+      for (const [k, v] of value) this._applyCommit(newConfig, k, v);
+    } else {
+      this._applyCommit(newConfig, key, value);
     }
 
     const event = new Event("config-changed", { bubbles: true, composed: true });

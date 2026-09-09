@@ -1,6 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { getCellItems, resolveCanvas, resolveSnap, applyDrag, isSquareLocked,
-         DEFAULT_CANVAS, gridRowsToPx } from "./canvas-model.js";
+import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS,
+         gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, rescaleCanvas,
+         migrateLayoutToCanvas, targetedCells } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
 
@@ -302,11 +303,10 @@ class ScLayoutRenderer extends LitElement {
   }
 
   render() {
-    // Only an explicit `canvas` takes the new path. resolveCanvas() can
-    // migrate a layout_rows config on the way in, but nothing calls it for
-    // rendering yet: while both paths exist they have to stay comparable, and
-    // switching every card over silently would remove the only way to check
-    // that the new one puts things in the same place.
+    // Only an explicit `canvas` takes the new path. Migration is the Convert
+    // button's job and nothing else's: while both paths exist they have to
+    // stay comparable, and switching every card over silently would remove the
+    // only way to check that the new one puts things in the same place.
     if (this.config?.canvas) return this._renderCanvas(this.config.canvas);
     if (!this.config?.layout_rows) return html``;
     const rows = this.config.layout_rows;
@@ -1205,17 +1205,59 @@ class ScCanvasEditor extends LitElement {
     return typeof r === 'number' ? r : null;
   }
 
+  /** The card's width in grid columns, from wherever it is currently set. */
+  get _columns() { return gridSize(this.cardConfig, this.slot).columns; }
+
   /**
-   * Writes Home Assistant's own `grid_options` rather than a field of our
-   * own, so this control and the layout tab are two views of one value
-   * instead of two settings that have to be kept in step.
+   * Writes HA's own `grid_options` rather than fields of our own, so these
+   * controls and the layout tab are two views of one value instead of two
+   * settings that have to be kept in step.
+   *
+   * Changing the card's box here also reshapes the canvas to match, when there
+   * is a row count to match: the user is setting the card's size, and a canvas
+   * that then letterboxed inside it would be answering a question they did not
+   * ask. It is not done on render - a card that rewrites its own config for
+   * being displayed can corrupt a dashboard while nobody is watching - so a
+   * change made in the layout tab instead is offered as the Match button.
    */
-  _setRows(rows) {
+  _setGrid(patch) {
     const grid = { ...(this.cardConfig?.grid_options || {}) };
-    if (rows === null) delete grid.rows; else grid.rows = rows;
-    this.commitFn?.('__card__', {
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null) delete grid[k]; else grid[k] = v;
+    }
+    if (!this.commitFn) return;
+    const writes = [['__card__', {
       grid_options: Object.keys(grid).length ? grid : undefined
-    });
+    }]];
+    if (typeof grid.rows === 'number') {
+      const shaped = this._shapedToGrid({ ...this.cardConfig, grid_options: grid });
+      if (shaped) writes.push(['__merge__', { canvas: shaped }]);
+    }
+    this.commitFn('__batch__', writes);
+  }
+
+  _setRows(rows) { this._setGrid({ rows }); }
+
+  /** The canvas reshaped to the card's grid box, or null if it already is. */
+  _shapedToGrid(cardConfig = this.cardConfig) {
+    const shape = canvasFromGrid(cardConfig, this.slot);
+    const c = this._canvas;
+    if (c.w === shape.w && c.h === shape.h) return null;
+    return rescaleCanvas(structuredClone(c), shape);
+  }
+
+  /** Reshape the canvas to the card's grid box, carrying the layout with it. */
+  _matchGrid() {
+    const shaped = this._shapedToGrid();
+    if (shaped) this._commit(shaped);
+  }
+
+  /** Whether the canvas is a different shape from the box the card occupies. */
+  get _gridMismatch() {
+    if (typeof this.cardConfig?.grid_options?.rows !== 'number') return false;
+    const shape = canvasFromGrid(this.cardConfig, this.slot);
+    const c = this._canvas;
+    return Math.abs(c.w / c.h - shape.w / shape.h) > 0.005;
   }
 
   /** Commit the canvas with one element's fields changed. */
@@ -1312,12 +1354,22 @@ class ScCanvasEditor extends LitElement {
     const els = Array.isArray(c.elements) ? c.elements : [];
     const step = resolveSnap(c);
     const rows = this._rows;
+    const columns = this._columns;
+    const mismatch = this._gridMismatch;
     const gridPct = (c.grid > 0 ? c.grid : step) / c.w * 100;
     const pct = (v, total) => `${v / total * 100}%`;
     const unplaced = this._unplaced();
 
     return html`
       <div class="col">
+        <div class="row">
+          <label>Card width</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input class="num" type="number" min="1" max="12" .value=${columns === 'full' ? 12 : columns}
+                   @change=${e => this._setGrid({ columns: Math.max(1, Math.min(12, parseInt(e.target.value) || 1)) })}>
+            <span class="hint">of 12 columns · ${Math.round(gridColumnsToPx(columns))} px</span>
+          </div>
+        </div>
         <div class="row">
           <label>Card height</label>
           <div style="display:flex; gap:6px; align-items:center;">
@@ -1333,8 +1385,8 @@ class ScCanvasEditor extends LitElement {
         </div>
         <div class="hint" style="margin:-4px 0 4px 0;">
           ${rows === null
-            ? html`The card is exactly as tall as the canvas shape makes it.`
-            : html`The canvas keeps its shape inside that height, so it may letterbox. This is the same setting as in the <b>Layout</b> tab.`}
+            ? html`The card is as wide as its columns and exactly as tall as the canvas shape makes it. Both are the same settings as in the <b>Layout</b> tab.`
+            : html`Both are the same settings as in the <b>Layout</b> tab. Changing one here reshapes the canvas to match, so nothing letterboxes.`}
         </div>
         <div class="row">
           <label>Canvas</label>
@@ -1346,6 +1398,13 @@ class ScCanvasEditor extends LitElement {
                    @change=${e => this._setCanvas('h', Math.max(1, parseInt(e.target.value) || DEFAULT_CANVAS.h))}>
           </div>
         </div>
+        ${mismatch ? html`
+          <div class="hint" style="margin:-4px 0 4px 0; display:flex; gap:8px; align-items:center;">
+            <span style="flex:1">The canvas is a different shape from the card, so it letterboxes inside it.</span>
+            <button class="add-btn" style="width:auto; padding:5px 10px;" @click=${() => this._matchGrid()}>
+              Match the card
+            </button>
+          </div>` : ''}
         <div class="row">
           <label>Grid / snap</label>
           <div style="display:flex; gap:6px; align-items:center;">
@@ -1499,7 +1558,15 @@ Object.assign(window.SupercardModules['layout'], (() => {
             then change. Your rows stay in the config, so this is reversible.
           </span>
           <button type="button" style="background: var(--primary-color,#03a9f4); border: none; color: #fff; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap;"
-            @click=${() => commitFn('__merge__', { canvas: resolveCanvas(slot) })}>
+            @click=${() => {
+              // The shape the card already occupies, so converting changes the
+              // model and not the picture. A blind default would reshape every
+              // card that is not 2:1 and shrink whatever had to fit inside it.
+              const shape = canvasFromGrid(cardConfig, slot);
+              const { elements } = migrateLayoutToCanvas(slot.layout_rows, shape,
+                { targetedCells: targetedCells(slot) });
+              commitFn('__merge__', { canvas: { ...shape, elements } });
+            }}>
             Convert
           </button>
         </div>` : ''}`;
