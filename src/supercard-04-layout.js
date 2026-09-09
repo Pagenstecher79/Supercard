@@ -1,4 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { getCellItems } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
 
@@ -34,41 +35,6 @@ function getLayoutTargets(slot) {
   return elements;
 }
 
-// --- HELPER: Migration & standardization ---
-function getCellItems(cell) {
-  if (Array.isArray(cell.items)) {
-    return cell.items.map(item => {
-      let x = item.x !== undefined ? item.x : (item.c ? (item.c - 1) * 33.333 : 0);
-      let y = item.y !== undefined ? item.y : (item.r ? (item.r - 1) * 33.333 : 0);
-      let w = item.w !== undefined ? item.w : (item.c2 && item.c ? (item.c2 - item.c + 1) * 33.333 : 33.333);
-      let h = item.h !== undefined ? item.h : (item.r2 && item.r ? (item.r2 - item.r + 1) * 33.333 : 33.333);
-      
-      return { ...item, x, y, w, h,
-        inner: item.inner || 'cc',
-        font_size: item.size_n || item.size_v || item.font_size || null,
-        font_weight: item.weight_n || item.weight_v || item.font_weight || null,
-        font_color: item.color_n || item.color_v || item.font_color || null,
-        font_unit: item.unit_n || item.font_unit || 'px',
-        overflow: item.overflow !== false
-      };
-    });
-  }
-  
-  if (cell.content && cell.content !== 'empty') {
-    const span_c = cell.span_c ?? cell.content.startsWith('gauge_');
-    return [{ 
-      id: cell.content, 
-      x: 0, y: 0, w: span_c ? 100 : 33.333, h: span_c ? 100 : 33.333,
-      inner: cell.inner_c || 'cc',
-      font_size: cell.size_n || cell.size_v || cell.font_size || null,
-      font_weight: cell.weight_n || cell.weight_v || cell.font_weight || null,
-      font_color: cell.color_n || cell.color_v || cell.color || null,
-      font_unit: cell.unit_n || cell.font_unit || 'px',
-      overflow: cell.overflow !== false
-    }];
-  }
-  return [];
-}
 
 // --- LAYOUT RENDERER (LitElement) ---
 class ScLayoutRenderer extends LitElement {
