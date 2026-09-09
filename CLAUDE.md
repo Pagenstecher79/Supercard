@@ -123,12 +123,25 @@ of the slot, for the few settings that are Home Assistant's rather than ours -
 Use it so a setting HA already owns stays one value in both editors; do not
 mirror such a value into `config.supercard`.
 
+`commitFn('__batch__', [[key, value], ...])` applies several of those in one
+commit. **One edit that has to touch both the card config and the slot must
+use it**: `_commit` clones `this.config`, and Home Assistant writes that back
+asynchronously, so two commits in the same tick silently lose the first.
+
 **The card's height.** `getGridOptions()` reports `rows: "auto"` for a canvas
 card and the fixed default for a row/cell one (`reportedRows`). A canvas has a
 ratio, not a height, and the width needed to turn one into the other is a
 layout result the card cannot see. When someone does set a row count, the
 canvas letterboxes inside it - never `max-height`, which would keep the width
 at 100% and break the ratio. See `docs/canvas-layout.md` §5.
+
+**The card's shape.** `canvasFromGrid` turns `grid_options` (columns x rows)
+into the canvas shape that box wants, so Convert reproduces the card that is
+already on the dashboard instead of imposing a default. `gridColumnsToPx` uses
+a *reference* section width, because a section's real width is a viewport
+result; only the ratio against `gridRowsToPx` is used. The canvas editor sets
+columns and rows itself and reshapes the canvas with `rescaleCanvas` when they
+change - but only on a user's edit, never on render. See §7.
 
 **Editor styles.** Start from a shared stylesheet and add only what differs:
 
