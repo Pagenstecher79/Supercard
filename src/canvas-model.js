@@ -291,3 +291,65 @@ export function applyDrag(canvas, start, mode, delta) {
     h: start.h,
   };
 }
+
+/**
+ * Home Assistant's sections grid, in pixels.
+ *
+ * A card that reports `rows: N` is given exactly this height by
+ * hui-grid-section: `grid-row: span N`, plus an explicit
+ * `N * (row-height + row-gap) - row-gap`. Both figures are themable
+ * (`--ha-section-grid-row-height`, `--ha-section-grid-row-gap`); these are the
+ * defaults. Nothing renders from them - they only turn a row count into the
+ * pixel figure the editor prints beside it, so the number means something.
+ */
+export const HA_ROW_HEIGHT = 56;
+export const HA_ROW_GAP = 8;
+
+/**
+ * @param {number} rows
+ * @returns {number} the card height Home Assistant gives that many rows
+ */
+export function gridRowsToPx(rows) {
+  const n = Math.max(1, Math.round(Number(rows) || 0));
+  return n * (HA_ROW_HEIGHT + HA_ROW_GAP) - HA_ROW_GAP;
+}
+
+/**
+ * The height a Supercard reports to Home Assistant's sections grid.
+ *
+ * A canvas card has an intrinsic height - its aspect ratio times whatever
+ * width the column hands it - and that width is not knowable from inside the
+ * card, so no row count can be right. `auto` is what HA has for exactly this
+ * case: the card is as tall as it renders, and the layout tab's height
+ * control follows it instead of fighting it.
+ *
+ * A row/cell card has no intrinsic height at all - its rows are percentages
+ * of one - so it keeps reporting the fixed default it always has. Reporting
+ * `auto` there would collapse every existing card to nothing.
+ *
+ * @param {any} slot config.supercard
+ * @returns {number | 'auto'}
+ */
+export function reportedRows(slot) {
+  if (slot?.canvas) return 'auto';
+  const rows = Number(slot?.grid_rows);
+  return rows > 0 ? rows : 3;
+}
+
+/**
+ * Whether something outside the canvas has fixed the card's height, so the
+ * canvas has to fit inside a box it did not choose rather than define one.
+ *
+ * A row count from Home Assistant's layout tab is the only thing that does.
+ * The card's own `card_height` looks like a second one and is not: it is
+ * published as `--sc-explicit-height` on #main-container while `:host` is
+ * what reads it, and a custom property does not travel back up to the host,
+ * so the field has never had any effect. Treating it as a pin here would
+ * shrink every canvas card that happens to carry a stale value.
+ *
+ * @param {any} cardConfig the Lovelace card config
+ * @returns {boolean}
+ */
+export function isHeightPinned(cardConfig) {
+  return typeof cardConfig?.grid_options?.rows === 'number';
+}

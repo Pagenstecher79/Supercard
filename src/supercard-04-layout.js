@@ -1,5 +1,6 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { getCellItems, resolveCanvas, resolveSnap, applyDrag, DEFAULT_CANVAS } from "./canvas-model.js";
+import { getCellItems, resolveCanvas, resolveSnap, applyDrag, DEFAULT_CANVAS,
+         gridRowsToPx } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
 
@@ -69,11 +70,28 @@ class ScLayoutRenderer extends LitElement {
          the size container that sc-gauge's 100cqmin resolves against, and
          every typography rule in this file already addresses it. */
       .sc-canvas {
-        position: relative; width: 100%; max-height: 100%;
+        position: relative; width: 100%;
         margin: 0 auto;
         container-type: size; container-name: cell;
       }
       .sc-canvas .sc-surface { pointer-events: none; }
+
+      /* Only present when the card's height is pinned - by a row count in
+         Home Assistant's layout tab, or by this card's absolute height. The
+         canvas then has to fit inside a box it did not choose, so it keeps
+         its ratio and is letterboxed rather than stretched: a max-height
+         alone would clamp the height and leave the width at 100%, which is
+         the one thing a fixed aspect ratio exists to prevent.
+
+         Size containment needs a definite height and only gets one here,
+         which is exactly what "pinned" means - hence the wrapper rather than
+         a rule on .sc-canvas itself. It is also why the unpinned path emits
+         no wrapper at all: container-type size against an indefinite height
+         collapses the card to nothing. */
+      .sc-canvas-fit {
+        position: relative; width: 100%; height: 100%;
+        container-type: size; container-name: card;
+      }
 
       .sc-item-slot {
         position: absolute; 
@@ -238,9 +256,16 @@ class ScLayoutRenderer extends LitElement {
     const els = Array.isArray(canvas.elements) ? canvas.elements : [];
     const pct = (v, total) => `${(v / total * 100).toFixed(4)}%`;
 
-    return html`
-      <style>${this._itemStyles(els.filter(e => !e.surface))}</style>
-      <div class="sc-canvas ${debug ? 'debug-mode' : ''}" style="aspect-ratio: ${canvas.w} / ${canvas.h};">
+    // Unpinned, the canvas defines the card's height: full width, and the
+    // ratio supplies the rest. Pinned, the height is already decided, so the
+    // width comes down from it instead and the canvas centres in what is left.
+    const fit = this.config.__heightPinned;
+    const box = fit
+      ? `aspect-ratio: ${canvas.w} / ${canvas.h}; width: min(100%, calc(100cqh * ${(canvas.w / canvas.h).toFixed(6)}));`
+      : `aspect-ratio: ${canvas.w} / ${canvas.h};`;
+
+    const canvasHtml = html`
+      <div class="sc-canvas ${debug ? 'debug-mode' : ''}" style="${box}">
         ${els.map(el => {
           const box = `left:${pct(el.x, canvas.w)}; top:${pct(el.y, canvas.h)};` +
                       ` width:${pct(el.w, canvas.w)}; height:${pct(el.h, canvas.h)};`;
@@ -270,6 +295,10 @@ class ScLayoutRenderer extends LitElement {
             </div>`;
         })}
       </div>`;
+
+    return html`
+      <style>${this._itemStyles(els.filter(e => !e.surface))}</style>
+      ${fit ? html`<div class="sc-canvas-fit">${canvasHtml}</div>` : canvasHtml}`;
   }
 
   render() {
@@ -1126,6 +1155,9 @@ class ScCanvasEditor extends LitElement {
     return {
       slot: { type: Object },
       hass: { type: Object },
+      // The Lovelace card config, for `grid_options` - the card's height is
+      // Home Assistant's field, not one of ours.
+      cardConfig: { type: Object },
       commitFn: { type: Function },
       _sel: { type: String, state: true },
       _drag: { type: Object, state: true },
@@ -1161,6 +1193,29 @@ class ScCanvasEditor extends LitElement {
 
   _commit(canvas) {
     if (this.commitFn) this.commitFn('__merge__', { canvas });
+  }
+
+  /**
+   * The card height in Home Assistant grid rows, or null for "as tall as the
+   * canvas". Absent and the literal 'auto' both mean the latter: the card
+   * reports `auto` itself, so an untouched config carries no rows at all.
+   */
+  get _rows() {
+    const r = this.cardConfig?.grid_options?.rows;
+    return typeof r === 'number' ? r : null;
+  }
+
+  /**
+   * Writes Home Assistant's own `grid_options` rather than a field of our
+   * own, so this control and the layout tab are two views of one value
+   * instead of two settings that have to be kept in step.
+   */
+  _setRows(rows) {
+    const grid = { ...(this.cardConfig?.grid_options || {}) };
+    if (rows === null) delete grid.rows; else grid.rows = rows;
+    this.commitFn?.('__card__', {
+      grid_options: Object.keys(grid).length ? grid : undefined
+    });
   }
 
   /** Commit the canvas with one element's fields changed. */
@@ -1253,12 +1308,31 @@ class ScCanvasEditor extends LitElement {
     const c = this._canvas;
     const els = Array.isArray(c.elements) ? c.elements : [];
     const step = resolveSnap(c);
+    const rows = this._rows;
     const gridPct = (c.grid > 0 ? c.grid : step) / c.w * 100;
     const pct = (v, total) => `${v / total * 100}%`;
     const unplaced = this._unplaced();
 
     return html`
       <div class="col">
+        <div class="row">
+          <label>Card height</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <select style="width:110px" @change=${e => this._setRows(e.target.value === 'auto' ? null : (this._rows ?? 4))}>
+              <option value="auto" ?selected=${rows === null}>Fit the canvas</option>
+              <option value="rows" ?selected=${rows !== null}>Fixed rows</option>
+            </select>
+            ${rows !== null ? html`
+              <input class="num" type="number" min="1" max="50" .value=${rows}
+                     @change=${e => this._setRows(Math.max(1, parseInt(e.target.value) || 1))}>
+              <span class="hint">${gridRowsToPx(rows)} px</span>` : ''}
+          </div>
+        </div>
+        <div class="hint" style="margin:-4px 0 4px 0;">
+          ${rows === null
+            ? html`The card is exactly as tall as the canvas shape makes it.`
+            : html`The canvas keeps its shape inside that height, so it may letterbox. This is the same setting as in the <b>Layout</b> tab.`}
+        </div>
         <div class="row">
           <label>Canvas</label>
           <div style="display:flex; gap:6px; align-items:center;">
@@ -1389,9 +1463,10 @@ Object.assign(window.SupercardModules['layout'], (() => {
    * kept afterwards, so a card converted by mistake can be recovered by
    * deleting `canvas` in the YAML editor.
    */
-  function renderCustomBlock(commitFn, hass, slot) {
+  function renderCustomBlock(commitFn, hass, slot, cardConfig) {
     if (slot?.canvas) {
-      return html`<sc-canvas-editor .slot=${slot} .hass=${hass} .commitFn=${commitFn}></sc-canvas-editor>`;
+      return html`<sc-canvas-editor .slot=${slot} .hass=${hass} .cardConfig=${cardConfig}
+                                    .commitFn=${commitFn}></sc-canvas-editor>`;
     }
     const convertible = Array.isArray(slot?.layout_rows) && slot.layout_rows.length > 0;
     return html`

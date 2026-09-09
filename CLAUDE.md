@@ -117,6 +117,19 @@ config. Use `SC.withPatch(list, idx, key, value)`, or the editor's own
 `commitFn('__merge__', { ...several keys })`. The card's `_commit` merges
 `__merge__` payloads into `config.supercard` and fires `config-changed`.
 
+`commitFn('__card__', { ...keys })` writes the **Lovelace card config** instead
+of the slot, for the few settings that are Home Assistant's rather than ours -
+`grid_options` is the only one so far. A key set to `undefined` is deleted.
+Use it so a setting HA already owns stays one value in both editors; do not
+mirror such a value into `config.supercard`.
+
+**The card's height.** `getGridOptions()` reports `rows: "auto"` for a canvas
+card and the fixed default for a row/cell one (`reportedRows`). A canvas has a
+ratio, not a height, and the width needed to turn one into the other is a
+layout result the card cannot see. When someone does set a row count, the
+canvas letterboxes inside it - never `max-height`, which would keep the width
+at 100% and break the ratio. See `docs/canvas-layout.md` §5.
+
 **Editor styles.** Start from a shared stylesheet and add only what differs:
 
 ```js
