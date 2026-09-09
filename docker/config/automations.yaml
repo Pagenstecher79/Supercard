@@ -1,0 +1,90 @@
+# Keep the numbers moving.
+#
+# A gauge pointer, a bar's easing and a threshold colour change are all
+# animations *between* two values - a still instance shows none of them. These
+# nudge the input_numbers behind the template sensors so the card always has
+# something to react to, in the shape it would see from a real sensor: small
+# frequent steps, not teleports.
+#
+# All of them gate on input_boolean.value_generator, so turning that off
+# freezes the instance for a screenshot or a side-by-side comparison.
+
+- id: supercard_dev_drift
+  alias: "Dev: drift the slow readings"
+  description: >-
+    Temperature, humidity and battery move the way real ones do - a fraction of
+    a step every few seconds. This is the case ordinary rendering has to look
+    smooth in.
+  mode: single
+  triggers:
+    - trigger: time_pattern
+      seconds: "/5"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.value_generator
+      state: "on"
+  actions:
+    - action: input_number.set_value
+      target:
+        entity_id: input_number.living_temperature
+      data:
+        value: >-
+          {% set v = states('input_number.living_temperature') | float(21) %}
+          {{ [[v + (range(-6, 7) | random) / 10, -10] | max, 40] | min | round(1) }}
+    - action: input_number.set_value
+      target:
+        entity_id: input_number.living_humidity
+      data:
+        value: >-
+          {% set v = states('input_number.living_humidity') | float(48) %}
+          {{ [[v + (range(-8, 9) | random) / 10, 0] | max, 100] | min | round(1) }}
+    - action: input_number.set_value
+      target:
+        entity_id: input_number.battery_level
+      data:
+        value: >-
+          {% set v = states('input_number.battery_level') | float(63) %}
+          {{ [[v + (range(-1, 2) | random), 0] | max, 100] | min | round(0) }}
+
+- id: supercard_dev_spikes
+  alias: "Dev: spike the power draw"
+  description: >-
+    Power jumps rather than drifts - an appliance switching on is a large step
+    between two readings. This is what a bar's easing and a gauge's overshoot
+    are for, and the case where a threshold is crossed in one update.
+  mode: single
+  triggers:
+    - trigger: time_pattern
+      seconds: "/3"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.value_generator
+      state: "on"
+  actions:
+    - action: input_number.set_value
+      target:
+        entity_id: input_number.power_draw
+      data:
+        value: "{{ range(0, 3500) | random }}"
+
+- id: supercard_dev_energy
+  alias: "Dev: accumulate energy"
+  description: >-
+    Only ever increases, so the gauge's auto-range scaling has to relabel
+    itself as the value crosses into the next multiplier.
+  mode: single
+  triggers:
+    - trigger: time_pattern
+      seconds: "/10"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.value_generator
+      state: "on"
+  actions:
+    - action: input_number.set_value
+      target:
+        entity_id: input_number.energy_total
+      data:
+        value: >-
+          {% set v = states('input_number.energy_total') | float(0) %}
+          {{ [v + (range(200, 4000) | random), 5000000] | min | round(0) }}
