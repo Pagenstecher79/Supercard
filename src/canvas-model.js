@@ -189,3 +189,52 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts 
 
   return { elements, cellTargets, warnings };
 }
+
+/**
+ * Every cell a colour, fx-glass or interaction pattern points at.
+ *
+ * Migration needs these to know which cells to turn into surfaces, and they
+ * live in three different lists, so they are collected in one place.
+ *
+ * @param {any} slot
+ * @returns {string[]}
+ */
+export function targetedCells(slot) {
+  const lists = [slot?.color_patterns, slot?.fx_glass_patterns, slot?.interactions];
+  const keys = new Set();
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const p of list) if (/^r\d+c\d+$/.test(String(p?.target))) keys.add(p.target);
+  }
+  return [...keys];
+}
+
+/**
+ * The canvas a card should be rendered from.
+ *
+ * A configuration that already has one is used as is. One that only has
+ * `layout_rows` is migrated on the way in, and **not** written back: a card
+ * that rewrites stored config just for being displayed can corrupt a
+ * dashboard while nobody is watching. The editor persists the migration when
+ * the user next saves.
+ *
+ * The result is cached against the `layout_rows` array identity, because this
+ * runs on every render and the arithmetic is pure.
+ *
+ * @param {any} slot
+ * @returns {{ w: number, h: number, grid?: number, snap?: number, elements: any[] } | null}
+ */
+const migrationCache = new WeakMap();
+export function resolveCanvas(slot) {
+  if (slot?.canvas && Array.isArray(slot.canvas.elements)) return slot.canvas;
+  const rows = slot?.layout_rows;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+
+  const cached = migrationCache.get(rows);
+  if (cached) return cached;
+
+  const { elements } = migrateLayoutToCanvas(rows, DEFAULT_CANVAS, { targetedCells: targetedCells(slot) });
+  const canvas = { ...DEFAULT_CANVAS, elements };
+  migrationCache.set(rows, canvas);
+  return canvas;
+}

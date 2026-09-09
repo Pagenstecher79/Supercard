@@ -12,7 +12,8 @@ Decisions already taken:
 - **Existing configurations migrate automatically.** No second model kept
   alongside, no manual conversion step.
 - **The canvas has a fixed aspect ratio.** The card scales uniformly into
-  whatever space it is given instead of reflowing.
+  whatever space it is given instead of reflowing. Font sizes need no
+  conversion: they are already in container units - see below.
 - **Animated surfaces stay out of scope** for now. They remain what they are
   today — a colour pattern pointed at a target — and may become placeable
   objects later.
@@ -183,32 +184,26 @@ easily-missed detail in the whole change.
 Today `--sc-scale = max(0.3, min(w, h) / 70)` when either responsive flag is
 set, and font sizes, icon sizes and paddings are multiplied by it.
 
-With a fixed aspect ratio the canvas already scales uniformly, so the *box* of
-every element scales for free. Type does not: `font_size: 14` is 14 px at any
-canvas size.
+The plan here was to make font sizes virtual units resolved through a measured
+`--sc-canvas-scale`. **Looking at real configurations made that unnecessary.**
+Every font size in the wild is already written in container units:
 
-**Decided: font sizes are virtual units too.** A `font_size` is expressed in
-the same units as `x` and `w`, and resolves as
+| `font_unit` | occurrences in 23 real layouts |
+|---|---|
+| `cqmin` | 11 |
+| `cqw` | 6 |
+| `px` | 0 |
 
-```
---sc-canvas-scale: <rendered canvas width in px> / canvas.w
-font-size: calc(var(--sc-canvas-scale) * <font_size> * 1px)
-```
+The renderer resolves them as `min(<size><unit>, 100cqh, 100cqi)` against the
+element's own size container. Since every element wrapper keeps
+`container-type: size` — which it must anyway, for `sc-gauge` — an element's
+type scales with the element's box, and the box scales with the canvas. Type
+therefore scales with the card for free, per element, which is better than one
+card-wide factor would have been.
 
-so a card at half size has half-size type, exactly as `--sc-scale` gives
-today. The `ResizeObserver` in `supercard-01-core.js` stays; its formula gets
-simpler, because it no longer guesses a scale from `min(w, h) / 70` — it
-divides the measured width by a number the configuration states.
-
-The alternative — leaving font sizes in px — was rejected: a card that can sit
-in a phone column and a wide desktop column would render the same 14 px in
-both, which is the behaviour `--sc-scale` exists to avoid.
-
-Consequence for the migration: `font_size` values carry over **unchanged in
-number**, but their meaning shifts from px to virtual units. On the default
-`400 × 200` canvas rendered at 400 px wide the two coincide exactly; wider or
-narrower, type scales where before it was pinned. That is the intended
-behaviour, and it is a visible change worth stating in the release notes.
+So there is no `--sc-canvas-scale`, and migration does not reinterpret
+`font_size` at all: the numbers and their units carry over untouched. `px` and
+`em` remain selectable in the editor and remain absolute, exactly as today.
 
 ---
 

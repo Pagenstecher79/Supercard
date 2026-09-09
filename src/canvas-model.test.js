@@ -5,6 +5,8 @@ import {
   rowHeights,
   cellWidths,
   migrateLayoutToCanvas,
+  targetedCells,
+  resolveCanvas,
 } from './canvas-model.js';
 import fixtures from './__fixtures__/real-layouts.json' with { type: 'json' };
 
@@ -370,5 +372,57 @@ describe('real dashboard layouts', () => {
       expect(result.warnings).toHaveLength(dead.length);
       for (const t of dead) expect(result.warnings.join(' ')).toContain(t);
     }
+  });
+});
+
+describe('targetedCells', () => {
+  it('collects cell targets out of all three pattern lists', () => {
+    expect(targetedCells({
+      color_patterns: [{ target: 'r0c0' }, { target: 'main' }],
+      fx_glass_patterns: [{ target: 'r1c1' }],
+      interactions: [{ target: 'elm_gauge_0' }, { target: 'r0c0' }],
+    }).sort()).toEqual(['r0c0', 'r1c1']);
+  });
+
+  it('is quiet about a configuration with no patterns at all', () => {
+    expect(targetedCells({})).toEqual([]);
+    expect(targetedCells(undefined)).toEqual([]);
+  });
+});
+
+describe('resolveCanvas', () => {
+  it('uses a canvas that is already there, untouched', () => {
+    const canvas = { w: 1, h: 2, elements: [] };
+    expect(resolveCanvas({ canvas, layout_rows: [{ cells: [{ content: 'gauge_0' }] }] })).toBe(canvas);
+  });
+
+  it('migrates a layout_rows configuration on the way in', () => {
+    const c = resolveCanvas({ layout_rows: [{ cells: [{ content: 'gauge_0' }] }] });
+    expect(c).toMatchObject({ w: DEFAULT_CANVAS.w, h: DEFAULT_CANVAS.h });
+    expect(c.elements.map(e => e.id)).toEqual(['gauge_0']);
+  });
+
+  it('makes surfaces for the cells the card actually targets', () => {
+    const c = resolveCanvas({
+      layout_rows: [{ cells: [{ content: 'gauge_0' }] }],
+      color_patterns: [{ target: 'r0c0' }],
+    });
+    expect(c.elements.map(e => e.id)).toEqual(['surface_0', 'gauge_0']);
+  });
+
+  it('does not write the migration back into the config', () => {
+    const slot = { layout_rows: [{ cells: [{ content: 'gauge_0' }] }] };
+    resolveCanvas(slot);
+    expect(slot.canvas).toBeUndefined();
+  });
+
+  it('migrates the same layout once', () => {
+    const slot = { layout_rows: [{ cells: [{ content: 'gauge_0' }] }] };
+    expect(resolveCanvas(slot)).toBe(resolveCanvas(slot));
+  });
+
+  it('has nothing to render without a layout', () => {
+    expect(resolveCanvas({})).toBeNull();
+    expect(resolveCanvas({ layout_rows: [] })).toBeNull();
   });
 });
