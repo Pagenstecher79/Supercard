@@ -1,0 +1,55 @@
+# Things worth doing on demand rather than on a timer.
+
+supercard_stress:
+  alias: "Dev: stress the renderer"
+  description: >-
+    Two hundred value changes as fast as Home Assistant will take them, across
+    every sensor at once. This is the case the card is slowest in and the one
+    that is hardest to reach by waiting: many gauges and bars reacting to new
+    values in the same frame. Watch it with the browser's performance panel
+    open - a dropped-frame problem shows here and nowhere else.
+  sequence:
+    - repeat:
+        count: 200
+        sequence:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.power_draw
+            data:
+              value: "{{ range(0, 3500) | random }}"
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.living_humidity
+            data:
+              value: "{{ range(0, 1000) | random / 10 }}"
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.battery_level
+            data:
+              value: "{{ range(0, 100) | random }}"
+          - delay:
+              milliseconds: 50
+  mode: single
+
+supercard_known_state:
+  alias: "Dev: park every value at a known figure"
+  description: >-
+    A fixed starting point, for a screenshot or a before/after comparison.
+    Stops the generator first, otherwise it drifts away within five seconds.
+  sequence:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.value_generator
+    - action: input_number.set_value
+      target: { entity_id: input_number.living_temperature }
+      data: { value: 21.5 }
+    - action: input_number.set_value
+      target: { entity_id: input_number.living_humidity }
+      data: { value: 48 }
+    - action: input_number.set_value
+      target: { entity_id: input_number.power_draw }
+      data: { value: 740 }
+    - action: input_number.set_value
+      target: { entity_id: input_number.battery_level }
+      data: { value: 63 }
+  mode: single

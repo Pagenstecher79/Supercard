@@ -1,0 +1,46 @@
+# Adapted from easy-floorplan (https://github.com/nicosandller/easy-floorplan),
+# MIT, Copyright (c) 2026 Nicolas Sandller. See docker/LICENSE.
+#
+# A real Home Assistant to develop the card against.
+#
+#   npm run build            # or `npm run watch` to keep rebuilding
+#   docker compose -f docker/docker-compose.yml up
+#
+# then http://localhost:8123.
+#
+# The point of this over a synthetic harness is that nothing here is mocked:
+# `hass` really arrives over the websocket, the card is really loaded as a
+# Lovelace resource, and its editor really runs inside Home Assistant's config
+# dialog. Anything that only shows up against a live instance -- entities that
+# go `unavailable`, attribute drift between HA versions, an editor property
+# binding that does not survive HA re-rendering the dialog -- shows up here and
+# cannot show up in a page that instantiates the components directly.
+services:
+  homeassistant:
+    container_name: supercard-ha
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    ports:
+      # Bound to the loopback address on purpose. A plain "8123:8123" publishes
+      # on every host interface, which would put an instance carrying whatever
+      # password you typed at onboarding on the LAN -- and the docs promise the
+      # opposite. Change it only if you mean to reach this from another device.
+      - "127.0.0.1:8123:8123"
+    environment:
+      # Anything the container writes to /config (the recorder db, .storage,
+      # logs) lands in docker/config on the host, so state survives a restart
+      # and is inspectable from the outside.
+      - TZ=UTC
+    volumes:
+      - ./config:/config
+      # The built card, served at /local/supercard.js. Read-only
+      # because the build writes it and HA has no business touching it: with
+      # `npm run watch` running, a save rebuilds dist/ and the file under
+      # /config/www changes underneath HA the same instant.
+      - ../dist:/config/www:ro
+    # Home Assistant normally wants host networking so discovery (mDNS, SSDP,
+    # DHCP) can see the LAN. This instance has nothing to discover, and host
+    # networking does not behave on macOS the way it does on Linux, so it
+    # stays on a bridge and just publishes 8123. Discovery will find nothing
+    # and log about it; that is expected here.
+    network_mode: bridge

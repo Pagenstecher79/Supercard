@@ -1,0 +1,158 @@
+# Home Assistant config for the Supercard development instance.
+#
+# Everything here exists to make the card testable against a real HA. Nothing
+# here is a recommendation for a real home.
+#
+# Supercard draws numbers: gauges, progress bars and labels bound to numeric
+# sensors. So what this instance has to provide is numbers that *move* - a
+# static demo cannot show pointer physics, bar easing, threshold colour
+# changes or the animation smoothness the card is judged on. The automations
+# in automations.yaml drive the input_numbers below on a short interval, and
+# the template sensors give them the units and device classes the card reads.
+
+default_config:
+
+homeassistant:
+  name: Supercard Dev
+  latitude: 52.520008
+  longitude: 13.404954
+  elevation: 34
+  unit_system: metric
+  currency: EUR
+  country: DE
+  time_zone: UTC
+
+# The card is loaded as a Lovelace *resource*, registered by docker/prepare.mjs
+# before the container starts - the same way a real install loads it, and the
+# only way that does not race the dashboard render. `frontend.extra_module_url`
+# was the obvious YAML alternative and is the wrong one; prepare.mjs explains
+# why at length.
+
+lovelace:
+  # Storage mode throughout, so every dashboard here is editable in the UI --
+  # including the card's own visual editor, which is most of what this project
+  # is. The Supercard Demo dashboard is not declared here: a dashboard declared
+  # in YAML is a yaml-mode dashboard, and Home Assistant refuses to edit those.
+  # docker/prepare.mjs seeds it as a storage dashboard from supercard-demo.yaml
+  # instead, so the demo still lives in git.
+  mode: storage
+
+recorder:
+  commit_interval: 1
+  purge_keep_days: 2
+
+logger:
+  default: warning
+
+# The demo integration, for entities with real attributes to bind to - lights
+# with brightness, covers with current_position, sensors that already move on
+# their own. Useful for tap/hold actions, which want something that visibly
+# reacts when the card calls a service.
+demo:
+
+# The numbers the card draws. Backed by input helpers so automations (and you,
+# from Developer Tools) can drive them, and so a value can be parked at an
+# exact figure when you need to check one threshold.
+input_number:
+  living_temperature:
+    name: Living temperature
+    min: -10
+    max: 40
+    step: 0.1
+    initial: 21.5
+    mode: box
+  living_humidity:
+    name: Living humidity
+    min: 0
+    max: 100
+    step: 0.1
+    initial: 48
+    mode: box
+  power_draw:
+    name: Power draw
+    min: 0
+    max: 3500
+    step: 1
+    initial: 740
+    mode: box
+  battery_level:
+    name: Battery level
+    min: 0
+    max: 100
+    step: 1
+    initial: 63
+    mode: box
+  # Deliberately large, so the gauge's auto-range scaling (k / M / G) has
+  # something to actually scale. A range this wide is the case where the
+  # multiplier label and the tick labels have to agree with each other.
+  energy_total:
+    name: Energy total
+    min: 0
+    max: 5000000
+    step: 100
+    initial: 1284000
+    mode: box
+
+input_boolean:
+  # Drives the availability template below. Turning this off makes
+  # sensor.flaky_reading genuinely `unavailable` - not "off", not empty, not 0
+  # - which is the state every gauge and bar has to survive and the one a
+  # fresh instance otherwise never produces.
+  flaky_sensor_online:
+    name: Flaky sensor online
+    icon: mdi:lan-disconnect
+    initial: true
+  # Stops the generator automations, so the instance freezes and a still card
+  # can be read, screenshotted or compared.
+  value_generator:
+    name: Value generator
+    icon: mdi:play-circle
+    initial: true
+
+template:
+  - sensor:
+      - name: Living temperature
+        unique_id: living_temperature
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: "{{ states('input_number.living_temperature') | float(0) | round(1) }}"
+      - name: Living humidity
+        unique_id: living_humidity
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        state: "{{ states('input_number.living_humidity') | float(0) | round(1) }}"
+      - name: Power draw
+        unique_id: power_draw
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: "{{ states('input_number.power_draw') | float(0) | round(0) }}"
+      - name: Battery level
+        unique_id: battery_level
+        unit_of_measurement: "%"
+        device_class: battery
+        state_class: measurement
+        state: "{{ states('input_number.battery_level') | float(0) | round(0) }}"
+      - name: Energy total
+        unique_id: energy_total
+        unit_of_measurement: Wh
+        device_class: energy
+        state_class: total_increasing
+        state: "{{ states('input_number.energy_total') | float(0) | round(0) }}"
+      # Goes `unavailable` on demand - see input_boolean.flaky_sensor_online.
+      - name: Flaky reading
+        unique_id: flaky_reading
+        unit_of_measurement: "%"
+        state: "{{ states('input_number.battery_level') | float(0) | round(0) }}"
+        availability: "{{ is_state('input_boolean.flaky_sensor_online', 'on') }}"
+      # A sensor whose state is not a number at all. Every numeric read in the
+      # card goes through safeFloat, and this is what proves it: bound to a
+      # gauge it must fall back to the minimum, not render NaN.
+      - name: Washer status
+        unique_id: washer_status
+        state: "{{ ['idle', 'running', 'finished'] | random }}"
+
+automation: !include automations.yaml
+script: !include scripts.yaml
