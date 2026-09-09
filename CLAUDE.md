@@ -29,9 +29,18 @@ the registration note below.
 `hacs.json`, and HACS reads the tag. Do not bump the field expecting it to
 matter, and do not trust it when identifying a build.
 
-There are no unit tests. `npm test` runs vitest, which reports "No test files
-found" and exits 1. That is the expected state, not a failure to fix. Verify
-changes by building and driving the real components (see *Verifying a change*).
+`npm test` runs vitest. Almost nothing here is unit-tested, and that is not a
+gap to close indiscriminately: the modules register custom elements and read
+`window` at import time, so they cannot be imported in Node at all.
+
+What *is* tested is the one thing worth it - `src/canvas-model.js`, the pure
+layout migration, where a wrong number silently moves every element on
+someone's dashboard. Files outside the `supercard-NN-*` naming are pure
+helpers with no side effects, importable and testable; keep them that way, and
+put new arithmetic there rather than inside a module.
+
+For everything else, verify by building and driving the real components (see
+*Verifying a change*).
 
 There is no `tsconfig.json` - the project is typed through `jsconfig.json`, so
 type-checking must name it explicitly. `npm run typecheck` does. A bare

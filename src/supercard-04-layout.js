@@ -1,4 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { getCellItems } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
 
@@ -34,41 +35,6 @@ function getLayoutTargets(slot) {
   return elements;
 }
 
-// --- HELPER: Migration & standardization ---
-function getCellItems(cell) {
-  if (Array.isArray(cell.items)) {
-    return cell.items.map(item => {
-      let x = item.x !== undefined ? item.x : (item.c ? (item.c - 1) * 33.333 : 0);
-      let y = item.y !== undefined ? item.y : (item.r ? (item.r - 1) * 33.333 : 0);
-      let w = item.w !== undefined ? item.w : (item.c2 && item.c ? (item.c2 - item.c + 1) * 33.333 : 33.333);
-      let h = item.h !== undefined ? item.h : (item.r2 && item.r ? (item.r2 - item.r + 1) * 33.333 : 33.333);
-      
-      return { ...item, x, y, w, h,
-        inner: item.inner || 'cc',
-        font_size: item.size_n || item.size_v || item.font_size || null,
-        font_weight: item.weight_n || item.weight_v || item.font_weight || null,
-        font_color: item.color_n || item.color_v || item.font_color || null,
-        font_unit: item.unit_n || item.font_unit || 'px',
-        overflow: item.overflow !== false
-      };
-    });
-  }
-  
-  if (cell.content && cell.content !== 'empty') {
-    const span_c = cell.span_c ?? cell.content.startsWith('gauge_');
-    return [{ 
-      id: cell.content, 
-      x: 0, y: 0, w: span_c ? 100 : 33.333, h: span_c ? 100 : 33.333,
-      inner: cell.inner_c || 'cc',
-      font_size: cell.size_n || cell.size_v || cell.font_size || null,
-      font_weight: cell.weight_n || cell.weight_v || cell.font_weight || null,
-      font_color: cell.color_n || cell.color_v || cell.color || null,
-      font_unit: cell.unit_n || cell.font_unit || 'px',
-      overflow: cell.overflow !== false
-    }];
-  }
-  return [];
-}
 
 // --- LAYOUT RENDERER (LitElement) ---
 class ScLayoutRenderer extends LitElement {
@@ -97,6 +63,18 @@ class ScLayoutRenderer extends LitElement {
       .sc-layout-cell.overflow-hidden { overflow: hidden; }
       .sc-layout-cell.overflow-visible { overflow: visible; }
       
+      /* The canvas: one coordinate space, a fixed aspect ratio, and children
+         placed absolutely in percentages of it. Elements reuse .sc-item-slot
+         below rather than getting a class of their own - it already carries
+         the size container that sc-gauge's 100cqmin resolves against, and
+         every typography rule in this file already addresses it. */
+      .sc-canvas {
+        position: relative; width: 100%; max-height: 100%;
+        margin: 0 auto;
+        container-type: size; container-name: cell;
+      }
+      .sc-canvas .sc-surface { pointer-events: none; }
+
       .sc-item-slot {
         position: absolute; 
         display: flex; box-sizing: border-box;
@@ -204,7 +182,103 @@ class ScLayoutRenderer extends LitElement {
     return html`<div style="display:flex; align-items:center; min-width:0; ${wrapCSS}">${pre}<span class="sc-lbl-n" style="${nameStyle}">${item.text?.value || item.text?.name || ''}</span>${suf}</div>`;
   }
 
+  /**
+   * Per-element CSS, keyed on data-item-id. Shared by both render paths: the
+   * canvas places the same .sc-item-slot boxes the row/cell layout does, so
+   * this addresses them identically either way.
+   */
+  _itemStyles(items) {
+    return items.map(item => {
+      let styles = '';
+      const getFc = (color, adaptive) => adaptive ? 'var(--primary-text-color)' : (color ? color : '');
+
+      if (item.font_size || item.font_weight || item.font_color || item.font_adaptive) {
+        const fsInherit = item.font_size ? `font-size: inherit !important;` : '';
+        const fw = item.font_weight ? `font-weight:${item.font_weight}!important;` : '';
+        const fc = getFc(item.font_color, item.font_adaptive);
+        const fccss = fc ? `color:${fc}!important;` : '';
+
+        styles += `::slotted([slot="${item.id}"]) { ${fsInherit}${fw}${fccss} }\n`;
+
+        let vars = '';
+        if (item.font_size) {
+          const fsBase = `${item.font_size}${item.font_unit||'px'}`;
+          const fsVar = `min(${fsBase}, 100cqh, 100cqi)`;
+          vars += `font-size: ${fsVar} !important; --sc-fs-n:${fsVar}; --sc-fs-v:${fsVar}; `;
+        }
+        if (item.font_weight) { vars += `--sc-fw-n:${item.font_weight}; --sc-fw-v:${item.font_weight}; `; }
+        if (fc) { vars += `--sc-fc-n:${fc}; --sc-fc-v:${fc}; `; }
+
+        if (vars) { styles += `.sc-item-slot[data-item-id="${item.id}"] { ${vars} }\n`; }
+      }
+      
+      if (item.overflow) {
+         styles += `.sc-item-slot[data-item-id="${item.id}"] { overflow: visible !important; }
+           .sc-item-slot[data-item-id="${item.id}"] .sc-lbl-n, .sc-item-slot[data-item-id="${item.id}"] .sc-lbl-v,
+           ::slotted([slot="${item.id}"]) { overflow: visible !important; max-width: none !important; text-overflow: clip !important; }\n`;
+      }
+      return styles;
+    }).filter(Boolean).join('\n');
+  }
+
+  /**
+   * The canvas path: one coordinate space, elements placed absolutely.
+   *
+   * Geometry is stored in virtual units and converted to percentages here, so
+   * a fixed aspect ratio makes percentage positioning uniform scaling - no
+   * measured scale factor is needed. Font sizes need none either: every one
+   * in the wild uses container units (cqw, cqmin), which resolve against the
+   * element's own size container, and that box is the same either way.
+   *
+   * Surfaces carry no slot. They exist to be painted by a colour or fx-glass
+   * pattern, so they take no pointer events and get a part to address.
+   */
+  _renderCanvas(canvas) {
+    const debug = this.config.layout_debug;
+    const els = Array.isArray(canvas.elements) ? canvas.elements : [];
+    const pct = (v, total) => `${(v / total * 100).toFixed(4)}%`;
+
+    return html`
+      <style>${this._itemStyles(els.filter(e => !e.surface))}</style>
+      <div class="sc-canvas ${debug ? 'debug-mode' : ''}" style="aspect-ratio: ${canvas.w} / ${canvas.h};">
+        ${els.map(el => {
+          const box = `left:${pct(el.x, canvas.w)}; top:${pct(el.y, canvas.h)};` +
+                      ` width:${pct(el.w, canvas.w)}; height:${pct(el.h, canvas.h)};`;
+          if (el.surface) {
+            return html`<div class="sc-item-slot sc-surface" part="element-${el.id}"
+                             data-item-id="${el.id}" style="${box}"></div>`;
+          }
+
+          let containerCSS = '';
+          if (el.id?.startsWith('label_')) {
+            const match = el.id.match(/^label_(\d+)/);
+            if (match) {
+              const lblData = this._getResolvedLabel(`label_${match[1]}`);
+              if (lblData && lblData.container && lblData.container.isIndicator) {
+                const c = lblData.container;
+                containerCSS = `background: ${c.bgColor} !important; border-radius: ${c.radius} !important; color: ${c.color} !important; transition: background 0.3s ease, color 0.3s ease, border-radius 0.3s ease; box-sizing: border-box;`;
+              }
+            }
+          }
+
+          return html`
+            <div class="sc-item-slot ${el.overflow ? 'overflow-visible' : ''}"
+                 part="element-${el.id}" data-item-id="${el.id}"
+                 style="${box} ${this._innerStyle(el.inner || 'cc')} ${containerCSS}">
+              ${debug ? html`<div class="dbg-id" style="position:absolute; bottom:0; right:0; font-size:9px; color:#fff; background:rgba(244,67,54,0.9); padding:1px 3px; z-index:999; border-radius:3px 0 0 0; font-weight:bold; white-space:nowrap; pointer-events:none;">${el.id}</div>` : ''}
+              ${el.id?.startsWith('label_') ? this._renderResolvedLabel(el.id, el) : html`<slot name="${el.id}"></slot>`}
+            </div>`;
+        })}
+      </div>`;
+  }
+
   render() {
+    // Only an explicit `canvas` takes the new path. resolveCanvas() can
+    // migrate a layout_rows config on the way in, but nothing calls it for
+    // rendering yet: while both paths exist they have to stay comparable, and
+    // switching every card over silently would remove the only way to check
+    // that the new one puts things in the same place.
+    if (this.config?.canvas) return this._renderCanvas(this.config.canvas);
     if (!this.config?.layout_rows) return html``;
     const rows = this.config.layout_rows;
     const debug = this.config.layout_debug;
@@ -212,41 +286,8 @@ class ScLayoutRenderer extends LitElement {
     const explicitSum = Math.min(100, rows.reduce((s, r) => s + (parseFloat(r.flex) || 0), 0));
     const autoRows = rows.filter(r => !(parseFloat(r.flex) > 0)).length;
 
-    const typoStyles = rows.flatMap(row =>
-      row.cells.flatMap(cell =>
-        getCellItems(cell).map(item => {
-          let styles = '';
-          const getFc = (color, adaptive) => adaptive ? 'var(--primary-text-color)' : (color ? color : '');
-
-          if (item.font_size || item.font_weight || item.font_color || item.font_adaptive) {
-            const fsInherit = item.font_size ? `font-size: inherit !important;` : '';
-            const fw = item.font_weight ? `font-weight:${item.font_weight}!important;` : '';
-            const fc = getFc(item.font_color, item.font_adaptive);
-            const fccss = fc ? `color:${fc}!important;` : '';
-
-            styles += `::slotted([slot="${item.id}"]) { ${fsInherit}${fw}${fccss} }\n`;
-
-            let vars = '';
-            if (item.font_size) {
-              const fsBase = `${item.font_size}${item.font_unit||'px'}`;
-              const fsVar = `min(${fsBase}, 100cqh, 100cqi)`;
-              vars += `font-size: ${fsVar} !important; --sc-fs-n:${fsVar}; --sc-fs-v:${fsVar}; `;
-            }
-            if (item.font_weight) { vars += `--sc-fw-n:${item.font_weight}; --sc-fw-v:${item.font_weight}; `; }
-            if (fc) { vars += `--sc-fc-n:${fc}; --sc-fc-v:${fc}; `; }
-
-            if (vars) { styles += `.sc-item-slot[data-item-id="${item.id}"] { ${vars} }\n`; }
-          }
-          
-          if (item.overflow) {
-             styles += `.sc-item-slot[data-item-id="${item.id}"] { overflow: visible !important; }
-               .sc-item-slot[data-item-id="${item.id}"] .sc-lbl-n, .sc-item-slot[data-item-id="${item.id}"] .sc-lbl-v,
-               ::slotted([slot="${item.id}"]) { overflow: visible !important; max-width: none !important; text-overflow: clip !important; }\n`;
-          }
-          return styles;
-        }).filter(Boolean)
-      )
-    ).join('\n');
+    const typoStyles = this._itemStyles(
+      rows.flatMap(row => row.cells.flatMap(cell => getCellItems(cell))));
 
     return html`
       <style>${typoStyles}</style>
