@@ -9,6 +9,11 @@
     "watch": "vite build --watch",
     "dev": "vite build --watch",
     "typecheck": "tsc -p jsconfig.json --noEmit",
+    "ha": "npm run build && node docker/prepare.mjs && docker compose -f docker/docker-compose.yml up",
+    "ha:down": "docker compose -f docker/docker-compose.yml down",
+    "ha:reseed": "node docker/prepare.mjs --reseed",
+    "ha:reset": "docker compose -f docker/docker-compose.yml down -v && node docker/reset.mjs",
+    "ha:logs": "docker compose -f docker/docker-compose.yml logs -f homeassistant",
     "test": "vitest run"
   },
   "keywords": [

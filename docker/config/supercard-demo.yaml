@@ -1,0 +1,201 @@
+# The demo dashboard, seeded into Home Assistant by docker/prepare.mjs.
+#
+# Committed as yaml so a fresh clone gets real cards to open, but seeded as a
+# *storage* dashboard so every card here is editable in the UI - including
+# through Supercard's own editor, which is most of what this project is.
+#
+# Your UI edits survive restarts. `npm run ha:reseed` throws them away and
+# writes this file back.
+#
+# Entity ids come from docker/config/configuration.yaml. If a card shows
+# "Entity not available", check there first.
+
+views:
+  - title: Cards
+    path: cards
+    icon: mdi:gauge
+    cards:
+      - type: custom:supercard-core
+        entity: sensor.living_temperature
+        supercard:
+          layout_shape: pill
+          border_radius: 20
+          card_height_responsive: true
+          global_entities:
+            - id: ge_hum
+              alias: Humidity
+              entity: sensor.living_humidity
+              attribute: ""
+            - id: ge_batt
+              alias: Battery
+              entity: sensor.battery_level
+              attribute: ""
+          # A linear bar with the gooey pill - the configuration the v1.0.10
+          # performance work was about, and the one to watch when touching
+          # anything in the progressbar render path.
+          progressbar_active: true
+          progressbars:
+            - global_id: ge_hum
+              orientation: horizontal
+              height: "14px"
+              fill_color: "#03a9f4"
+              min: 0
+              max: 100
+              show_indicator: true
+              indicator_value: true
+              indicator_glass_effect: glass_gooey
+              show_label: true
+              label_text: Humidity
+              show_value: true
+
+      - type: custom:supercard-core
+        entity: sensor.power_draw
+        supercard:
+          layout_shape: rectangle
+          border_radius: 12
+          # A gauge with thresholds, driven by the spiking power sensor: the
+          # value teleports rather than drifts, which is what the pointer
+          # physics exist for.
+          gauge_active: true
+          gauges:
+            - entity: sensor.power_draw
+              gauge_type: full
+              min: 0
+              max: 3500
+              name: Power
+              show_value: true
+              animation_easing: spring
+              threshold_active: true
+              manual_stops:
+                - value: 40
+                  color: "#4caf50"
+                - value: 75
+                  color: "#ff9800"
+                - value: 90
+                  color: "#f44336"
+
+      - type: custom:supercard-core
+        entity: sensor.energy_total
+        supercard:
+          layout_shape: rectangle
+          # Auto-range scaling: the value only ever grows, so the multiplier
+          # and the tick labels have to keep agreeing as it crosses k and M.
+          gauge_active: true
+          gauges:
+            - entity: sensor.energy_total
+              gauge_type: semi
+              min: 0
+              max: 5000000
+              name: Energy
+              show_value: true
+              show_multiplier_label: true
+              show_tick_labels: true
+
+      - type: custom:supercard-core
+        entity: sensor.flaky_reading
+        supercard:
+          layout_shape: rectangle
+          # Bound to the sensor that can go `unavailable`, and to one whose
+          # state is not a number at all. Both must degrade quietly - no NaN,
+          # no blank card. Toggle input_boolean.flaky_sensor_online to see it.
+          progressbar_active: true
+          progressbars:
+            - entity: sensor.flaky_reading
+              orientation: horizontal
+              height: "12px"
+              fill_color: "#9c27b0"
+              min: 0
+              max: 100
+              show_label: true
+              label_text: Flaky
+              show_value: true
+            - entity: sensor.washer_status
+              orientation: horizontal
+              height: "12px"
+              fill_color: "#607d8b"
+              min: 0
+              max: 100
+              show_label: true
+              label_text: Not a number
+              show_value: true
+
+  - title: Stress
+    path: stress
+    icon: mdi:speedometer
+    # Many bars reacting to the same value change in one frame - the case the
+    # card is slowest in. Run the "Dev: stress the renderer" script with the
+    # browser performance panel open. Frame budget is 1000/refresh-rate ms.
+    cards:
+      - type: grid
+        columns: 4
+        square: false
+        cards:
+          - type: custom:supercard-core
+            entity: sensor.power_draw
+            supercard: &stress_bar
+              layout_shape: rectangle
+              border_radius: 8
+              progressbar_active: true
+              progressbars:
+                - entity: sensor.power_draw
+                  orientation: horizontal
+                  height: "12px"
+                  fill_color: "#03a9f4"
+                  min: 0
+                  max: 3500
+                  show_indicator: true
+                  indicator_value: true
+                  indicator_glass_effect: glass_gooey
+          - type: custom:supercard-core
+            entity: sensor.power_draw
+            supercard: *stress_bar
+          - type: custom:supercard-core
+            entity: sensor.power_draw
+            supercard: *stress_bar
+          - type: custom:supercard-core
+            entity: sensor.power_draw
+            supercard: *stress_bar
+          - type: custom:supercard-core
+            entity: sensor.power_draw
+            supercard: *stress_bar
+          - type: custom:supercard-core
+            entity: sensor.power_draw
+            supercard: *stress_bar
+          - type: custom:supercard-core
+            entity: sensor.power_draw
+            supercard: *stress_bar
+          - type: custom:supercard-core
+            entity: sensor.power_draw
+            supercard: *stress_bar
+
+  - title: Controls
+    path: controls
+    icon: mdi:tune
+    # The knobs behind the demo. Park a value here to check one threshold, or
+    # turn the generator off to freeze the instance for a screenshot.
+    cards:
+      - type: entities
+        title: Value generator
+        entities:
+          - input_boolean.value_generator
+          - input_boolean.flaky_sensor_online
+          - script.supercard_stress
+          - script.supercard_known_state
+      - type: entities
+        title: Raw inputs
+        entities:
+          - input_number.living_temperature
+          - input_number.living_humidity
+          - input_number.power_draw
+          - input_number.battery_level
+          - input_number.energy_total
+      - type: entities
+        title: What the card sees
+        entities:
+          - sensor.living_temperature
+          - sensor.living_humidity
+          - sensor.power_draw
+          - sensor.battery_level
+          - sensor.energy_total
+          - sensor.flaky_reading
+          - sensor.washer_status

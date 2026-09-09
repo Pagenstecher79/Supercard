@@ -11,15 +11,18 @@ Vanilla JS + LitElement, no framework, no transpile step beyond Vite's bundling.
 npm run build      # src/index.js -> dist/supercard.js (Vite lib mode)
 npm run watch      # same, rebuilding on change
 npm run typecheck  # tsc -p jsconfig.json --noEmit   (NOT `npx tsc`, see below)
+npm run ha         # real Home Assistant in Docker (docker/README.md)
 ```
 
-There is no automated way to run the card in a real Home Assistant. Build, then
-copy `dist/supercard.js` over the installed file on an instance (HACS puts it
-at `/hacsfiles/Supercard/supercard.js`) and hard-refresh - and do not add a
-second resource entry for a test build, see the registration note below.
-(A set of `ha:*` scripts used to sit in `package.json` driving a `docker/`
-directory that was never in the repository; they were removed rather than left
-looking usable.)
+`npm run ha` starts a real Home Assistant in Docker with the card registered
+as a Lovelace resource and a demo dashboard seeded - see `docker/README.md`.
+Use it for anything a synthetic page cannot show: the editor running inside
+HA's config dialog, a commit surviving the round trip through HA storage, drag
+and drop, `unavailable` entities, and whether an animation is actually smooth.
+Without Docker, copy `dist/supercard.js` over the installed file on an
+instance (HACS puts it at `/hacsfiles/Supercard/supercard.js`) and
+hard-refresh - and do not add a second resource entry for a test build, see
+the registration note below.
 
 `package.json`'s `"version"` is **not** the version of record and has read
 `1.0.0` across every release so far. The version is the git tag; there is no
@@ -191,6 +194,10 @@ comparing against the previous build:
 Normalise the two known sources of nondeterminism first: lit's per-load marker
 ids (`lit$<digits>$`) and the per-instance random SVG filter ids. Freeze
 animations (`animation_duration: 0`) or the snapshot catches a bar mid-flight.
+
+That comparison covers rendering and committed values. It cannot cover the
+editor inside HA's config dialog, drag and drop, or whether an animation looks
+smooth - for those, `npm run ha` and click.
 
 When you replace one pure mechanism with another - a visibility rule, a
 formatter - do not just eyeball the translation. Run both side by side in the

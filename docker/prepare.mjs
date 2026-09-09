@@ -1,0 +1,267 @@
+// Adapted from easy-floorplan (https://github.com/nicosandller/easy-floorplan),
+// MIT, Copyright (c) 2026 Nicolas Sandller. See docker/LICENSE.
+//
+// Register the card as a Lovelace *resource* before Home Assistant boots.
+//
+// The obvious way to load a custom card from YAML is `frontend:
+// extra_module_url`, and it does put the file in the app shell -- but as a
+// bare, unawaited dynamic import:
+//
+//     <script>import("/local/supercard.js");</script>
+//
+// Nothing coordinates that with the Lovelace renderer, so a dashboard can
+// render before the module has defined <supercard-core>, and Home
+// Assistant draws a "Configuration error" card instead of the plan. It is a
+// race, so it comes and goes with cache state and machine speed, which is
+// worse than a clean failure.
+//
+// Resources are the mechanism that does not race: the frontend fetches and
+// awaits them before it renders dashboards. It is also how a real install
+// loads this card (Settings > Dashboards > Resources, per the README), so
+// using it here makes the harness faithful in one more place.
+//
+// Resources declared in YAML are only read when the whole Lovelace config is
+// in yaml mode, and this instance keeps the default dashboard in storage mode
+// so the visual editor stays reachable. So we write the same file the UI
+// would: .storage/lovelace_resources. It is gitignored (it lives in HA's
+// runtime state), which is why this runs on every `npm run ha` rather than
+// being committed -- including right after `npm run ha:reset` has removed it.
+
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+// Refuse to hand a running container config it is not reading.
+//
+// The container name is fixed, and Compose derives its project name from this
+// directory -- which is called "docker" in every checkout of this repo. So a
+// second worktree running `npm run ha` does not get its own instance: it
+// adopts the one already running, still mounting the *first* checkout's
+// config and dist. Everything appears to work, and you spend an afternoon
+// editing files the instance never reads.
+try {
+  // `docker inspect` answers for stopped containers too, and a stopped
+  // container still owns the name -- so both states need clearing, but they
+  // are worth describing accurately.
+  const raw = execFileSync(
+    "docker",
+    ["inspect", "supercard-ha", "--format", "{{.State.Status}}\n{{range .Mounts}}{{.Source}}\n{{end}}"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+  );
+  const [state, ...mounts] = raw.split("\n").map((line) => line.trim());
+  const configMount = mounts.find((line) => line.endsWith("/config"));
+  if (configMount && resolve(configMount) !== resolve(join(here, "config"))) {
+    console.error(
+      `\nA container named supercard-ha already exists (${state}), mounting\n` +
+        `  ${configMount}\n` +
+        `which is not this checkout's\n  ${join(here, "config")}\n\n` +
+        `It belongs to a different worktree, and the container name is fixed, so\n` +
+        `starting from here would either fail on the name or adopt that instance and\n` +
+        `leave you editing files it never reads. Clear it first:\n\n` +
+        `  docker rm -f supercard-ha\n\n` +
+        `That removes only the container. Its config and history are on a bind mount\n` +
+        `in the other checkout and survive.\n`,
+    );
+    process.exit(1);
+  }
+} catch (error) {
+  // Re-throw our own exit; anything else means no docker or no such
+  // container, and there is nothing to collide with.
+  if (/** @type {NodeJS.ErrnoException} */ (error)?.code === "ERR_INVALID_ARG_TYPE") throw error;
+}
+
+const storageDir = join(here, "config", ".storage");
+const resourceFile = join(storageDir, "lovelace_resources");
+const URL_PATH = "/local/supercard.js";
+const distCardFile = join(here, "..", "dist", "supercard.js");
+const cacheBust = existsSync(distCardFile) ? String(Math.trunc(statSync(distCardFile).mtimeMs)) : String(Date.now());
+const RESOURCE_ID = "supercarddevresource01";
+
+// The URL carries a hash of the bundle, because Home Assistant serves /local/
+// with `Cache-Control: public, max-age=2678400` -- a month. At a fixed URL the
+// browser never asks again: you rebuild, restart the container, reload the
+// page, and Home Assistant still runs the card you built last week. It is a
+// convincing failure, because everything else about the instance is new.
+//
+// So every build gets a URL no browser has seen. This is what HACS does with
+// its own `?hacstag=`, and it is why a real install picks up an update on a
+// plain reload. `npm run watch` still rebuilds behind a URL that was already
+// registered, so that loop keeps needing a hard refresh (see docker/README).
+const bundle = resolve(here, "..", "dist", "supercard.js");
+const version = existsSync(bundle)
+  ? createHash("sha256").update(readFileSync(bundle)).digest("hex").slice(0, 12)
+  : null;
+const resourceUrl = version ? `${URL_PATH}?v=${version}` : URL_PATH;
+const resourceUrlFromBuild = version ? resourceUrl : `${URL_PATH}?v=${cacheBust}`;
+
+/**
+ * A Home Assistant `.storage` file, as far as this script cares: a versioned
+ * envelope around a list of records.
+ *
+ * Annotated because an empty `items: []` infers as `never[]`, so every push
+ * into it is an error the moment the file is type-checked at all (issue #246).
+ * The records themselves are HA's, not ours, so they stay loose.
+ *
+ * @typedef {{ version: number, minor_version: number, key: string,
+ *             data: { items: Record<string, any>[] } }} StorageFile
+ */
+
+/** @type {StorageFile} */
+let store = {
+  version: 1,
+  minor_version: 1,
+  key: "lovelace_resources",
+  data: { items: [] },
+};
+
+if (existsSync(resourceFile)) {
+  try {
+    store = JSON.parse(readFileSync(resourceFile, "utf8"));
+    store.data ??= { items: [] };
+    store.data.items ??= [];
+  } catch {
+    // A corrupt store is not worth preserving on a throwaway instance.
+    store.data = { items: [] };
+  }
+}
+
+// Match on the path, not the whole URL: the point is to *replace* the entry
+// this script wrote last time, whatever version it pointed at. Appending a
+// second one would leave the frontend loading both, and two modules defining
+// <supercard-core> means the second registration throws.
+const existing = store.data.items.find((item) => item?.url?.split("?")[0] === URL_PATH);
+const desiredResourceUrl = resourceUrlFromBuild;
+if (existing?.url === desiredResourceUrl) {
+  console.log("Resource already registered at this build; leaving it alone.");
+} else {
+  const prevItems = Array.isArray(store.data.items) ? store.data.items : [];
+  const nextItems = prevItems.filter(
+    (item) => !(item?.id === RESOURCE_ID || (typeof item?.url === "string" && item.url.startsWith(URL_PATH))),
+  );
+
+  if (existing) {
+    nextItems.push({
+      ...existing,
+      id: existing.id ?? RESOURCE_ID,
+      type: existing.type ?? "module",
+      url: desiredResourceUrl,
+    });
+  } else {
+    nextItems.push({ id: RESOURCE_ID, type: "module", url: desiredResourceUrl });
+  }
+
+  const resourcesChanged =
+    nextItems.length !== prevItems.length ||
+    nextItems.some((item, index) => JSON.stringify(item) !== JSON.stringify(prevItems[index]));
+
+  if (resourcesChanged) {
+    store.data.items = nextItems;
+    mkdirSync(storageDir, { recursive: true });
+    writeFileSync(resourceFile, JSON.stringify(store, null, 2));
+    console.log(`Registered ${desiredResourceUrl} as a Lovelace resource.`);
+  } else {
+    console.log(`Lovelace resource already current (${desiredResourceUrl}).`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Seed the Supercard Demo dashboard, in storage mode so it is editable.
+//
+// The demo wants to be two contradictory things: in git, so it can be
+// reviewed and so a fresh clone gets real cards, and editable in the UI,
+// because a card whose whole point is its visual editor is miserable to
+// develop against through a text file. A yaml-mode dashboard
+// gives the first and refuses the second -- Home Assistant will not edit yaml
+// dashboards, and says so.
+//
+// So git keeps the yaml, and this seeds a *storage* dashboard from it: the
+// same content, written into the two files the UI itself writes. From Home
+// Assistant's side it is an ordinary dashboard, editable, with the card's own
+// editor reachable on it.
+//
+// It seeds only when absent, so your edits survive restarts. `npm run
+// ha:reseed` overwrites it from the yaml again when you want the committed
+// plan back, and `npm run ha:reset` clears it along with everything else.
+
+const DASH_ID = "supercard_demo";
+const DASH_URL = "supercard-demo";
+const dashboardsFile = join(storageDir, "lovelace_dashboards");
+const dashConfigFile = join(storageDir, `lovelace.${DASH_ID}`);
+const reseed = process.argv.includes("--reseed");
+
+/** @type {StorageFile} */
+let dashboards = {
+  version: 1,
+  minor_version: 1,
+  key: "lovelace_dashboards",
+  data: { items: [] },
+};
+if (existsSync(dashboardsFile)) {
+  try {
+    dashboards = JSON.parse(readFileSync(dashboardsFile, "utf8"));
+    dashboards.data ??= { items: [] };
+    dashboards.data.items ??= [];
+  } catch {
+    dashboards.data = { items: [] };
+  }
+}
+
+if (!dashboards.data.items.some((item) => item?.id === DASH_ID)) {
+  dashboards.data.items.push({
+    id: DASH_ID,
+    title: "Supercard Demo",
+    url_path: DASH_URL,
+    icon: "mdi:gauge",
+    mode: "storage",
+    require_admin: false,
+    show_in_sidebar: true,
+  });
+  mkdirSync(storageDir, { recursive: true });
+  writeFileSync(dashboardsFile, JSON.stringify(dashboards, null, 2));
+  console.log("Registered the Supercard Demo dashboard.");
+}
+
+if (!existsSync(dashConfigFile) || reseed) {
+  let yaml;
+  try {
+    const mod = await import("js-yaml");
+    yaml = mod.default ?? mod;
+  } catch {
+    console.error(
+      "\nCannot read the demo plan: js-yaml is not installed.\n\n" +
+        "It is a devDependency of this repo, so this usually just means the\n" +
+        "dependencies are older than the checkout. Run:\n\n" +
+        "  npm install\n\n" +
+        "and then `npm run ha` again.\n",
+    );
+    process.exit(1);
+  }
+  const seed = /** @type {{ views: unknown[] }} */ (
+    yaml.load(readFileSync(join(here, "config", "supercard-demo.yaml"), "utf8"))
+  );
+  mkdirSync(storageDir, { recursive: true });
+  writeFileSync(
+    dashConfigFile,
+    JSON.stringify(
+      {
+        version: 1,
+        minor_version: 1,
+        key: `lovelace.${DASH_ID}`,
+        data: { config: { views: seed.views } },
+      },
+      null,
+      2,
+    ),
+  );
+  console.log(
+    reseed
+      ? "Reseeded the Supercard Demo dashboard from supercard-demo.yaml (UI edits discarded)."
+      : "Seeded the Supercard Demo dashboard from supercard-demo.yaml.",
+  );
+} else {
+  console.log("Supercard Demo dashboard already exists; keeping your edits (npm run ha:reseed to reset it).");
+}
