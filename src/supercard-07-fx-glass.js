@@ -480,7 +480,9 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
           const gIdx = parseInt(pat.target.split('_')[2]);
           const gConf = (Array.isArray(config.gauges) && config.gauges[gIdx]) ? config.gauges[gIdx] : config;
 
-          isGaugeResponsive = !!gConf.gauge_size_responsive;
+          // Must agree with what sc-gauge decided, or the glass is measured in
+          // px against a gauge measured in cqmin. One helper answers both.
+          isGaugeResponsive = SC.gaugeIsResponsive(gConf, !!config.canvas);
           gaugeSizePx = gConf.gauge_size_px ?? 60;
 
           let scaleVal = gConf.gauge_scale ?? gConf.scale;

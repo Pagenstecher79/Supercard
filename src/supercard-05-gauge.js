@@ -32,6 +32,9 @@ class ScGauge extends LitElement {
       hass: { type: Object },
       config: { type: Object },
       globalEntities: { type: Array },
+      // Set by the card when it renders from a canvas, where the element's
+      // box is the gauge's size and the gauge's own pixel figure is not.
+      onCanvas: { type: Boolean },
       _isInitialized: { type: Boolean, state: true }
     };
   }
@@ -378,7 +381,7 @@ class ScGauge extends LitElement {
       bgFill = animCol;
     }
 
-    const isResponsive = this._get('gauge_size_responsive', false) === true;
+    const isResponsive = SC.gaugeIsResponsive(this.config, this.onCanvas);
     const sizePx = safeFloat(this._get('gauge_size_px', 60), 60);
     const posMode = this._get('gauge_position_mode', 'center');
     const tx = safeFloat(this._get('gauge_offset_x', 0), 0), ty = safeFloat(this._get('gauge_offset_y', 0), 0);
@@ -915,7 +918,7 @@ Object.assign(window.SupercardModules['gauge'], (() => {
       : [config];
     return {
       litOverlay: html`${gauges.map((cfg, idx) => html`
-        <sc-gauge data-idx="${idx}" .config=${cfg} .hass=${hass} .globalEntities=${config.global_entities}></sc-gauge>
+        <sc-gauge data-idx="${idx}" .config=${cfg} .hass=${hass} .globalEntities=${config.global_entities} .onCanvas=${!!config.canvas}></sc-gauge>
       `)}`
     };
   }

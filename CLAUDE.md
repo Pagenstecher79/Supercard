@@ -151,6 +151,12 @@ paste a full stylesheet into a new module.
   condition: cfg => cfg.show_value && isLin(cfg) }
 ```
 
+The predicate is called `(entry, slot)`, so a field can also be hidden by
+something about the card rather than the entry - `condition: (cfg, slot) =>
+!slot?.canvas` is how the gauge's size controls disappear on a canvas, where
+the element's box is the size. Ignore the second argument when you do not need
+it; all three call sites pass it.
+
 **Custom element registration is global and single-shot.** Always guard:
 
 ```js

@@ -12,6 +12,8 @@ import {
   gridRowsToPx,
   reportedRows,
   isHeightPinned,
+  isSquareLocked,
+  squareElement,
 } from './canvas-model.js';
 import fixtures from './__fixtures__/real-layouts.json' with { type: 'json' };
 
@@ -299,7 +301,9 @@ describe('migrateLayoutToCanvas', () => {
       { flex: 50, cells: [{ content: 'name' }, { content: 'empty' }] },
     ], C);
     expect(elements.map(e => e.id)).toEqual(['gauge_0', 'name']);
-    expect(elements[0]).toMatchObject({ x: 0, y: 0, w: 100, h: 50 });
+    // The cell is 100x50; the gauge is inscribed in it and centred, which is
+    // where it was already being drawn. See "migration squares gauges".
+    expect(elements[0]).toMatchObject({ x: 25, y: 0, w: 50, h: 50 });
     // `name` does not span, so a third of its cell; the cell is a full row
     // because widths default to 100 and the empty one takes the other 100,
     // so both compress to half.
@@ -529,5 +533,120 @@ describe('isHeightPinned', () => {
     expect(isHeightPinned({ grid_options: {} })).toBe(false);
     expect(isHeightPinned({})).toBe(false);
     expect(isHeightPinned(undefined)).toBe(false);
+  });
+});
+
+describe('isSquareLocked', () => {
+  it('locks gauges, and nothing else', () => {
+    expect(isSquareLocked({ id: 'gauge_0' })).toBe(true);
+    expect(isSquareLocked({ id: 'gauge_11' })).toBe(true);
+    expect(isSquareLocked({ id: 'progressbar_0' })).toBe(false);
+    expect(isSquareLocked({ id: 'label_0' })).toBe(false);
+    expect(isSquareLocked({ id: 'icon' })).toBe(false);
+  });
+
+  it('never locks a surface, even one sitting over a gauge', () => {
+    expect(isSquareLocked({ id: 'gauge_0', surface: true })).toBe(false);
+    expect(isSquareLocked({ id: 'surface_0' })).toBe(false);
+  });
+
+  it('survives an element with no id', () => {
+    expect(isSquareLocked({})).toBe(false);
+    expect(isSquareLocked(undefined)).toBe(false);
+  });
+});
+
+describe('squareElement', () => {
+  it('centres the square by default, so the picture does not move', () => {
+    expect(squareElement({ id: 'gauge_0', x: 0, y: 0, w: 200, h: 100 }))
+      .toMatchObject({ x: 50, y: 0, w: 100, h: 100 });
+    expect(squareElement({ id: 'gauge_0', x: 10, y: 20, w: 40, h: 100 }))
+      .toMatchObject({ x: 10, y: 50, w: 40, h: 40 });
+  });
+
+  it('anchors the square the way inner aligns the content', () => {
+    const box = { id: 'gauge_0', x: 0, y: 0, w: 200, h: 100 };
+    expect(squareElement({ ...box, inner: 'tl' })).toMatchObject({ x: 0, y: 0 });
+    expect(squareElement({ ...box, inner: 'br' })).toMatchObject({ x: 100, y: 0 });
+    expect(squareElement({ ...box, inner: 'cr' })).toMatchObject({ x: 100, y: 0 });
+    expect(squareElement({ id: 'gauge_0', x: 0, y: 0, w: 100, h: 200, inner: 'bl' }))
+      .toMatchObject({ x: 0, y: 100, w: 100, h: 100 });
+  });
+
+  it('leaves an already square element exactly where it is', () => {
+    const el = { id: 'gauge_0', x: 7, y: 9, w: 40, h: 40, inner: 'tl' };
+    expect(squareElement(el)).toEqual(el);
+  });
+
+  it('carries every other field over untouched', () => {
+    const out = squareElement({ id: 'gauge_0', x: 0, y: 0, w: 200, h: 100, overflow: false, font_size: 12 });
+    expect(out.overflow).toBe(false);
+    expect(out.font_size).toBe(12);
+  });
+});
+
+describe('applyDrag with a square-locked element', () => {
+  const c = { w: 100, h: 100, grid: 10 };
+
+  it('resizes to one side, taken from the axis dragged further', () => {
+    const el = { id: 'gauge_0', x: 0, y: 0, w: 20, h: 20 };
+    expect(applyDrag(c, el, 'resize', { dx: 30, dy: 2 })).toEqual({ x: 0, y: 0, w: 50, h: 50 });
+    expect(applyDrag(c, el, 'resize', { dx: 2, dy: 30 })).toEqual({ x: 0, y: 0, w: 50, h: 50 });
+  });
+
+  it('squares an element that was not square as soon as it is resized', () => {
+    const el = { id: 'gauge_0', x: 0, y: 0, w: 60, h: 20 };
+    const out = applyDrag(c, el, 'resize', { dx: 0, dy: 0 });
+    expect(out.w).toBe(out.h);
+    expect(out).toEqual({ x: 0, y: 0, w: 60, h: 60 });
+  });
+
+  it('stays inside the canvas on both axes at once', () => {
+    const el = { id: 'gauge_0', x: 40, y: 70, w: 20, h: 20 };
+    expect(applyDrag(c, el, 'resize', { dx: 500, dy: 500 })).toEqual({ x: 40, y: 70, w: 30, h: 30 });
+  });
+
+  it('never resizes below one step', () => {
+    const el = { id: 'gauge_0', x: 0, y: 0, w: 20, h: 20 };
+    expect(applyDrag(c, el, 'resize', { dx: -500, dy: -500 })).toEqual({ x: 0, y: 0, w: 10, h: 10 });
+  });
+
+  it('leaves moving alone - a move cannot change the shape', () => {
+    const el = { id: 'gauge_0', x: 0, y: 0, w: 60, h: 20 };
+    expect(applyDrag(c, el, 'move', { dx: 10, dy: 10 })).toEqual({ x: 10, y: 10, w: 60, h: 20 });
+  });
+
+  it('leaves a progressbar free to be any shape', () => {
+    const el = { id: 'progressbar_0', x: 0, y: 0, w: 20, h: 20 };
+    expect(applyDrag(c, el, 'resize', { dx: 30, dy: 0 })).toEqual({ x: 0, y: 0, w: 50, h: 20 });
+  });
+});
+
+describe('migration squares gauges', () => {
+  it('inscribes the gauge in the cell it came from, centred', () => {
+    const rows = [{ cells: [{ width: 100, content: 'gauge_0' }] }];
+    const { elements } = migrateLayoutToCanvas(rows, { w: 400, h: 200 });
+    expect(elements[0]).toMatchObject({ id: 'gauge_0', x: 100, y: 0, w: 200, h: 200 });
+  });
+
+  it('leaves a progressbar filling its cell', () => {
+    const rows = [{ cells: [{ width: 100, content: 'progressbar_0' }] }];
+    const { elements } = migrateLayoutToCanvas(rows, { w: 400, h: 200 });
+    expect(elements[0]).toMatchObject({ w: 33.333 / 100 * 400, h: 33.333 / 100 * 200 });
+  });
+
+  it('leaves surfaces alone, so a pattern still paints the whole cell', () => {
+    const rows = [{ cells: [{ width: 100, content: 'gauge_0' }] }];
+    const { elements } = migrateLayoutToCanvas(rows, { w: 400, h: 200 }, { targetedCells: ['r0c0'] });
+    expect(elements[0]).toMatchObject({ id: 'surface_0', x: 0, y: 0, w: 400, h: 200 });
+  });
+
+  it('every migrated gauge in a real layout comes out square', () => {
+    for (const fx of fixtures) {
+      const { elements } = migrateLayoutToCanvas(fx.layout_rows ?? fx.slot?.layout_rows ?? []);
+      for (const el of elements) {
+        if (isSquareLocked(el)) expect(el.w).toBeCloseTo(el.h, 9);
+      }
+    }
   });
 });
