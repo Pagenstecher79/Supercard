@@ -14,6 +14,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # The tag object itself, not just the commit it points at - the
+          # release intro is read from its message below.
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -26,8 +30,27 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Take the release intro from the tag message
+        run: |
+          set -eu
+          # Only an annotated tag carries a message of its own. For a
+          # lightweight tag %(contents:body) silently falls back to the commit
+          # body - trailers and all - so guard on the object type and write
+          # nothing rather than leaking a commit message into the release.
+          if git rev-parse -q --verify "refs/tags/${GITHUB_REF_NAME}" >/dev/null \
+             && [ "$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}")" = "tag" ]; then
+            git tag -l --format='%(contents:body)' "${GITHUB_REF_NAME}" > release-intro.md
+          else
+            : > release-intro.md
+          fi
+          if [ -s release-intro.md ]; then printf '\n---\n' >> release-intro.md; fi
+          echo "--- release intro ---"
+          cat release-intro.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/supercard.js
+          # Prepended to the generated notes by the action.
+          body_path: release-intro.md
           generate_release_notes: true
