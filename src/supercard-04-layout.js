@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { getCellItems } from "./canvas-model.js";
+import { getCellItems, resolveCanvas, resolveSnap, applyDrag, DEFAULT_CANVAS } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
 
@@ -1113,6 +1113,225 @@ class ScLayoutEditor extends LitElement {
 if (!customElements.get('sc-layout-editor')) ScLayoutEditor._expandedCache = {};
 customElements.define('sc-layout-editor', ScLayoutEditor);
 
+
+// --- CANVAS EDITOR -------------------------------------------------------
+// One canvas, elements placed on it directly. Replaces the rows/cells/items
+// nesting of ScLayoutEditor, which stays until every card is migrated.
+//
+// All geometry maths lives in canvas-model.js and is unit-tested there; this
+// component turns pointer positions into a delta in virtual units and draws
+// the result. Nothing here decides where an element lands.
+class ScCanvasEditor extends LitElement {
+  static get properties() {
+    return {
+      slot: { type: Object },
+      hass: { type: Object },
+      commitFn: { type: Function },
+      _sel: { type: String, state: true },
+      _drag: { type: Object, state: true },
+    };
+  }
+
+  constructor() { super(); this._sel = null; this._drag = null; }
+
+  static get styles() {
+    return [SC.editorStyles, css`
+      .row { gap: 8px; }
+      .canvas-wrap { background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color,#444); border-radius: 4px; padding: 12px 8px; display: flex; justify-content: center; }
+      .canvas { position: relative; width: 100%; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; overflow: hidden; touch-action: none; user-select: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+      .grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px); }
+      .el { position: absolute; box-sizing: border-box; cursor: grab; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px #000; border-radius: 2px; background: rgba(3,169,244,0.3); border: 1px solid var(--primary-color); overflow: hidden; }
+      .el.surface { background: rgba(255,193,7,0.18); border-style: dashed; border-color: #ffc107; }
+      .el.sel { background: rgba(3,169,244,0.55); border-width: 2px; z-index: 3; }
+      .handle { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; background: rgba(255,255,255,0.85); border-radius: 100% 0 0 0; cursor: nwse-resize; touch-action: none; }
+      .handle::after { content: ''; position: absolute; right: -10px; bottom: -10px; width: 22px; height: 22px; }
+      .num { width: 68px; }
+      .el-row { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); }
+      .el-row.sel { background: rgba(3,169,244,0.18); }
+      .el-name { flex: 1; font-family: monospace; cursor: pointer; }
+      .icon-btn { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; padding: 2px 4px; font-size: 13px; }
+      .icon-btn:hover { color: var(--primary-color); }
+      .hint { font-size: 11px; color: var(--secondary-text-color); }
+    `];
+  }
+
+  get _canvas() {
+    return this.slot?.canvas || { ...DEFAULT_CANVAS, elements: [] };
+  }
+
+  _commit(canvas) {
+    if (this.commitFn) this.commitFn('__merge__', { canvas });
+  }
+
+  /** Commit the canvas with one element's fields changed. */
+  _setEl(idx, patch) {
+    const c = structuredClone(this._canvas);
+    Object.assign(c.elements[idx], patch);
+    this._commit(c);
+  }
+
+  _setCanvas(key, value) {
+    const c = structuredClone(this._canvas);
+    c[key] = value;
+    this._commit(c);
+  }
+
+  // --- dragging ---------------------------------------------------------
+  _onDown(e, idx, mode) {
+    e.stopPropagation();
+    const surface = e.currentTarget.closest('.canvas');
+    const rect = surface.getBoundingClientRect();
+    const el = this._canvas.elements[idx];
+    this._sel = el.id;
+    this._drag = {
+      idx, mode, rect,
+      startX: e.clientX, startY: e.clientY,
+      origin: { x: el.x, y: el.y, w: el.w, h: el.h },
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  _onMove(e) {
+    if (!this._drag) return;
+    const c = this._canvas;
+    const { rect, startX, startY, origin, mode, idx } = this._drag;
+    // Pointer pixels -> virtual units, so the maths never sees a pixel.
+    const delta = {
+      dx: (e.clientX - startX) / rect.width * c.w,
+      dy: (e.clientY - startY) / rect.height * c.h,
+    };
+    this._setEl(idx, applyDrag(c, origin, mode, delta));
+  }
+
+  _onUp() { this._drag = null; }
+
+  // --- element list -----------------------------------------------------
+  _unplaced() {
+    const placed = new Set(this._canvas.elements.map(e => e.id));
+    return getLayoutTargets(this.slot || {})
+      .filter(t => t.id !== 'empty' && !placed.has(t.id));
+  }
+
+  _add(id) {
+    const c = structuredClone(this._canvas);
+    const step = resolveSnap(c);
+    c.elements.push({ id, x: 0, y: 0,
+      w: Math.min(c.w, step * 4), h: Math.min(c.h, step * 4), inner: 'cc' });
+    this._sel = id;
+    this._commit(c);
+  }
+
+  _addSurface() {
+    const c = structuredClone(this._canvas);
+    let n = 0;
+    while (c.elements.some(e => e.id === `surface_${n}`)) n++;
+    const step = resolveSnap(c);
+    c.elements.push({ id: `surface_${n}`, surface: true, x: 0, y: 0,
+      w: Math.min(c.w, step * 6), h: Math.min(c.h, step * 3) });
+    this._sel = `surface_${n}`;
+    this._commit(c);
+  }
+
+  _remove(idx) {
+    const c = structuredClone(this._canvas);
+    c.elements.splice(idx, 1);
+    this._commit(c);
+  }
+
+  /** Later in the array draws on top, so this is what "bring forward" means. */
+  _move(idx, dir) {
+    const c = structuredClone(this._canvas);
+    const to = idx + dir;
+    if (to < 0 || to >= c.elements.length) return;
+    const [el] = c.elements.splice(idx, 1);
+    c.elements.splice(to, 0, el);
+    this._commit(c);
+  }
+
+  render() {
+    if (!this.slot?.canvas) return html``;
+    const c = this._canvas;
+    const els = Array.isArray(c.elements) ? c.elements : [];
+    const step = resolveSnap(c);
+    const gridPct = (c.grid > 0 ? c.grid : step) / c.w * 100;
+    const pct = (v, total) => `${v / total * 100}%`;
+    const unplaced = this._unplaced();
+
+    return html`
+      <div class="col">
+        <div class="row">
+          <label>Canvas</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input class="num" type="number" min="1" .value=${c.w}
+                   @change=${e => this._setCanvas('w', Math.max(1, parseInt(e.target.value) || DEFAULT_CANVAS.w))}>
+            <span class="hint">×</span>
+            <input class="num" type="number" min="1" .value=${c.h}
+                   @change=${e => this._setCanvas('h', Math.max(1, parseInt(e.target.value) || DEFAULT_CANVAS.h))}>
+          </div>
+        </div>
+        <div class="row">
+          <label>Grid / snap</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input class="num" type="number" min="0" .value=${c.grid ?? 10}
+                   @change=${e => this._setCanvas('grid', Math.max(0, parseInt(e.target.value) || 0))}>
+            <select style="width:110px" @change=${e => {
+              const v = e.target.value;
+              this._setCanvas('snap', v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)));
+            }}>
+              <option value="grid" ?selected=${c.snap === undefined}>Snap to grid</option>
+              <option value="free" ?selected=${c.snap === 0}>Free</option>
+              ${[1, 2, 5, 25].map(n => html`<option value=${n} ?selected=${c.snap === n}>Step ${n}</option>`)}
+            </select>
+          </div>
+        </div>
+
+        <div class="canvas-wrap">
+          <div class="canvas" style="aspect-ratio:${c.w} / ${c.h};"
+               @pointermove=${this._onMove}
+               @pointerup=${this._onUp}
+               @pointercancel=${this._onUp}
+               @pointerdown=${() => { this._sel = null; }}>
+            <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
+            ${els.map((el, idx) => html`
+              <div class="el ${el.surface ? 'surface' : ''} ${this._sel === el.id ? 'sel' : ''}"
+                   style="left:${pct(el.x, c.w)}; top:${pct(el.y, c.h)}; width:${pct(el.w, c.w)}; height:${pct(el.h, c.h)};"
+                   title=${el.id}
+                   @pointerdown=${e => this._onDown(e, idx, 'move')}>
+                ${el.id}
+                <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>
+              </div>`)}
+          </div>
+        </div>
+
+        <div class="col" style="gap:4px;">
+          ${els.map((el, idx) => html`
+            <div class="el-row ${this._sel === el.id ? 'sel' : ''}">
+              <span class="el-name" @click=${() => { this._sel = el.id; }}>${el.id}</span>
+              ${this._sel === el.id ? html`
+                ${['x', 'y', 'w', 'h'].map(k => html`
+                  <input class="num" type="number" step=${step} .value=${Math.round(el[k])}
+                         title=${k}
+                         @change=${e => this._setEl(idx, { [k]: parseFloat(e.target.value) || 0 })}>`)}
+              ` : ''}
+              <button class="icon-btn" title="Backward" @click=${() => this._move(idx, -1)}>↑</button>
+              <button class="icon-btn" title="Forward" @click=${() => this._move(idx, 1)}>↓</button>
+              <button class="icon-btn" style="color:#f44" title="Remove" @click=${() => this._remove(idx)}>✕</button>
+            </div>`)}
+        </div>
+
+        <div class="row">
+          <select style="flex:1" @change=${e => { if (e.target.value) { this._add(e.target.value); e.target.value = ''; } }}>
+            <option value="" selected>＋ Place an element…</option>
+            ${unplaced.map(t => html`<option value=${t.id}>${t.label}</option>`)}
+          </select>
+          <button class="add-btn" style="width:auto; padding:6px 10px;" @click=${this._addSurface}>＋ Surface</button>
+        </div>
+        <div class="hint">Later in the list draws on top. A surface is a plain box for a colour or glass pattern to paint.</div>
+      </div>`;
+  }
+}
+if (!customElements.get('sc-canvas-editor')) customElements.define('sc-canvas-editor', ScCanvasEditor);
+
 // --- BRIDGE TO CORE ---
 window.SupercardModules['layout'] = window.SupercardModules['layout'] || {};
 Object.assign(window.SupercardModules['layout'], (() => {
@@ -1160,5 +1379,36 @@ Object.assign(window.SupercardModules['layout'], (() => {
     });
   }
 
-  return /** @type {SupercardModule} */ ({ update, onAfterRender, editorFields: () => [], renderCustomBlock: (commitFn, hass, slot) => html`<sc-layout-editor .slot=${slot} .hass=${hass} .commitFn=${commitFn}></sc-layout-editor>` });
+  /**
+   * A card on the canvas model gets the canvas editor; one still on rows and
+   * cells gets the old one, plus the button that converts it.
+   *
+   * The conversion is offered rather than performed: it is one-way, it picks
+   * an aspect ratio the old model never stored, and doing that to someone's
+   * card because they opened the editor would be indefensible. layout_rows is
+   * kept afterwards, so a card converted by mistake can be recovered by
+   * deleting `canvas` in the YAML editor.
+   */
+  function renderCustomBlock(commitFn, hass, slot) {
+    if (slot?.canvas) {
+      return html`<sc-canvas-editor .slot=${slot} .hass=${hass} .commitFn=${commitFn}></sc-canvas-editor>`;
+    }
+    const convertible = Array.isArray(slot?.layout_rows) && slot.layout_rows.length > 0;
+    return html`
+      <sc-layout-editor .slot=${slot} .hass=${hass} .commitFn=${commitFn}></sc-layout-editor>
+      ${convertible ? html`
+        <div style="margin: 0 16px 16px 16px; padding: 10px 12px; border: 1px dashed var(--primary-color,#03a9f4); border-radius: 6px; font-size: 12px; color: var(--secondary-text-color); display: flex; align-items: center; gap: 12px;">
+          <span style="flex:1">
+            <b style="color:var(--primary-text-color)">Try the canvas layout.</b>
+            Everything keeps its position; the card takes a fixed shape you can
+            then change. Your rows stay in the config, so this is reversible.
+          </span>
+          <button type="button" style="background: var(--primary-color,#03a9f4); border: none; color: #fff; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap;"
+            @click=${() => commitFn('__merge__', { canvas: resolveCanvas(slot) })}>
+            Convert
+          </button>
+        </div>` : ''}`;
+  }
+
+  return /** @type {SupercardModule} */ ({ update, onAfterRender, editorFields: () => [], renderCustomBlock });
 })());
