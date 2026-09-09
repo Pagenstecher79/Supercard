@@ -117,6 +117,14 @@ supercard:
     grid: 10        # visible grid spacing in virtual units
     snap: 10        # unset = snap to grid | 0 = free | n = custom step
     elements:
+      # A surface: a plain box with no entity, which colour and fx-glass can
+      # target like anything else. See "Cell targets" below.
+      - id: surface_0
+        surface: true
+        x: 0
+        y: 0
+        w: 400
+        h: 60
       - id: gauge_0 # unchanged element ids
         x: 20       # virtual units, absolute on the canvas
         y: 20
@@ -265,51 +273,53 @@ plainly in the release notes rather than discovered: **existing cards will
 change shape once, and need their canvas dimensions set to taste.** Everything
 *inside* the card keeps its relative arrangement exactly.
 
-### The other loose end: cell targets
+### Cell targets, and the surface element
 
 The colour, fx-glass and interaction modules can target a layout cell as
 `r0c0`, resolved at runtime to `sc-layout-renderer::part(cell-0-0)`. In a flat
 canvas there are no cells, so those ids have no referent.
 
-The same modules already support element targets (`elm_gauge_0` →
-`sc-gauge[data-idx="0"]`), which are layout-independent and survive untouched.
-So the migration should rewrite cell targets:
-
-- cell held **exactly one** element → rewrite to that element's `elm_` target
-- cell held **several** → no faithful answer exists; keep the pattern, point
-  it at `main`, and report it
-
-The second case is lossy — and counting it against 30 real cards says it is
-not rare at all. Of **17 cell targets in the wild, exactly one** has a single
-element to be rewritten to:
+Counting them against 30 real cards settled how to handle it — and corrected
+two guesses this document made first:
 
 | | count |
 |---|---|
-| rewritten exactly (cell held one element) | 1 |
-| fell back to `main` (cell held several) | 8 |
-| **cell was empty** | **8** |
+| target a cell holding several elements | 8 |
+| **target a row that does not exist** | **8** |
+| target a cell holding exactly one element | 1 |
+| target an empty cell | 0 |
 
-That last row is the one this design did not anticipate. A pattern can target
-a cell that holds *nothing* — because painting a region with no element in it
-is exactly what someone does to get a coloured or animated background block.
-Those eight targets have no element to inherit, so nothing in the flat model
-can carry them.
+The second row was the surprise. `r2c0` on a card with two rows: a row was
+deleted and the pattern kept pointing at it, so it has been painting nothing
+for a while already. Half the cell targets on a real dashboard are dead.
+(An earlier draft of this document guessed these were people painting
+decorative empty regions. They are not. Nobody in this corpus targets an
+empty cell.)
 
-Which means the descoping of animated surfaces has a consequence worth saying
-out loud: **an empty targeted cell *is* an animated surface**, and half the
-cell targets in a real dashboard are that. They cannot be migrated, only
-dropped or reproduced by placeable surfaces later. So either
+**The answer is a surface element**, and it makes the migration exact rather
+than lossy. A targeted cell becomes a `surface`: a plain box with the cell's
+geometry and no entity behind it, emitted *before* that cell's own elements so
+it sits underneath them. The pattern then targets the surface and paints
+precisely the region it painted before — including the case of a cell holding
+several elements, which was the one with no faithful answer.
 
-- the canvas grows a plain "surface" element early (a box with no entity,
-  which colour and fx-glass can target like any other element) — which is the
-  descoped feature, arriving anyway because migration needs it; or
-- migration drops those patterns and says so, and the cards lose their
-  decorative regions until surfaces exist.
+```yaml
+- id: surface_0
+  surface: true
+  x: 0
+  y: 0
+  w: 400        # the cell's box, not any element's
+  h: 150
+```
 
-The first is more work now and loses nothing. The second is honest but visibly
-degrades existing cards. This needs deciding before the migration is wired in.
+Surfaces are created **only** for cells something actually targets; migration
+does not invent elements nobody asked for. Targets naming a cell that does not
+exist are dropped and reported, because repointing a pattern that was doing
+nothing would make the card change appearance for the worse.
 
----
+This is the "animated surfaces" feature arriving early, in its smallest form:
+a placeable box that colour and fx-glass can address like any other element.
+It is here because migration needs it, not because the editor does yet.
 
 ### Verified against real configurations
 

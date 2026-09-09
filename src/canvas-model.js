@@ -111,15 +111,30 @@ export function cellWidths(row) {
  * carries over unchanged in *number*, but its meaning shifts from px to
  * virtual units; see docs/canvas-layout.md.
  *
+ * A colour, fx-glass or interaction pattern can point at a cell as `r0c0`,
+ * which resolves to a shadow part that stops existing once cells do. Pass the
+ * cell keys that are actually targeted as `targetedCells` and each one becomes
+ * a **surface**: a plain box with the cell's exact geometry and no entity
+ * behind it, emitted before that cell's own elements so it sits underneath
+ * them. The pattern then targets the surface and paints exactly the region it
+ * used to. A target naming a cell that does not exist is reported and left
+ * unmapped - it was already inert.
+ *
+ * Surfaces are only created for cells that are targeted. Migration does not
+ * invent elements nobody asked for.
+ *
  * @param {any[]} layoutRows
  * @param {{ w: number, h: number }} [canvas]
+ * @param {{ targetedCells?: string[] }} [opts]
  * @returns {{ elements: any[], cellTargets: Record<string, string>, warnings: string[] }}
  */
-export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS) {
+export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts = {}) {
   const rows = Array.isArray(layoutRows) ? layoutRows : [];
+  const targeted = new Set(opts.targetedCells || []);
   const elements = [];
   const cellTargets = /** @type {Record<string, string>} */ ({});
   const warnings = [];
+  let surfaceCount = 0;
 
   const heights = rowHeights(rows);
   let topPct = 0;
@@ -132,23 +147,21 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS) {
 
     cells.forEach((cell, cIdx) => {
       const cellPct = widths[cIdx];
-      const items = getCellItems(cell);
-
-      // A colour/fx-glass/interaction pattern can point at `r0c0`, which
-      // resolves to a shadow part that stops existing once cells do. One
-      // element in the cell has an exact replacement; several have none.
       const key = `r${rIdx}c${cIdx}`;
-      if (items.length === 1) {
-        cellTargets[key] = `elm_${items[0].id}`;
-      } else if (items.length > 1) {
-        cellTargets[key] = 'main';
-        warnings.push(
-          `${key} held ${items.length} elements, so a pattern targeting it has no exact ` +
-          `replacement; it now targets the whole card.`,
-        );
+
+      if (targeted.has(key)) {
+        const id = `surface_${surfaceCount++}`;
+        elements.push({
+          id, surface: true,
+          x: leftPct / 100 * canvas.w,
+          y: topPct / 100 * canvas.h,
+          w: cellPct / 100 * canvas.w,
+          h: rowPct / 100 * canvas.h,
+        });
+        cellTargets[key] = `elm_${id}`;
       }
 
-      for (const item of items) {
+      for (const item of getCellItems(cell)) {
         const { x, y, w, h, ...rest } = item;
         elements.push({
           ...rest,
@@ -164,6 +177,15 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS) {
 
     topPct += rowPct;
   });
+
+  for (const key of targeted) {
+    if (!(key in cellTargets)) {
+      warnings.push(
+        `${key} does not exist in this layout, so the pattern targeting it was already ` +
+        `doing nothing; it is dropped rather than repointed.`,
+      );
+    }
+  }
 
   return { elements, cellTargets, warnings };
 }

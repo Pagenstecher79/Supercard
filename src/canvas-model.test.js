@@ -6,6 +6,7 @@ import {
   cellWidths,
   migrateLayoutToCanvas,
 } from './canvas-model.js';
+import fixtures from './__fixtures__/real-layouts.json' with { type: 'json' };
 
 // A canvas whose numbers make the arithmetic readable: 1 unit = 1 % of the
 // card on both axes, so an expected value can be checked by eye.
@@ -199,29 +200,77 @@ describe('migrateLayoutToCanvas', () => {
     expect(elements.map(e => e.id)).toEqual(['under', 'over']);
   });
 
-  it('rewrites a cell target to the one element that was in it', () => {
-    const { cellTargets, warnings } = migrateLayoutToCanvas([
+  it('invents no surfaces when nothing targets a cell', () => {
+    const { elements, cellTargets, warnings } = migrateLayoutToCanvas([
       { cells: [{ items: [{ id: 'gauge_0', x: 0, y: 0, w: 100, h: 100 }] }] },
     ], C);
-    expect(cellTargets).toEqual({ r0c0: 'elm_gauge_0' });
+    expect(elements.map(e => e.id)).toEqual(['gauge_0']);
+    expect(cellTargets).toEqual({});
     expect(warnings).toEqual([]);
   });
 
-  it('falls back to the whole card, and says so, when a cell held several', () => {
-    const { cellTargets, warnings } = migrateLayoutToCanvas([
+  it('turns a targeted cell into a surface with the cell geometry', () => {
+    const { elements, cellTargets, warnings } = migrateLayoutToCanvas([
+      { flex: 40, cells: [
+        { width: 30, items: [{ id: 'a', x: 25, y: 25, w: 50, h: 50 }] },
+        { width: 70, items: [] },
+      ] },
+      { flex: 60, cells: [{ items: [] }] },
+    ], C, { targetedCells: ['r0c0'] });
+    const surface = elements.find(e => e.surface);
+    // The cell's box, not the element's: the pattern painted the whole cell.
+    expect(surface).toMatchObject({ id: 'surface_0', x: 0, y: 0, w: 30, h: 40 });
+    expect(cellTargets).toEqual({ r0c0: 'elm_surface_0' });
+    expect(warnings).toEqual([]);
+  });
+
+  it('puts the surface behind the elements of its cell', () => {
+    const { elements } = migrateLayoutToCanvas([
+      { cells: [{ items: [{ id: 'a', x: 0, y: 0, w: 100, h: 100 }] }] },
+    ], C, { targetedCells: ['r0c0'] });
+    // Stacking is array order, so the surface has to come first.
+    expect(elements.map(e => e.id)).toEqual(['surface_0', 'a']);
+  });
+
+  it('gives a cell holding several elements one surface, exactly', () => {
+    // The case that used to fall back to the whole card.
+    const { elements, cellTargets, warnings } = migrateLayoutToCanvas([
       { cells: [{ items: [
         { id: 'name', x: 0, y: 0, w: 50, h: 100 },
         { id: 'state', x: 50, y: 0, w: 50, h: 100 },
       ] }] },
-    ], C);
-    expect(cellTargets).toEqual({ r0c0: 'main' });
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('r0c0');
+    ], C, { targetedCells: ['r0c0'] });
+    expect(elements.map(e => e.id)).toEqual(['surface_0', 'name', 'state']);
+    expect(cellTargets).toEqual({ r0c0: 'elm_surface_0' });
+    expect(warnings).toEqual([]);
   });
 
-  it('offers no target for an empty cell', () => {
-    const { cellTargets } = migrateLayoutToCanvas([{ cells: [{}] }], C);
+  it('gives an empty targeted cell a surface too', () => {
+    const { elements, cellTargets } = migrateLayoutToCanvas(
+      [{ cells: [{}] }], C, { targetedCells: ['r0c0'] });
+    expect(elements).toHaveLength(1);
+    expect(elements[0]).toMatchObject({ id: 'surface_0', surface: true, w: 100, h: 100 });
+    expect(cellTargets).toEqual({ r0c0: 'elm_surface_0' });
+  });
+
+  it('numbers surfaces across the whole card', () => {
+    const { cellTargets } = migrateLayoutToCanvas([
+      { cells: [{}, {}] },
+      { cells: [{}] },
+    ], C, { targetedCells: ['r0c1', 'r1c0'] });
+    expect(cellTargets).toEqual({ r0c1: 'elm_surface_0', r1c0: 'elm_surface_1' });
+  });
+
+  it('drops a target naming a cell that does not exist, and says why', () => {
+    // Real dashboards carry these: a row was deleted and the pattern kept
+    // pointing at it, so it has been doing nothing for a while already.
+    const { elements, cellTargets, warnings } = migrateLayoutToCanvas([
+      { cells: [{ items: [{ id: 'a', x: 0, y: 0, w: 100, h: 100 }] }] },
+    ], C, { targetedCells: ['r2c0'] });
+    expect(elements.map(e => e.id)).toEqual(['a']);
     expect(cellTargets).toEqual({});
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('r2c0');
   });
 
   it('survives configurations that are missing or malformed', () => {
@@ -250,5 +299,76 @@ describe('migrateLayoutToCanvas', () => {
     expect(elements[1].x).toBe(0);
     expect(elements[1].y).toBe(50);
     expect(elements[1].w).toBeCloseTo(50 * 0.33333, 2);
+  });
+});
+
+// --- Against real configurations -----------------------------------------
+// 23 distinct layouts taken from a live dashboard (they stand for 30 cards;
+// duplicates collapsed). Structural only - the file contains no entity ids.
+// The geometry these produce was compared against the boxes the current
+// renderer actually draws in a browser: worst deviation 0.0023 percentage
+// points over 55 element boxes. These tests keep that from regressing.
+describe('real dashboard layouts', () => {
+  const all = fixtures.map(f => ({
+    ...f,
+    result: migrateLayoutToCanvas(f.layout_rows, DEFAULT_CANVAS,
+      { targetedCells: f.targets }),
+  }));
+
+  it('covers the shapes worth having a fixture for', () => {
+    const cells = fixtures.flatMap(f => f.layout_rows.flatMap(r => r.cells || []));
+    expect(fixtures.length).toBe(23);
+    // The legacy `content` form is the majority case in the wild, not a relic.
+    expect(cells.filter(c => c.content && c.content !== 'empty').length)
+      .toBeGreaterThan(cells.filter(c => (c.items || []).length).length);
+    expect(fixtures.some(f => f.layout_rows.some(r => r.auto_width))).toBe(true);
+    expect(fixtures.some(f => f.layout_rows.some(r => (r.cells || []).some(c => (c.items || []).some(i => i.r !== undefined))))).toBe(true);
+    expect(fixtures.filter(f => f.targets.length).length).toBeGreaterThan(0);
+  });
+
+  it('produces usable geometry for every one of them', () => {
+    for (const { i, result } of all) {
+      for (const e of result.elements) {
+        expect(Number.isFinite(e.x), `card ${i} / ${e.id} x`).toBe(true);
+        expect(Number.isFinite(e.y), `card ${i} / ${e.id} y`).toBe(true);
+        expect(e.w, `card ${i} / ${e.id} w`).toBeGreaterThan(0);
+        expect(e.h, `card ${i} / ${e.id} h`).toBeGreaterThan(0);
+        expect(e.x, `card ${i} / ${e.id} x`).toBeGreaterThanOrEqual(0);
+        expect(e.y, `card ${i} / ${e.id} y`).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('keeps every element these cards already had', () => {
+    for (const { i, layout_rows, result } of all) {
+      const expected = layout_rows.reduce(
+        (a, r) => a + (r.cells || []).reduce((b, c) => b + getCellItems(c).length, 0), 0);
+      const surfaces = result.elements.filter(e => e.surface).length;
+      expect(result.elements.length - surfaces, `card ${i}`).toBe(expected);
+    }
+  });
+
+  it('resolves every cell target that still points at something', () => {
+    let surfaced = 0, dropped = 0;
+    for (const { layout_rows, targets, result } of all) {
+      for (const t of targets) {
+        const [, ri, ci] = /^r(\d+)c(\d+)$/.exec(t);
+        const exists = !!((layout_rows[+ri] || {}).cells || [])[+ci];
+        if (exists) { expect(result.cellTargets[t]).toMatch(/^elm_surface_\d+$/); surfaced++; }
+        else { expect(result.cellTargets[t]).toBeUndefined(); dropped++; }
+      }
+    }
+    // Every live target becomes a surface; the dead ones are dropped, and
+    // they are the majority - these are stale references to deleted rows.
+    expect(surfaced).toBe(7);
+    expect(dropped).toBe(6);
+  });
+
+  it('says something about each target it dropped', () => {
+    for (const { targets, result } of all) {
+      const dead = targets.filter(t => result.cellTargets[t] === undefined);
+      expect(result.warnings).toHaveLength(dead.length);
+      for (const t of dead) expect(result.warnings.join(' ')).toContain(t);
+    }
   });
 });
