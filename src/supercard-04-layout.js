@@ -1,6 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, rescaleCanvas,
+         sectionColumns,
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
          repointPatterns, colouredCells, glassedCells, soleElementTargets,
          canDuplicate, duplicateElement,
@@ -1344,6 +1345,13 @@ class ScCanvasEditor extends LitElement {
   get _columns() { return gridSize(this.cardConfig, this.slot).columns; }
 
   /**
+   * The widest the card can be here. Read from the section being edited on
+   * every use rather than kept: the same editor instance stays mounted while
+   * the section's width is changed in the tab next to it.
+   */
+  get _maxColumns() { return sectionColumns(this); }
+
+  /**
    * Writes HA's own `grid_options` rather than fields of our own, so these
    * controls and the layout tab are two views of one value instead of two
    * settings that have to be kept in step.
@@ -1375,7 +1383,7 @@ class ScCanvasEditor extends LitElement {
 
   /** The canvas reshaped to the card's grid box, or null if it already is. */
   _shapedToGrid(cardConfig = this.cardConfig) {
-    const shape = canvasFromGrid(cardConfig, this.slot);
+    const shape = canvasFromGrid(cardConfig, this.slot, 400, this._maxColumns);
     const c = this._canvas;
     if (c.w === shape.w && c.h === shape.h) return null;
     return rescaleCanvas(structuredClone(c), shape);
@@ -1390,7 +1398,7 @@ class ScCanvasEditor extends LitElement {
   /** Whether the canvas is a different shape from the box the card occupies. */
   get _gridMismatch() {
     if (typeof this.cardConfig?.grid_options?.rows !== 'number') return false;
-    const shape = canvasFromGrid(this.cardConfig, this.slot);
+    const shape = canvasFromGrid(this.cardConfig, this.slot, 400, this._maxColumns);
     const c = this._canvas;
     return Math.abs(c.w / c.h - shape.w / shape.h) > 0.005;
   }
@@ -1708,6 +1716,7 @@ class ScCanvasEditor extends LitElement {
     const step = resolveSnap(c);
     const rows = this._rows;
     const columns = this._columns;
+    const maxColumns = this._maxColumns;
     const mismatch = this._gridMismatch;
     const gridPct = (c.grid > 0 ? c.grid : step) / c.w * 100;
     const pct = (v, total) => `${v / total * 100}%`;
@@ -1721,9 +1730,19 @@ class ScCanvasEditor extends LitElement {
         <div class="row">
           <label>Card width</label>
           <div style="display:flex; gap:6px; align-items:center;">
-            <input class="num" type="number" min="1" max="12" .value=${columns === 'full' ? 12 : columns}
-                   @change=${e => this._setGrid({ columns: Math.max(1, Math.min(12, parseInt(e.target.value) || 1)) })}>
-            <span class="hint">of 12 columns · ${Math.round(gridColumnsToPx(columns))} px</span>
+            <input class="num" type="number" min="1" max=${maxColumns} .value=${columns === 'full' ? maxColumns : columns}
+                   @change=${e => {
+                     const n = Math.max(1, Math.min(maxColumns, parseInt(e.target.value) || 1));
+                     // lit writes .value only when the bound value changes, so a
+                     // number that clamps back to the one already set would leave
+                     // the field showing what was typed instead.
+                     e.target.value = String(n);
+                     // The whole width is `full` in HA's own tab, which is not the
+                     // same as the number that happens to equal it today: a section
+                     // made wider later takes a `full` card with it.
+                     this._setGrid({ columns: columns === 'full' && n === maxColumns ? 'full' : n });
+                   }}>
+            <span class="hint">of ${maxColumns} columns · ${Math.round(gridColumnsToPx(columns, maxColumns))} px</span>
           </div>
         </div>
         <div class="row">
@@ -1991,11 +2010,13 @@ Object.assign(window.SupercardModules['layout'], (() => {
               an element after converting.` : ''}
           </span>
           <button type="button" style="background: var(--primary-color,#03a9f4); border: none; color: #fff; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap;"
-            @click=${() => {
+            @click=${e => {
               // The shape the card already occupies, so converting changes the
               // model and not the picture. A blind default would reshape every
               // card that is not 2:1 and shrink whatever had to fit inside it.
-              const shape = canvasFromGrid(cardConfig, slot);
+              // e.currentTarget is the one thing in reach that sits inside the
+              // edit dialog, which is where the section's width is to be had.
+              const shape = canvasFromGrid(cardConfig, slot, 400, sectionColumns(e.currentTarget));
               // Only the cells that still need one get a surface: glass that
               // follows the single element in its cell leaves nothing behind
               // to paint, and migration does not invent elements nobody asked

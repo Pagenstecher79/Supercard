@@ -20,6 +20,7 @@ import {
   isSquareLocked,
   squareElement,
   gridColumnsToPx,
+  sectionColumns,
   gridSize,
   canvasFromGrid,
   rescaleCanvas,
@@ -1084,5 +1085,109 @@ describe('repointPatterns with glass following the element', () => {
     const slot = { fx_glass_patterns: [{ id: 2, target: 'r0c0' }] };
     repointPatterns(slot, cellTargets, follows);
     expect(slot.fx_glass_patterns[0].target).toBe('r0c0');
+  });
+});
+
+describe('sectionColumns', () => {
+  // A stand-in for the shadow-root chain the editor sits in: each level is a
+  // host whose getRootNode() hands back the next one up.
+  const chain = (...hosts) => {
+    let child = null;
+    for (const host of hosts) {
+      const node = { host, _child: child };
+      host._root = node;
+      child = host;
+      host.getRootNode = () => node._parentRoot || { host: null };
+    }
+    return child;
+  };
+  const nest = (tags) => {
+    let inner = null;
+    const nodes = tags.map(t => ({ ...t, getRootNode: () => ({ host: null }) }));
+    for (let i = nodes.length - 1; i > 0; i--) nodes[i].getRootNode = () => ({ host: nodes[i - 1] });
+    inner = nodes[nodes.length - 1];
+    return inner;
+  };
+
+  it('takes twelve columns per column the section spans', () => {
+    const editor = nest([{ _params: { sectionConfig: { column_span: 2 } } }, {}, {}]);
+    expect(sectionColumns(editor)).toBe(24);
+  });
+
+  it('reads a section that spans one as twelve', () => {
+    const editor = nest([{ _params: { sectionConfig: { type: 'grid' } } }, {}]);
+    expect(sectionColumns(editor)).toBe(12);
+  });
+
+  it('falls back to one section when nothing up the chain knows', () => {
+    expect(sectionColumns(nest([{}, {}, {}]))).toBe(12);
+    expect(sectionColumns(null)).toBe(12);
+    expect(sectionColumns({})).toBe(12);
+  });
+
+  it('ignores a span that is not a positive number', () => {
+    for (const column_span of [0, -3, 'wide', null, undefined, NaN]) {
+      expect(sectionColumns(nest([{ _params: { sectionConfig: { column_span } } }, {}]))).toBe(12);
+    }
+  });
+
+  it('stops climbing rather than looping on a cycle', () => {
+    const a = {}; const b = {};
+    a.getRootNode = () => ({ host: b });
+    b.getRootNode = () => ({ host: a });
+    expect(sectionColumns(a)).toBe(12);
+  });
+
+  it('climbs plain parents too, where there is no shadow boundary', () => {
+    const top = { _params: { sectionConfig: { column_span: 3 } }, getRootNode: () => ({ host: null }) };
+    const mid = { parentElement: top, getRootNode: () => ({}) };
+    const leaf = { parentElement: mid, getRootNode: () => ({}) };
+    expect(sectionColumns(leaf)).toBe(36);
+  });
+});
+
+describe('gridColumnsToPx across sections', () => {
+  it('is unchanged for a section of the default width', () => {
+    expect(Math.round(gridColumnsToPx(6))).toBe(236);
+    expect(Math.round(gridColumnsToPx(12))).toBe(480);
+    expect(Math.round(gridColumnsToPx('full'))).toBe(480);
+  });
+
+  it('keeps the column the same width in a wider section', () => {
+    expect(Math.round(gridColumnsToPx(6, 24))).toBe(236);
+    expect(Math.round(gridColumnsToPx(24, 24))).toBe(968);
+  });
+
+  it('lets a full-width card have the whole of a wide section', () => {
+    expect(Math.round(gridColumnsToPx('full', 24))).toBe(968);
+    expect(Math.round(gridColumnsToPx('full', 36))).toBe(1456);
+  });
+
+  it('still clamps to the columns the section has', () => {
+    expect(gridColumnsToPx(99, 24)).toBe(gridColumnsToPx(24, 24));
+    expect(gridColumnsToPx(0, 24)).toBe(gridColumnsToPx(1, 24));
+  });
+
+  it('treats a nonsense total as one section', () => {
+    for (const total of [0, -1, NaN, undefined, null, 'wide']) {
+      expect(gridColumnsToPx(99, /** @type {any} */ (total))).toBe(gridColumnsToPx(12));
+    }
+  });
+});
+
+describe('canvasFromGrid in a wide section', () => {
+  const slot = { canvas: { w: 400, h: 200, elements: [] } };
+
+  it('shapes a full-width card to the whole wide section', () => {
+    // 12 columns are 480px wide and 4 rows 248 tall; 24 columns are 968.
+    expect(canvasFromGrid({ grid_options: { columns: 'full', rows: 4 } }, slot))
+      .toEqual({ w: 400, h: Math.round(248 * 400 / 480) });
+    expect(canvasFromGrid({ grid_options: { columns: 'full', rows: 4 } }, slot, 400, 24))
+      .toEqual({ w: 400, h: Math.round(248 * 400 / 968) });
+  });
+
+  it('leaves a card narrower than one section alone', () => {
+    expect(canvasFromGrid({ grid_options: { columns: 6, rows: 4 } }, slot, 400, 24))
+      .toEqual(canvasFromGrid({ grid_options: { columns: 6, rows: 4 } }, slot));
   });
 });
