@@ -251,7 +251,49 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts 
  * @returns {string[]}
  */
 export function paintedCells(slot) {
-  return cellTargetsIn([slot?.color_patterns, slot?.fx_glass_patterns]);
+  return [...new Set([...colouredCells(slot), ...glassedCells(slot)])];
+}
+
+/** The cells a colour pattern paints. @param {any} slot @returns {string[]} */
+export function colouredCells(slot) {
+  return cellTargetsIn([slot?.color_patterns]);
+}
+
+/** The cells an fx-glass pattern paints. @param {any} slot @returns {string[]} */
+export function glassedCells(slot) {
+  return cellTargetsIn([slot?.fx_glass_patterns]);
+}
+
+/**
+ * The element an fx-glass pattern on a cell should follow, per cell key, in
+ * the `elm_<id>` form the pattern lists store.
+ *
+ * Glass on a cell paints *over* what is in it - the cell part's `::after` is
+ * above the element - and that is the look someone picked. Repointed at the
+ * surface underneath, the very same pattern comes out *behind* the element,
+ * and the card looks converted. So where a cell holds exactly one element the
+ * glass follows that element and stays in front of it. The box it paints
+ * becomes the element's rather than the whole cell's; a cell with no element,
+ * or with several, has nothing single to follow and keeps its surface.
+ *
+ * Colour is the opposite case and deliberately absent: it paints the ground
+ * *behind* things, which is the whole of what a surface is.
+ *
+ * @param {any[]} layoutRows
+ * @returns {Record<string, string>}
+ */
+export function soleElementTargets(layoutRows) {
+  const rows = Array.isArray(layoutRows) ? layoutRows : [];
+  const out = /** @type {Record<string, string>} */ ({});
+  rows.forEach((row, rIdx) => {
+    const cells = Array.isArray(row?.cells) ? row.cells : [];
+    cells.forEach((cell, cIdx) => {
+      const items = getCellItems(cell);
+      const id = items.length === 1 ? items[0]?.id : undefined;
+      if (typeof id === 'string' && id && id !== 'empty') out[`r${rIdx}c${cIdx}`] = `elm_${id}`;
+    });
+  });
+  return out;
 }
 
 /**
@@ -312,22 +354,29 @@ export function deadCellTargets(slot) {
  * too, and an entry can carry a whole palette, so dropping it would throw away
  * work to tidy something that costs nothing.
  *
+ * `glassTargets` wins over `cellTargets` for fx-glass only - see
+ * `soleElementTargets` for why glass follows the element and colour does not.
+ * A cell can be in both maps: one that is coloured *and* glassed keeps its
+ * surface for the colour while the glass moves onto the element.
+ *
  * Only the lists that actually changed come back, so the merge payload stays
  * as small as the edit.
  *
  * @param {any} slot
  * @param {Record<string, string>} cellTargets
+ * @param {Record<string, string>} [glassTargets]
  * @returns {{ lists: Record<string, any[]>, changed: number }}
  */
-export function repointPatterns(slot, cellTargets) {
+export function repointPatterns(slot, cellTargets, glassTargets = {}) {
   const lists = /** @type {Record<string, any[]>} */ ({});
   let changed = 0;
   for (const key of ['color_patterns', 'fx_glass_patterns']) {
+    const map = key === 'fx_glass_patterns' ? { ...cellTargets, ...glassTargets } : cellTargets;
     const list = slot?.[key];
     if (!Array.isArray(list)) continue;
     let hit = false;
     const next = list.map(p => {
-      const to = cellTargets?.[p?.target];
+      const to = map?.[p?.target];
       if (!to) return p;
       hit = true;
       changed++;

@@ -2,7 +2,7 @@ import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/co
 import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, rescaleCanvas,
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
-         repointPatterns,
+         repointPatterns, colouredCells, glassedCells, soleElementTargets,
          canDuplicate, duplicateElement,
          NEW_ELEMENT_KINDS, canAddKind, addElement } from "./canvas-model.js";
 
@@ -1957,8 +1957,14 @@ Object.assign(window.SupercardModules['layout'], (() => {
     }
     const convertible = Array.isArray(slot?.layout_rows) && slot.layout_rows.length > 0;
     const dead = deadCellTargets(slot);
-    const painted = paintedCells(slot).filter(k => !dead.includes(k));
-    const clicked = clickedCells(slot).filter(k => !dead.includes(k));
+    const live = (/** @type {string[]} */ keys) => keys.filter(k => !dead.includes(k));
+    // What each painted cell becomes, so the offer can say it: a surface for
+    // the region, or - for glass on a cell holding one element - that element.
+    const follows = soleElementTargets(slot?.layout_rows);
+    const coloured = live(colouredCells(slot));
+    const onElement = live(glassedCells(slot)).filter(k => k in follows);
+    const surfaced = live(paintedCells(slot)).filter(k => !onElement.includes(k) || coloured.includes(k));
+    const clicked = live(clickedCells(slot));
     return html`
       <sc-layout-editor .slot=${slot} .hass=${hass} .commitFn=${commitFn}></sc-layout-editor>
       ${convertible ? html`
@@ -1967,10 +1973,15 @@ Object.assign(window.SupercardModules['layout'], (() => {
             <b style="color:var(--primary-text-color)">Try the canvas layout.</b>
             Everything keeps its position; the card takes a fixed shape you can
             then change. Your rows stay in the config, so this is reversible.
-            ${painted.length ? html`<br>Colour and glass patterns on
-              ${painted.length === 1 ? 'one cell' : `${painted.length} cells`}
+            ${surfaced.length ? html`<br>Colour and glass patterns on
+              ${surfaced.length === 1 ? 'one cell' : `${surfaced.length} cells`}
               are repointed at a surface covering the same region, so the
               backgrounds stay.` : ''}
+            ${onElement.length ? html`<br>Glass on
+              ${onElement.length === 1 ? 'a cell that holds' : `${onElement.length} cells that hold`}
+              a single element follows that element, so it stays in front of it
+              as it is now - it then covers the element's box rather than the
+              whole cell.` : ''}
             ${dead.length ? html`<br>${dead.length === 1 ? 'One pattern points' : `${dead.length} patterns point`}
               at a cell this layout does not have (${dead.join(', ')}); already
               doing nothing, and left as they are.` : ''}
@@ -1985,12 +1996,16 @@ Object.assign(window.SupercardModules['layout'], (() => {
               // model and not the picture. A blind default would reshape every
               // card that is not 2:1 and shrink whatever had to fit inside it.
               const shape = canvasFromGrid(cardConfig, slot);
+              // Only the cells that still need one get a surface: glass that
+              // follows the single element in its cell leaves nothing behind
+              // to paint, and migration does not invent elements nobody asked
+              // for. A cell that is coloured as well keeps its surface.
               const { elements, cellTargets } = migrateLayoutToCanvas(slot.layout_rows, shape,
-                { targetedCells: paintedCells(slot) });
+                { targetedCells: surfaced });
               // The patterns have to travel with the canvas, in one commit: a
               // card that got its canvas but not its repointed targets is
               // exactly the card whose background disappeared.
-              const { lists } = repointPatterns(slot, cellTargets);
+              const { lists } = repointPatterns(slot, cellTargets, follows);
               commitFn('__merge__', { canvas: { ...shape, elements }, ...lists });
             }}>
             Convert
