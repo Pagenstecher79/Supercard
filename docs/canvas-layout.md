@@ -571,7 +571,42 @@ With the height on *Fit the canvas* there is no row count to match, and the
 button does not appear: the canvas is the height in that mode, and deriving one
 from the other in both directions is a circle.
 
-## 8. Build order
+## 8. The preview draws the real thing
+
+The canvas editor renders the actual `sc-gauge` and `sc-progressbar` for every
+element it can resolve, in the box that element occupies, instead of a blue
+rectangle with an id in it. A *Preview* control switches back to the plain
+boxes, which stay the easier thing to see and to grab when elements overlap.
+
+Three facts make this cost almost nothing:
+
+- **Both renderers are already `pointer-events: none`** on their host, because
+  the card puts them behind its own interaction layer. So a live element
+  inside a draggable box cannot swallow the drag: hit-testing at the centre of
+  a rendered gauge lands on the editor's own `.el` div.
+- **A gauge element is square**, so the box it is dropped into is the size the
+  gauge wants, and `onCanvas` already exists as a property to say so - see §6.
+- **The id is the index.** `gauge_0` is `gauges[0]`, the same convention
+  `onAfterRender` slots by, so the preview needs no lookup table of its own.
+
+Each branch mirrors what its module's `update()` does, including the
+`gauge_active` / `progressbar_active` flags and a bar's own `active: false`.
+Anything that cannot be resolved - a surface, a label, an id pointing past the
+end of the list, a missing `hass` - keeps the plain box rather than failing.
+
+### Never live while dragging
+
+Every `pointermove` commits, and a commit clones the config, so the components
+would be handed a new `.config` at pointer frequency and re-render completely
+on each frame. During a drag the boxes come back. It is also the clearer thing
+to drag.
+
+The remaining gap is typography: `_itemStyles` addresses `::slotted(...)` and
+`.sc-item-slot[data-item-id]`, neither of which exists in the editor, so text
+inside a previewed element is at its default size rather than the card's. The
+geometry - which is what the canvas editor is for - is exact.
+
+## 9. Build order
 
 1. ~~**The migration function alone**, pure.~~ `src/canvas-model.js`.
 2. ~~**Verify it against real configurations.**~~ 23 real layouts; migration
@@ -588,6 +623,8 @@ from the other in both directions is a circle.
    size control rather than two that contradict - see §6.
 7. ~~**The canvas takes the card's shape.**~~ Convert derives it from
    `grid_options`, and both halves of that box are settable here - see §7.
+8. ~~**A live preview.**~~ The editor draws the real gauges and bars in the
+   boxes they occupy, with a switch back to plain boxes - see §8.
 
 What is left is the part no amount of arithmetic settles: **switching cards
 over**. Today conversion is a button someone presses. Making it automatic
