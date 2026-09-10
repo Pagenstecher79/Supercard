@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { reportedRows, isHeightPinned } from "./canvas-model.js";
+import { reportedRows, isHeightPinned, canvasFromCard } from "./canvas-model.js";
 
 // --- CENTRAL LAYER DICTIONARY ---
 export const SC_LAYERS = {
@@ -115,6 +115,72 @@ Object.assign(window.SupercardUtils, (() => {
     if (onCanvas) return true;
     const v = gaugeConfig?.gauge_size_responsive;
     return v === true || v === 'true';
+  }
+
+  // The card's own measured size, published by its resize observer. Each entry
+  // is a length, so `calc()` can take a percentage of it.
+  const CARD_SIDES = {
+    width:  'var(--sc-avail-w, 100px)',
+    height: 'var(--sc-avail-h, 100px)',
+    min:    'var(--sc-avail-min, 100px)',
+    max:    'max(var(--sc-avail-w, 100px), var(--sc-avail-h, 100px))',
+  };
+
+  /**
+   * Whether the card draws from a canvas.
+   *
+   * A `canvas` key alone is not enough: `layout_active` gates the renderer, so
+   * a card with the layout switched off draws the plain content row whatever
+   * canvas it is still carrying - the same reading showsElement takes. What
+   * the card actually draws is what decides its shape and which of the two
+   * sets of dimension controls the editor offers.
+   *
+   * @param {any} slot
+   * @returns {boolean}
+   */
+  function onCanvas(slot) {
+    return !!(slot?.layout_active && slot?.canvas);
+  }
+
+  /**
+   * Whether the card draws itself as a pill.
+   *
+   * A canvas card never does. Its elements are placed in a rectangle and the
+   * shape control is not offered there, so honouring a `pill` left over from
+   * the card's rows days would give it a shape nothing in the editor could
+   * change. The renderer, a full-card colour or glass pattern and a bar's edge
+   * indent all have to reach the same answer, so it is decided once, here.
+   *
+   * @param {any} slot
+   * @returns {boolean}
+   */
+  function cardIsPill(slot) {
+    return !onCanvas(slot) && slot?.layout_shape !== 'rectangle';
+  }
+
+  /**
+   * The card's corner radius as a CSS length, or null when the card has not
+   * set one - what to draw instead differs per caller, so that stays theirs.
+   *
+   * A percentage needs a side to be a percentage of, and `border-radius: 10%`
+   * is not it: it resolves horizontally against the width and vertically
+   * against the height, which draws an elliptical corner rather than a round
+   * one. So the reference side is named and read from the card's measured
+   * size, which is why those lengths are published on the host - a custom
+   * property inherits down, and the container's style attribute belongs to lit.
+   *
+   * @param {any} slot
+   * @returns {string | null}
+   */
+  function cardRadius(slot) {
+    if (cardIsPill(slot)) return '999px';
+    const v = slot?.border_radius;
+    if (v === undefined || v === null || v === '') return null;
+    // A radius written before the unit existed is a pixel one, so an absent
+    // unit has to go on meaning px: reading it as a percentage would resize
+    // the corners of every card that has ever set one.
+    if (slot.border_radius_unit !== '%') return `${v}px`;
+    return `calc(${CARD_SIDES[slot.border_radius_ref] || CARD_SIDES.min} * ${safeFloat(v, 0)} / 100)`;
   }
 
   /**
@@ -302,7 +368,7 @@ Object.assign(window.SupercardUtils, (() => {
   return /** @type {SupercardUtilsApi} */ ({
     safeFloat, hexToRgb, rgbToHex, toRgb, resolveVar, sampleGradient,
     getAvailableElements, listElements, showsElement, elementPartSelector,
-    resolveAlias, withPatch, gaugeIsResponsive,
+    resolveAlias, withPatch, gaugeIsResponsive, onCanvas, cardIsPill, cardRadius,
     editorStyles, formStyles
   });
 })());
@@ -379,7 +445,25 @@ class SupercardCore extends LitElement {
 
   getCardSize() { return 3; }
   static getConfigElement() { return document.createElement('supercard-modular-editor'); }
-  static getStubConfig() { return { entity: '', supercard: { layout_shape: 'pill', border_radius: 12 } }; }
+  /**
+   * A new card starts on the canvas.
+   *
+   * Reaching it used to take four steps in the model the canvas replaces -
+   * switch the layout section on, add a row, add a cell, assign content, then
+   * convert - none of which a card added a moment ago has any reason to know
+   * about. `canvasFromCard` places what the card draws, so what lands on the
+   * canvas is the card the stub would have rendered anyway.
+   *
+   * No `layout_shape`: the shape control belongs to the rows model, and a
+   * canvas card is a rectangle with a corner radius. That radius is a
+   * percentage of the shorter side here, so it follows the card when Home
+   * Assistant's layout gives it a different box.
+   */
+  static getStubConfig() {
+    const slot = { layout_active: true, border_radius: 12,
+                   border_radius_unit: '%', border_radius_ref: 'min' };
+    return { entity: '', supercard: { ...slot, canvas: canvasFromCard({}, slot) } };
+  }
 
   static get styles() {
     return css`
@@ -485,25 +569,32 @@ class SupercardCore extends LitElement {
   }
 
   firstUpdated() {
-    this._container = this.renderRoot.querySelector('#main-container');
-
     if (!this._resizeObserver) {
       this._resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const w = entry.contentRect.width;
           const h = entry.contentRect.height;
-          if (w > 0 && h > 0 && this._container) {
+          if (w > 0 && h > 0) {
             const minDim = Math.min(w, h);
-            this._container.style.setProperty('--sc-avail-w', w + 'px');
-            this._container.style.setProperty('--sc-avail-h', h + 'px');
-            this._container.style.setProperty('--sc-avail-min', minDim + 'px');
+            // On the host, not on #main-container: lit owns that element's
+            // style attribute and rewrites it whole on every render, which
+            // would drop these until the next resize. A custom property
+            // inherits down, so everything inside still reads them - and the
+            // corner radius, which is a percentage of one of these lengths,
+            // cannot afford to lose them mid-render.
+            this.style.setProperty('--sc-avail-w', w + 'px');
+            this.style.setProperty('--sc-avail-h', h + 'px');
+            this.style.setProperty('--sc-avail-min', minDim + 'px');
 
             const slot = this.config?.supercard || {};
-            if (slot.card_height_responsive || slot.card_width_responsive) {
+            // The scale exists for the plain content row, which a canvas card
+            // does not draw - so the responsive switches are not offered
+            // there, and a leftover one must not scale a placed icon either.
+            if (!SC_UTILS.onCanvas(slot) && (slot.card_height_responsive || slot.card_width_responsive)) {
               const scale = Math.max(0.3, minDim / 70);
-              this._container.style.setProperty('--sc-scale', scale.toFixed(3));
+              this.style.setProperty('--sc-scale', scale.toFixed(3));
             } else {
-              this._container.style.setProperty('--sc-scale', '1');
+              this.style.setProperty('--sc-scale', '1');
             }
           }
         }
@@ -585,8 +676,7 @@ class SupercardCore extends LitElement {
     const headerText = slot.entity_name_override || stateObj?.attributes?.friendly_name || entityId || 'Supercard';
     const iconId = stateObj?.attributes?.icon || 'mdi:bookmark';
 
-    const isPill = slot.layout_shape !== 'rectangle';
-    combinedStyles += `border-radius: ${isPill ? '999px' : (slot.border_radius ?? 12) + 'px'}; `;
+    combinedStyles += `border-radius: ${SC_UTILS.cardRadius(slot) ?? '12px'}; `;
 
     if (slot.card_height_responsive !== true && slot.card_height) {
       combinedStyles += `--sc-explicit-height: ${slot.card_height}px; `;
@@ -874,6 +964,17 @@ Object.assign(window.SupercardModules['core'], (() => {
       if (!this.slot) return html``;
       const update = (k, v) => this.commitFn(k, v);
 
+      // A canvas card is a rectangle whose corner can be a percentage of a
+      // side it names; the shape and the two responsive switches belong to the
+      // rows model and are not offered there. An absent unit means px - see
+      // SC.cardRadius, which has to read a card written before the unit
+      // existed the same way it always did.
+      const onCanvas = SC_UTILS.onCanvas(this.slot);
+      const brUnit = this.slot.border_radius_unit === '%' ? '%' : 'px';
+      const brRef = this.slot.border_radius_ref || 'min';
+      const brMax = brUnit === '%' ? 50 : 100;
+      const brValue = this.slot.border_radius ?? 12;
+
       return html`
         <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px 16px;">
           <details class="inner-section" ?open=${this._expanded.basis} @toggle=${e => this._expanded = {...this._expanded, basis: e.target.open}}>
@@ -997,42 +1098,67 @@ Object.assign(window.SupercardModules['core'], (() => {
           <details class="inner-section" ?open=${this._expanded.dim} @toggle=${e => this._expanded = {...this._expanded, dim: e.target.open}}>
             <summary>── Card & Dimensions <span style="font-size:10px;">▼</span></summary>
             <div class="inner-content">
-              <div class="row">
-                <label>Card shape</label>
-                <select @change=${e => update('layout_shape', e.target.value)}>
-                  <option value="rectangle" ?selected=${this.slot.layout_shape === 'rectangle'}>Rectangular</option>
-                  <option value="pill" ?selected=${this.slot.layout_shape === 'pill'}>Pill (rounded)</option>
-                </select>
-              </div>
-              <div class="col">
-                <label>Corner radius (px)</label>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <input type="range" min="0" max="100" step="1" style="flex:1;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
-                  <input type="number" min="0" max="100" style="width:64px;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
-                </div>
-              </div>
-
-              <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
-                <label>Responsive width (HA layout)</label>
-                <label class="toggle"><input type="checkbox" .checked=${this.slot.card_width_responsive !== false} @change=${e => update('card_width_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
-              </div>
-              ${this.slot.card_width_responsive === false ? html`
+              ${onCanvas ? html`
                 <div class="col">
-                  <label>Absolute width (px or %)</label>
-                  <input type="text" placeholder="e.g. 200px" .value=${this.slot.card_width || ''} @input=${e => update('card_width', e.target.value)}>
+                  <label>Corner radius</label>
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <input type="range" min="0" max=${brMax} step="1" style="flex:1;" .value=${brValue} @input=${e => update('border_radius', parseInt(e.target.value))}>
+                    <input type="number" min="0" max=${brMax} style="width:56px;" .value=${brValue} @input=${e => update('border_radius', parseInt(e.target.value))}>
+                    <select style="width:56px;" @change=${e => update('border_radius_unit', e.target.value)}>
+                      <option value="px" ?selected=${brUnit === 'px'}>px</option>
+                      <option value="%" ?selected=${brUnit === '%'}>%</option>
+                    </select>
+                  </div>
                 </div>
-              ` : ''}
-
-              <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
-                <label>Responsive height (HA layout)</label>
-                <label class="toggle"><input type="checkbox" .checked=${this.slot.card_height_responsive === true} @change=${e => update('card_height_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
-              </div>
-              ${this.slot.card_height_responsive !== true ? html`
+                ${brUnit === '%' ? html`
+                  <div class="row">
+                    <label>Percent of</label>
+                    <select @change=${e => update('border_radius_ref', e.target.value)}>
+                      <option value="min" ?selected=${brRef === 'min'}>Shorter side</option>
+                      <option value="max" ?selected=${brRef === 'max'}>Longer side</option>
+                      <option value="width" ?selected=${brRef === 'width'}>Width</option>
+                      <option value="height" ?selected=${brRef === 'height'}>Height</option>
+                    </select>
+                  </div>
+                ` : ''}
+              ` : html`
+                <div class="row">
+                  <label>Card shape</label>
+                  <select @change=${e => update('layout_shape', e.target.value)}>
+                    <option value="rectangle" ?selected=${this.slot.layout_shape === 'rectangle'}>Rectangular</option>
+                    <option value="pill" ?selected=${this.slot.layout_shape === 'pill'}>Pill (rounded)</option>
+                  </select>
+                </div>
                 <div class="col">
-                  <label>Absolute height (px)</label>
-                  <input type="number" placeholder="e.g. 80" .value=${this.slot.card_height || ''} @input=${e => update('card_height', parseInt(e.target.value))}>
+                  <label>Corner radius (px)</label>
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <input type="range" min="0" max="100" step="1" style="flex:1;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
+                    <input type="number" min="0" max="100" style="width:64px;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
+                  </div>
                 </div>
-              ` : ''}
+
+                <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
+                  <label>Responsive width (HA layout)</label>
+                  <label class="toggle"><input type="checkbox" .checked=${this.slot.card_width_responsive !== false} @change=${e => update('card_width_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
+                </div>
+                ${this.slot.card_width_responsive === false ? html`
+                  <div class="col">
+                    <label>Absolute width (px or %)</label>
+                    <input type="text" placeholder="e.g. 200px" .value=${this.slot.card_width || ''} @input=${e => update('card_width', e.target.value)}>
+                  </div>
+                ` : ''}
+
+                <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
+                  <label>Responsive height (HA layout)</label>
+                  <label class="toggle"><input type="checkbox" .checked=${this.slot.card_height_responsive === true} @change=${e => update('card_height_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
+                </div>
+                ${this.slot.card_height_responsive !== true ? html`
+                  <div class="col">
+                    <label>Absolute height (px)</label>
+                    <input type="number" placeholder="e.g. 80" .value=${this.slot.card_height || ''} @input=${e => update('card_height', parseInt(e.target.value))}>
+                  </div>
+                ` : ''}
+              `}
             </div>
           </details>
 

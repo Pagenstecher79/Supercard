@@ -23,6 +23,7 @@ import {
   sectionColumns,
   gridSize,
   canvasFromGrid,
+  canvasFromCard,
   rescaleCanvas,
   canDuplicate,
   canAddKind,
@@ -487,6 +488,137 @@ describe('repointPatterns', () => {
     expect(repointPatterns({}, cellTargets).lists).toEqual({});
     expect(repointPatterns({ color_patterns: [{ target: 'r0c0' }] }, {}).lists).toEqual({});
     expect(repointPatterns(undefined, cellTargets).changed).toBe(0);
+  });
+});
+
+describe('canvasFromCard', () => {
+  const card = { grid_options: { columns: 6, rows: 4 } };
+
+  it('arranges the card own three the way the content row does', () => {
+    const canvas = canvasFromCard(card, {});
+    expect(canvas.elements.map(e => e.id)).toEqual(['icon', 'name', 'state']);
+    const [icon, name, state] = canvas.elements;
+    // icon at the left, the two lines stacked beside it
+    expect(icon.x).toBeLessThan(name.x);
+    expect(name.x).toBe(state.x);
+    expect(name.y).toBeLessThan(state.y);
+    expect(icon.w).toBe(icon.h);
+    // the icon centres against the two lines, as it does in the content row
+    const mid = el => el.y + el.h / 2;
+    expect(Math.abs(mid(icon) - (name.y + (state.y + state.h - name.y) / 2))).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps the header a row on a tall card, not a block', () => {
+    const canvas = canvasFromCard({ grid_options: { columns: 3, rows: 6 } }, {});
+    const top = Math.min(...canvas.elements.map(e => e.y));
+    const bottom = Math.max(...canvas.elements.map(e => e.y + e.h));
+    expect(bottom - top).toBeLessThanOrEqual(canvas.h * 0.25);
+  });
+
+  it('centres a header that has nothing under it', () => {
+    const canvas = canvasFromCard({ grid_options: { columns: 3, rows: 6 } }, {});
+    const top = Math.min(...canvas.elements.map(e => e.y));
+    const bottom = Math.max(...canvas.elements.map(e => e.y + e.h));
+    // The cap has nothing to make room for here, so the space is shared.
+    expect(Math.abs(top - (canvas.h - bottom))).toBeLessThanOrEqual(1);
+  });
+
+  it('leaves the header at the top when something is under it', () => {
+    const canvas = canvasFromCard({ grid_options: { columns: 3, rows: 6 } },
+      { gauge_active: true, gauges: [{}] });
+    const gauge = canvas.elements.find(e => e.id === 'gauge_0');
+    const header = canvas.elements.filter(e => e.id !== 'gauge_0');
+    expect(Math.max(...header.map(e => e.y + e.h))).toBeLessThanOrEqual(gauge.y);
+    expect(Math.min(...header.map(e => e.y))).toBeLessThan(canvas.h * 0.1);
+  });
+
+  it('gives the two lines the whole band when the icon is hidden', () => {
+    const canvas = canvasFromCard(card, { hide_icon: true });
+    const [name, state] = canvas.elements;
+    expect(name.x).toBe(state.x);
+    expect(name.w).toBeGreaterThan(canvas.w * 0.8);
+  });
+
+  it('fills the band rather than taking a default box', () => {
+    const canvas = canvasFromCard(card, {
+      hide_icon: true, hide_entity_name: true, hide_entity_state: true,
+      progressbar_active: true, progressbars: [{}],
+    });
+    const [bar] = canvas.elements;
+    expect(bar.w).toBeGreaterThan(canvas.w * 0.8);
+    expect(bar.h).toBeGreaterThan(canvas.h * 0.5);
+  });
+
+  it('keeps a gauge square and centred in its band', () => {
+    const canvas = canvasFromCard(card, {
+      hide_icon: true, hide_entity_name: true, hide_entity_state: true,
+      gauge_active: true, gauges: [{}],
+    });
+    const [g] = canvas.elements;
+    expect(g.w).toBe(g.h);
+    expect(Math.abs((g.x + g.w / 2) - canvas.w / 2)).toBeLessThanOrEqual(1);
+  });
+
+  it('leaves out what the card has switched off', () => {
+    const canvas = canvasFromCard(card, { hide_icon: true, hide_entity_state: true });
+    expect(canvas.elements.map(e => e.id)).toEqual(['name']);
+  });
+
+  it('gives every drawn gauge, bar and label a band of its own below', () => {
+    const canvas = canvasFromCard(card, {
+      hide_icon: true, hide_entity_name: true, hide_entity_state: true,
+      gauge_active: true, gauges: [{}, {}],
+      progressbar_active: true, progressbars: [{}],
+      labels_list: [{ enabled: true }],
+    });
+    expect(canvas.elements.map(e => e.id))
+      .toEqual(['gauge_0', 'gauge_1', 'progressbar_0', 'label_0']);
+    const ys = canvas.elements.map(e => e.y);
+    expect([...ys].sort((a, b) => a - b)).toEqual(ys);
+  });
+
+  it('never resurrects what a module switch has switched off', () => {
+    const canvas = canvasFromCard(card, {
+      hide_icon: true, hide_entity_name: true, hide_entity_state: true,
+      gauges: [{}], progressbars: [{}], gauge_active: false, progressbar_active: false,
+    });
+    expect(canvas.elements).toEqual([]);
+  });
+
+  it('honours a bar switched off on its own, and a label not enabled', () => {
+    const canvas = canvasFromCard(card, {
+      hide_icon: true, hide_entity_name: true, hide_entity_state: true,
+      progressbar_active: true, progressbars: [{ active: false }, {}],
+      labels_list: [{ enabled: false }, { enabled: true }],
+    });
+    expect(canvas.elements.map(e => e.id)).toEqual(['progressbar_1', 'label_1']);
+  });
+
+  it('carries the legacy single gauge over', () => {
+    const canvas = canvasFromCard(card, { gauge_active: true, entity: 'sensor.a' });
+    expect(canvas.elements.map(e => e.id)).toContain('gauge_0');
+  });
+
+  it('takes the shape of the card box, not a default', () => {
+    const wide = canvasFromCard({ grid_options: { columns: 12, rows: 2 } }, {});
+    const tall = canvasFromCard({ grid_options: { columns: 3, rows: 8 } }, {});
+    expect(wide.w / wide.h).toBeGreaterThan(tall.w / tall.h);
+  });
+
+  it('keeps every box on the canvas', () => {
+    const canvas = canvasFromCard(card, {
+      gauge_active: true, gauges: [{}, {}], labels_list: [{ enabled: true }, { enabled: true }],
+    });
+    for (const el of canvas.elements) {
+      expect(el.x).toBeGreaterThanOrEqual(0);
+      expect(el.y).toBeGreaterThanOrEqual(0);
+      expect(el.x + el.w).toBeLessThanOrEqual(canvas.w);
+      expect(el.y + el.h).toBeLessThanOrEqual(canvas.h);
+    }
+  });
+
+  it('never returns an empty canvas for a card that draws something', () => {
+    expect(canvasFromCard(card, {}).elements.length).toBeGreaterThan(0);
   });
 });
 

@@ -887,8 +887,9 @@ Object.assign(window.SupercardModules['color'], (() => {
       let borderRadius = 'inherit';
       if (isAutoBorder) {
         if (isMain) {
-          const isPill = config.layout_shape !== 'rectangle';
-          borderRadius = isPill ? '999px' : (config.border_radius !== undefined ? `${config.border_radius}px` : 'var(--ha-card-border-radius, 12px)');
+          // The card's own corner, in whatever shape and unit it is set: a
+          // full-card pattern that guessed at it would paint over the corner.
+          borderRadius = SC.cardRadius(config) ?? 'var(--ha-card-border-radius, 12px)';
         } else {
           borderRadius = 'inherit';
         }

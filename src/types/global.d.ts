@@ -92,6 +92,25 @@ declare global {
      * `gauge_size_responsive`. The renderer and fx-glass must agree on it.
      */
     gaugeIsResponsive: (gaugeConfig: any, onCanvas?: boolean) => boolean;
+    /**
+     * Whether the card draws from its canvas - a `canvas` key plus the
+     * `layout_active` that gates the renderer. A card with the layout off
+     * draws the plain content row whatever canvas it still carries.
+     */
+    onCanvas: (slot: any) => boolean;
+    /**
+     * Whether the card draws itself as a pill. Never on a canvas card, where
+     * the shape control is not offered and a leftover `pill` would be a shape
+     * nothing could change.
+     */
+    cardIsPill: (slot: any) => boolean;
+    /**
+     * The card's corner radius as a CSS length, or null when it has not set
+     * one - the fallback differs per caller. A `%` radius is resolved against
+     * the named side of the card's measured size, because border-radius's own
+     * percentage draws an ellipse rather than a corner.
+     */
+    cardRadius: (slot: any) => string | null;
     /** Shared chrome for the card-list module editors (ha-switch family). */
     editorStyles: CSSResult;
     /** Shared chrome for the compact config forms (.toggle family). */
