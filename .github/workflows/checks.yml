@@ -1,0 +1,43 @@
+name: Checks
+
+# The release workflow builds on a tag, which is the worst moment to find out
+# that the build is broken: it publishes to every installed user, immediately.
+# So the same three commands run on every push and pull request instead.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    name: Tests, types, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # src/canvas-model.js is the one thing here worth unit-testing: it is the
+      # pure layout migration, where a wrong number silently moves every
+      # element on someone's dashboard.
+      - name: Test
+        run: npm test
+
+      # Named explicitly in the script - there is no tsconfig.json, and a bare
+      # `tsc --noEmit` would find no project and check nothing.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
