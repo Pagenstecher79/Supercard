@@ -620,6 +620,21 @@ describe('canvasFromCard', () => {
   it('never returns an empty canvas for a card that draws something', () => {
     expect(canvasFromCard(card, {}).elements.length).toBeGreaterThan(0);
   });
+
+  it('shapes a full-width card to the section it is in', () => {
+    // The same trap Convert had: a card filling a section two columns wide is
+    // 968px, not 480, and given one section's worth it would take the ratio of
+    // a card half its width and letterbox everything on it.
+    const full = { grid_options: { columns: 'full', rows: 4 } };
+    expect(canvasFromCard(full, {}, 24).h).toBeLessThan(canvasFromCard(full, {}).h);
+    expect(canvasFromCard(full, {}, 24)).toMatchObject(
+      { w: canvasFromGrid(full, {}, 400, 24).w, h: canvasFromGrid(full, {}, 400, 24).h });
+  });
+
+  it('leaves a card narrower than one section alone', () => {
+    const six = { grid_options: { columns: 6, rows: 4 } };
+    expect(canvasFromCard(six, {}, 24).h).toBe(canvasFromCard(six, {}).h);
+  });
 });
 
 describe('resolveSnap', () => {

@@ -2053,15 +2053,16 @@ Object.assign(window.SupercardModules['layout'], (() => {
             switch back by deleting <code>canvas</code> in the YAML editor.
           </span>
           <button type="button" style="background: var(--primary-color,#03a9f4); border: none; color: #fff; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap;"
-            @click=${() => {
+            @click=${e => {
               // Rows, a cell, content, convert - four steps of the old model to
               // reach the new one. There is nothing to migrate on a card like
               // this, so the canvas is built from what the card draws instead.
               // layout_active gates the renderer, so a canvas without it is a
               // canvas nobody sees - and it travels in the same commit,
               // because a second one in this tick would be lost.
-              commitFn('__merge__', { canvas: canvasFromCard(cardConfig, slot),
-                                      layout_active: true, ...pillAsRadius });
+              commitFn('__merge__', {
+                canvas: canvasFromCard(cardConfig, slot, sectionColumns(e.currentTarget)),
+                layout_active: true, ...pillAsRadius });
             }}>
             Use canvas
           </button>
