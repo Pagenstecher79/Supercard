@@ -258,36 +258,6 @@ export function targetedCells(slot) {
 }
 
 /**
- * The canvas a card should be rendered from.
- *
- * A configuration that already has one is used as is. One that only has
- * `layout_rows` is migrated on the way in, and **not** written back: a card
- * that rewrites stored config just for being displayed can corrupt a
- * dashboard while nobody is watching. The editor persists the migration when
- * the user next saves.
- *
- * The result is cached against the `layout_rows` array identity, because this
- * runs on every render and the arithmetic is pure.
- *
- * @param {any} slot
- * @returns {{ w: number, h: number, grid?: number, snap?: number, elements: any[] } | null}
- */
-const migrationCache = new WeakMap();
-export function resolveCanvas(slot) {
-  if (slot?.canvas && Array.isArray(slot.canvas.elements)) return slot.canvas;
-  const rows = slot?.layout_rows;
-  if (!Array.isArray(rows) || rows.length === 0) return null;
-
-  const cached = migrationCache.get(rows);
-  if (cached) return cached;
-
-  const { elements } = migrateLayoutToCanvas(rows, DEFAULT_CANVAS, { targetedCells: targetedCells(slot) });
-  const canvas = { ...DEFAULT_CANVAS, elements };
-  migrationCache.set(rows, canvas);
-  return canvas;
-}
-
-/**
  * The step placement snaps to, in virtual units.
  *
  * Tri-state, so one field cannot contradict another: `snap` unset means snap
