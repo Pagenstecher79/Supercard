@@ -228,6 +228,17 @@ Object.assign(window.SupercardUtils, (() => {
         elements[`label_${idx}`] = `Label: ${l.label_text || l.entity || idx + 1}`;
       });
     }
+    // A surface is in none of the lists above: it has no entity and no config
+    // of its own, and exists only as a box on the canvas. Being painted is the
+    // whole reason it exists, so it has to be offerable as a target - without
+    // this, migration created surfaces that no editor could then address.
+    if (Array.isArray(slot?.canvas?.elements)) {
+      for (const el of slot.canvas.elements) {
+        if (!el?.surface || typeof el.id !== 'string') continue;
+        const n = /^surface_(\d+)$/.exec(el.id);
+        elements[el.id] = n ? `Surface ${Number(n[1]) + 1}` : 'Surface';
+      }
+    }
     return elements;
   }
 

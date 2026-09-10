@@ -31,8 +31,11 @@ function getTargets(slot) {
     });
   }
 
-  // Layout cells
-  if (Array.isArray(slot.layout_rows)) {
+  // Layout cells - not on a canvas, where the parts these name are gone. A
+  // surface is deliberately not offered here either: .sc-surface is
+  // pointer-events: none, so a decorative box does not eat the clicks meant
+  // for what is drawn over it.
+  if (!slot?.canvas && Array.isArray(slot.layout_rows)) {
     const els = getAvailableElements(slot);
     slot.layout_rows.forEach((row, rIdx) => {
       row.cells.forEach((cell, cIdx) => {
@@ -45,7 +48,10 @@ function getTargets(slot) {
     });
   }
 
-  return targets;
+  // An element the canvas does not place is not on the card at all, so there is
+  // nothing there to click. showsElement passes everything on a rows card, so
+  // this only bites on a canvas.
+  return targets.filter(t => !t.group.startsWith('Elements') || SC.showsElement(slot, t.id));
 }
 
 // --- THE EDITOR ---

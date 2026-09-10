@@ -349,6 +349,35 @@ the very elements it was emitted underneath. The `::before` keeps its own
 `z-index: -1`, which puts the paint behind the element's content within the
 element's own stacking context, and leaves the siblings alone.
 
+### What the target pickers offer
+
+Paintable is not the same as selectable. Colour, fx-glass and interaction each
+build their own target list, and all three used to list `layout_rows` - which a
+converted card keeps, so a canvas card offered cell ids naming parts that had
+stopped existing, and offered no surface at all, because `SC.getAvailableElements`
+only knew the gauges, bars and labels the lists contain.
+
+Two rules now decide, and they are the same rule seen twice: a target is offered
+only if the card actually draws the box it names.
+
+- On a canvas the cells group is suppressed and the element group takes over,
+  surfaces included. On a rows card it is the other way round, unchanged.
+- An element the canvas does not place is left out, through `SC.showsElement` -
+  the same helper that stops the module creating it. `.sc-content-row` is
+  `display: none` under `layout_active`, so an unplaced icon, name or state is
+  not on the card either, and a gauge or bar is not created at all. On a rows
+  card `showsElement` says yes to everything, so the filter only bites where it
+  should.
+
+Interaction deliberately offers no surface. `.sc-canvas .sc-surface` is
+`pointer-events: none`, so a decorative box does not eat the clicks meant for
+whatever is drawn over it - a surface that could be given a tap action would be
+a surface that silently swallows one.
+
+The three lists still format that answer their own way, and one difference is a
+stored format, not a style: colour and fx-glass write `elm_gauge_0`, interaction
+writes `gauge_0`. Changing that means migrating saved cards, so it stays.
+
 ### Verified against real configurations
 
 The arithmetic in `src/canvas-model.js` was run against 30 Supercards from a
