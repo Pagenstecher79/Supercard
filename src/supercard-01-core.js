@@ -730,6 +730,13 @@ class SupercardModularEditor extends LitElement {
           const mod = window.SupercardModules[modKey];
           const blocks = [];
 
+          // On a canvas card the elements themselves are added and configured
+          // on the canvas, selection by selection, so the module's own list of
+          // every gauge or label would be a second way to do the same job. A
+          // card still on rows and cells keeps its sections - that is the only
+          // editor it has.
+          if (slot.canvas && mod.ownedByCanvas) return blocks;
+
           if (typeof mod.editorFields === 'function') {
             const fields = mod.editorFields?.() ?? [];
             if (fields.length > 0) {

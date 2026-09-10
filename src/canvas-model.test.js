@@ -18,6 +18,9 @@ import {
   canvasFromGrid,
   rescaleCanvas,
   canDuplicate,
+  canAddKind,
+  addElement,
+  NEW_ELEMENT_KINDS,
   duplicateElement,
 } from './canvas-model.js';
 import fixtures from './__fixtures__/real-layouts.json' with { type: 'json' };
@@ -776,5 +779,132 @@ describe('duplicateElement', () => {
     });
     expect(canDuplicate({}, { id: 'gauge_0' })).toBe(false);
     expect(canDuplicate(s, { id: 'gauge_9' })).toBe(false);
+  });
+});
+
+describe('addElement', () => {
+  const slot = () => ({
+    gauges: [{ entity: 'sensor.a' }],
+    progressbars: [{ entity: 'sensor.b' }, { entity: 'sensor.c' }],
+    labels_list: [{ label_text: 'one' }],
+    gauge_active: true,
+  });
+  const canvas = () => ({ w: 400, h: 400, grid: 25, elements: [
+    { id: 'gauge_0', x: 0, y: 0, w: 100, h: 100 },
+    { id: 'surface_0', surface: true, x: 200, y: 200, w: 100, h: 50 },
+  ]});
+
+  it('appends the entry and names the element after its index', () => {
+    const made = addElement(slot(), canvas(), 'progressbar', { entity: '' });
+    expect(made.id).toBe('progressbar_2');
+    expect(made.patch.progressbars).toHaveLength(3);
+    expect(made.canvas.elements.at(-1).id).toBe('progressbar_2');
+  });
+
+  it('starts a list the card does not have yet', () => {
+    const made = addElement({}, canvas(), 'label', { label_text: '' });
+    expect(made.id).toBe('label_0');
+    expect(made.patch.labels_list).toEqual([{ label_text: '' }]);
+  });
+
+  it('turns the module on, and leaves one that is already on alone', () => {
+    expect(addElement({}, canvas(), 'progressbar', {}).patch.progressbar_active).toBe(true);
+    expect(addElement(slot(), canvas(), 'gauge', {}).patch)
+      .not.toHaveProperty('gauge_active');
+  });
+
+  it('gives a surface a free id and no definition', () => {
+    const made = addElement(slot(), canvas(), 'surface');
+    expect(made.id).toBe('surface_1');
+    expect(made.patch).toEqual({});
+    expect(made.canvas.elements.at(-1).surface).toBe(true);
+  });
+
+  it('centres the box on the point it is placed at, snapped', () => {
+    const made = addElement(slot(), canvas(), 'gauge', {}, { x: 210, y: 190 });
+    const el = made.canvas.elements.at(-1);
+    expect({ w: el.w, h: el.h }).toEqual({ w: 75, h: 75 });   // a fifth of 400, snapped
+    expect({ x: el.x, y: el.y }).toEqual({ x: 175, y: 150 }); // 210-37.5 -> 175
+  });
+
+  it('keeps the box on the canvas whatever it is aimed at', () => {
+    const c = canvas();
+    for (const at of [{ x: 0, y: 0 }, { x: 400, y: 400 }, { x: -80, y: 600 }]) {
+      const el = addElement(slot(), c, 'surface', undefined, at).canvas.elements.at(-1);
+      expect(el.x).toBeGreaterThanOrEqual(0);
+      expect(el.y).toBeGreaterThanOrEqual(0);
+      expect(el.x + el.w).toBeLessThanOrEqual(c.w);
+      expect(el.y + el.h).toBeLessThanOrEqual(c.h);
+    }
+  });
+
+  it('puts an unplaced element of the card itself on the canvas', () => {
+    const made = addElement(slot(), canvas(), 'icon');
+    expect(made.id).toBe('icon');
+    expect(made.patch).toEqual({});
+    expect(made.canvas.elements).toHaveLength(3);
+  });
+
+  it('is square for a gauge and a flat strip for everything else', () => {
+    const c = canvas();
+    const box = what => { const e = addElement(slot(), c, what, {}).canvas.elements.at(-1);
+                          return [e.w, e.h]; };
+    expect(box('gauge')).toEqual([75, 75]);
+    expect(box('surface')).toEqual([150, 75]);
+    expect(box('progressbar')).toEqual([125, 50]);
+  });
+
+  it('never returns a box smaller than one step, on any canvas', () => {
+    for (const c of [{ w: 40, h: 20, snap: 0 }, { w: 400, h: 200 }, { w: 30, h: 30, grid: 25 }]) {
+      for (const k of NEW_ELEMENT_KINDS) {
+        const el = addElement({}, { ...c, elements: [] }, k.kind, {}).canvas.elements.at(-1);
+        expect(el.w).toBeGreaterThan(0);
+        expect(el.h).toBeGreaterThan(0);
+        expect(el.x + el.w).toBeLessThanOrEqual(c.w);
+        expect(el.y + el.h).toBeLessThanOrEqual(c.h);
+      }
+    }
+  });
+
+  it('refuses an unknown kind, and an element the canvas already shows', () => {
+    expect(addElement(slot(), canvas(), 'sausage')).toBe(null);
+    expect(addElement(slot(), canvas(), 'gauge_0')).toBe(null);
+    expect(addElement(slot(), canvas(), '')).toBe(null);
+  });
+
+  it('places only ids the card actually backs', () => {
+    const s = slot(), c = canvas();
+    for (const id of ['icon', 'name', 'state', 'progressbar_1', 'label_0', 'label_0_icon']) {
+      expect(addElement(s, c, id)?.id).toBe(id);
+    }
+    for (const id of ['progressbar_2', 'label_1', 'label_1_value', 'gauge_1', 'surface_9']) {
+      expect(addElement(s, c, id)).toBe(null);
+    }
+    // the single gauge of a slot that never grew an array is still an element
+    expect(addElement({ gauge_active: true }, { ...c, elements: [] }, 'gauge_0')?.id).toBe('gauge_0');
+  });
+
+  it('refuses a gauge on a slot that is itself the gauge', () => {
+    const legacy = { gauge_active: true };
+    expect(canAddKind(legacy, 'gauge')).toBe(false);
+    expect(addElement(legacy, canvas(), 'gauge', {})).toBe(null);
+    // with the module off there is no gauge to lose, so the array may start
+    expect(canAddKind({}, 'gauge')).toBe(true);
+    expect(addElement({}, canvas(), 'gauge', {}).id).toBe('gauge_0');
+  });
+
+  it('leaves the original canvas and slot alone', () => {
+    const s = slot(), c = canvas();
+    for (const k of NEW_ELEMENT_KINDS) addElement(s, c, k.kind, { entity: '' });
+    expect(s).toEqual(slot());
+    expect(c).toEqual(canvas());
+  });
+
+  it('canAddKind agrees with it', () => {
+    for (const s of [slot(), {}, { gauge_active: true }]) {
+      for (const k of NEW_ELEMENT_KINDS) {
+        expect(canAddKind(s, k.kind)).toBe(addElement(s, canvas(), k.kind, {}) !== null);
+      }
+    }
   });
 });

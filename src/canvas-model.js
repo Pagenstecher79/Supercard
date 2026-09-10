@@ -570,3 +570,158 @@ export function duplicateElement(slot, canvas, idx) {
     y: Math.max(0, Math.min(el.y + step, canvas.h - el.h)) };
   return { canvas: { ...canvas, elements: [...elements, copy] }, patch, id };
 }
+
+/**
+ * The kinds of element the canvas can create, in the order the menu offers
+ * them.
+ *
+ * `module` names the `SupercardModules` entry whose `newEntry` supplies a
+ * fresh definition - what a new gauge or label contains belongs to the module
+ * that renders it - `key` the slot list the definition is appended to, and
+ * `active` the module switch that has to be on before it draws anything. A
+ * surface has none of the three: it exists only on the canvas.
+ */
+export const NEW_ELEMENT_KINDS = Object.freeze([
+  Object.freeze({ kind: 'gauge', label: 'Gauge', module: 'gauge',
+                  key: 'gauges', active: 'gauge_active', legacySingle: true }),
+  Object.freeze({ kind: 'progressbar', label: 'Progressbar', module: 'progressbar',
+                  key: 'progressbars', active: 'progressbar_active' }),
+  Object.freeze({ kind: 'label', label: 'Label', module: 'labels', key: 'labels_list' }),
+  Object.freeze({ kind: 'surface', label: 'Surface' }),
+]);
+
+/**
+ * Whether the card can take another element of this kind.
+ *
+ * Only one thing says no: a card whose gauge *is* the slot, from before
+ * `gauges` was an array. There is no array to append to, and writing one
+ * would replace that gauge rather than add a second - the same reason
+ * `duplicateElement` refuses it.
+ *
+ * @param {any} slot
+ * @param {string} kind
+ * @returns {boolean}
+ */
+export function canAddKind(slot, kind) {
+  const spec = NEW_ELEMENT_KINDS.find(k => k.kind === kind);
+  if (!spec) return false;
+  return !(spec.legacySingle && !Array.isArray(slot?.[spec.key]) && !!slot?.[spec.active]);
+}
+
+/**
+ * The box a new element gets: a fifth of the canvas' shorter side, centred on
+ * `at` and snapped to the grid, clamped so it lands on the canvas whole.
+ *
+ * Sized from the canvas rather than from the snap step, because the step is
+ * 1 unit on a free canvas and a four-unit box is invisible. A gauge is
+ * square because it has to be, a surface is twice as wide as it is tall
+ * because a backdrop is, and everything else is a flat strip, which is the
+ * shape of a bar and of a line of text.
+ *
+ * @param {{w: number, h: number, grid?: number, snap?: number}} canvas
+ * @param {string} id
+ * @param {boolean} surface
+ * @param {{x: number, y: number}} [at] defaults to the middle of the canvas
+ * @returns {{x: number, y: number, w: number, h: number}}
+ */
+function newBox(canvas, id, surface, at) {
+  const step = resolveSnap(canvas);
+  const snap = v => Math.max(step, Math.round(v / step) * step);
+  const side = snap(Math.min(canvas.w, canvas.h) / 5);
+
+  let w = side, h = side;
+  if (surface) w = snap(side * 2);
+  else if (!isSquareLocked({ id })) { w = snap(side * 1.5); h = snap(side * 0.5); }
+  w = Math.min(w, canvas.w);
+  h = Math.min(h, canvas.h);
+
+  const cx = at ? at.x : canvas.w / 2;
+  const cy = at ? at.y : canvas.h / 2;
+  return {
+    x: Math.max(0, Math.min(Math.round((cx - w / 2) / step) * step, canvas.w - w)),
+    y: Math.max(0, Math.min(Math.round((cy - h / 2) / step) * step, canvas.h - h)),
+    w, h,
+  };
+}
+
+/**
+ * Whether an id names an element the card actually has, and so one the canvas
+ * can be told to show.
+ *
+ * The same answer `listElements` and `getLayoutTargets` give, over ids rather
+ * than over the card: three elements are the card's own, the rest are an
+ * index into a list, and a gauge on a slot that never grew a `gauges` array
+ * is the single legacy one. An id nothing backs would draw an empty box for
+ * ever, so it is refused rather than placed.
+ *
+ * @param {any} slot
+ * @param {string} id
+ * @returns {boolean}
+ */
+function placeableId(slot, id) {
+  if (id === 'icon' || id === 'name' || id === 'state') return true;
+  let m;
+  if ((m = /^gauge_(\d+)$/.exec(id))) {
+    return Array.isArray(slot?.gauges)
+      ? Number(m[1]) < slot.gauges.length
+      : (!!slot?.gauge_active && m[1] === '0');
+  }
+  if ((m = /^progressbar_(\d+)$/.exec(id))) {
+    return Array.isArray(slot?.progressbars) && Number(m[1]) < slot.progressbars.length;
+  }
+  if ((m = /^label_(\d+)(?:_(?:icon|name|value))?$/.exec(id))) {
+    return Array.isArray(slot?.labels_list) && Number(m[1]) < slot.labels_list.length;
+  }
+  return false;
+}
+
+/**
+ * A new element on the canvas, and the definition behind it.
+ *
+ * `what` is either one of `NEW_ELEMENT_KINDS`' kinds - a new gauge, bar,
+ * label or surface - or the id of something the card already has and the
+ * canvas does not show yet, which needs no definition at all. `entry` is the
+ * fresh list entry for the first case; see `NEW_ELEMENT_KINDS` for why it is
+ * passed in rather than built here.
+ *
+ * Pure, and null when there is nothing to add: an unknown kind, one the card
+ * cannot take (`canAddKind`), an id nothing backs, or one the canvas already
+ * shows.
+ *
+ * @param {any} slot
+ * @param {any} canvas
+ * @param {string} what a kind, or the id of an existing element
+ * @param {any} [entry] the new list entry, for a kind that has a list
+ * @param {{x: number, y: number}} [at] point the box is centred on
+ * @returns {{ canvas: any, patch: Record<string, any>, id: string } | null}
+ */
+export function addElement(slot, canvas, what, entry, at) {
+  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
+  const spec = NEW_ELEMENT_KINDS.find(k => k.kind === what);
+  /** @type {Record<string, any>} */
+  const patch = {};
+  let id = String(what || ''), surface = false;
+
+  if (spec) {
+    if (!canAddKind(slot, what)) return null;
+    if (spec.key) {
+      const list = Array.isArray(slot?.[spec.key]) ? slot[spec.key] : [];
+      id = `${spec.kind}_${list.length}`;
+      patch[spec.key] = [...list, structuredClone(entry ?? {})];
+      // Nothing renders while its module is off, and the switch that used to
+      // turn it on is in the section the canvas replaces.
+      if (spec.active && !slot?.[spec.active]) patch[spec.active] = true;
+    } else {
+      surface = true;
+      let n = 0;
+      while (elements.some(e => e.id === `surface_${n}`)) n++;
+      id = `surface_${n}`;
+    }
+  } else if (!placeableId(slot, id) || elements.some(e => e.id === id)) {
+    return null;
+  }
+
+  const el = { id, ...(surface ? { surface: true } : { inner: 'cc' }),
+               ...newBox(canvas, id, surface, at) };
+  return { canvas: { ...canvas, elements: [...elements, el] }, patch, id };
+}
