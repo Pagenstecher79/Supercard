@@ -6,6 +6,9 @@ import {
   cellWidths,
   migrateLayoutToCanvas,
   paintedCells,
+  colouredCells,
+  glassedCells,
+  soleElementTargets,
   clickedCells,
   deadCellTargets,
   repointPatterns,
@@ -985,5 +988,101 @@ describe('addElement', () => {
         expect(canAddKind(s, k.kind)).toBe(addElement(s, canvas(), k.kind, {}) !== null);
       }
     }
+  });
+});
+
+describe('soleElementTargets', () => {
+  const cell = (content, extra = {}) => ({ id: 'c', content, width: 100, ...extra });
+
+  it('names the one element a cell holds, in the form the pattern lists use', () => {
+    const rows = [{ id: 'r', cells: [cell('gauge_0'), cell('label_1')] }];
+    expect(soleElementTargets(rows)).toEqual({ r0c0: 'elm_gauge_0', r0c1: 'elm_label_1' });
+  });
+
+  it('skips a cell with nothing in it', () => {
+    const rows = [{ id: 'r', cells: [cell('empty'), cell(undefined), { id: 'c', items: [] }] }];
+    expect(soleElementTargets(rows)).toEqual({});
+  });
+
+  it('skips a cell holding more than one element - there is nothing single to follow', () => {
+    const rows = [{ id: 'r', cells: [{ id: 'c', items: [{ id: 'name' }, { id: 'state' }] }] }];
+    expect(soleElementTargets(rows)).toEqual({});
+  });
+
+  it('takes the single item of an items cell', () => {
+    const rows = [{ id: 'r', cells: [{ id: 'c', items: [{ id: 'progressbar_2' }] }] }];
+    expect(soleElementTargets(rows)).toEqual({ r0c0: 'elm_progressbar_2' });
+  });
+
+  it('counts rows and cells from zero, like every other cell key', () => {
+    const rows = [
+      { id: 'a', cells: [cell('empty'), cell('icon')] },
+      { id: 'b', cells: [cell('gauge_0')] },
+    ];
+    expect(soleElementTargets(rows)).toEqual({ r0c1: 'elm_icon', r1c0: 'elm_gauge_0' });
+  });
+
+  it('is empty for anything that is not a list of rows', () => {
+    expect(soleElementTargets(undefined)).toEqual({});
+    expect(soleElementTargets(/** @type {any} */ ({}))).toEqual({});
+    expect(soleElementTargets([{ id: 'r' }])).toEqual({});
+  });
+});
+
+describe('colouredCells and glassedCells', () => {
+  const slot = {
+    color_patterns: [{ target: 'r0c0' }, { target: 'main' }],
+    fx_glass_patterns: [{ target: 'r1c1' }, { target: 'r0c0' }, { target: 'elm_gauge_0' }],
+  };
+
+  it('separates the two lists paintedCells unions', () => {
+    expect(colouredCells(slot)).toEqual(['r0c0']);
+    expect(glassedCells(slot)).toEqual(['r1c1', 'r0c0']);
+  });
+
+  it('leaves paintedCells the union of the two, each cell once', () => {
+    expect(paintedCells(slot).sort()).toEqual(['r0c0', 'r1c1']);
+  });
+});
+
+describe('repointPatterns with glass following the element', () => {
+  const cellTargets = { r0c0: 'elm_surface_0', r1c0: 'elm_surface_1' };
+  const follows = { r0c0: 'elm_gauge_0', r1c0: 'elm_label_0' };
+
+  it('sends the glass to the element and the colour to the surface', () => {
+    const slot = {
+      color_patterns: [{ id: 1, target: 'r0c0' }],
+      fx_glass_patterns: [{ id: 2, target: 'r0c0' }],
+    };
+    const { lists, changed } = repointPatterns(slot, cellTargets, follows);
+    expect(changed).toBe(2);
+    expect(lists.color_patterns[0].target).toBe('elm_surface_0');
+    expect(lists.fx_glass_patterns[0].target).toBe('elm_gauge_0');
+  });
+
+  it('sends the glass to the element even where no surface was made', () => {
+    const slot = { fx_glass_patterns: [{ id: 2, target: 'r1c0' }] };
+    const { lists } = repointPatterns(slot, {}, follows);
+    expect(lists.fx_glass_patterns[0].target).toBe('elm_label_0');
+  });
+
+  it('falls back to the surface for a cell with nothing single to follow', () => {
+    const slot = { fx_glass_patterns: [{ id: 2, target: 'r1c0' }] };
+    const { lists } = repointPatterns(slot, cellTargets, {});
+    expect(lists.fx_glass_patterns[0].target).toBe('elm_surface_1');
+  });
+
+  it('behaves exactly as before when no glass map is given', () => {
+    const slot = {
+      color_patterns: [{ id: 1, target: 'r0c0' }],
+      fx_glass_patterns: [{ id: 2, target: 'r1c0' }],
+    };
+    expect(repointPatterns(slot, cellTargets)).toEqual(repointPatterns(slot, cellTargets, {}));
+  });
+
+  it('never mutates the lists it was given', () => {
+    const slot = { fx_glass_patterns: [{ id: 2, target: 'r0c0' }] };
+    repointPatterns(slot, cellTargets, follows);
+    expect(slot.fx_glass_patterns[0].target).toBe('r0c0');
   });
 });
