@@ -15,8 +15,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # The tag object itself, not just the commit it points at - the
-          # release intro is read from its message below.
+          # Full history: the release intro is read from the tag's own
+          # message below, and checkout leaves only a lightweight ref behind
+          # (see that step).
           fetch-depth: 0
 
       - name: Setup Node
@@ -33,6 +34,13 @@ jobs:
       - name: Take the release intro from the tag message
         run: |
           set -eu
+          # actions/checkout fetches every tag, then overwrites this one with
+          # a lightweight ref to the commit it points at
+          # (+<sha>:refs/tags/<name>), so the annotated object is gone by the
+          # time this step runs and the guard below writes nothing. Fetch the
+          # tag object back first.
+          git fetch --force origin \
+            "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
           # Only an annotated tag carries a message of its own. For a
           # lightweight tag %(contents:body) silently falls back to the commit
           # body - trailers and all - so guard on the object type and write
