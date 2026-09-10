@@ -100,12 +100,12 @@ Object.assign(window.SupercardUtils, (() => {
    * Both the renderer and fx-glass have to reach the same answer - fx-glass
    * picks `cqmin` or `px` units from it - so it is decided once, here.
    *
-   * The strict `=== true` is deliberate and pre-dates this helper. The gauge
-   * editor hides the pixel field on `String(v) === 'true'`, so a config
-   * carrying the *string* "true" - which a hand-written one can - hides the
-   * control while the gauge still renders at that pixel size. Widening the
-   * test here would fix the mismatch and silently resize those cards, which is
-   * a decision of its own; this helper reproduces today's behaviour.
+   * The string "true" counts, which a hand-written config can carry where the
+   * editor's checkbox would have written a boolean. Both editor controls have
+   * always read it that way - the checkbox shows such a card as switched on,
+   * and the pixel field hides itself - so only the renderer disagreed, and a
+   * card in that state offered no size control while still drawing at
+   * `gauge_size_px`. Everything now goes through this one test.
    *
    * @param {any} gaugeConfig one entry of `gauges`
    * @param {boolean} [onCanvas] whether the card renders from a canvas
@@ -113,7 +113,8 @@ Object.assign(window.SupercardUtils, (() => {
    */
   function gaugeIsResponsive(gaugeConfig, onCanvas) {
     if (onCanvas) return true;
-    return gaugeConfig?.gauge_size_responsive === true;
+    const v = gaugeConfig?.gauge_size_responsive;
+    return v === true || v === 'true';
   }
 
   /**

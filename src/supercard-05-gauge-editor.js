@@ -19,9 +19,9 @@ const STYLE_FIELDS = [
   // Both are hidden on a canvas, where the element's box is the size and a
   // second, contradicting figure here would be a trap rather than a setting.
   { id: 'gauge_size_responsive', label: 'Responsive size (auto scaling)', type: 'checkbox', condition: (cfg, slot) => !slot?.canvas },
-  // Stringified on purpose: a config written by hand can carry the string
-  // "true" instead of the boolean, and that has always counted as enabled here.
-  { id: 'gauge_size_px',         label: 'Size (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', condition: (cfg, slot) => !slot?.canvas && String(cfg.gauge_size_responsive) !== 'true' },
+  // The same helper the renderer uses, so the control cannot disappear on a
+  // card that is still being drawn at a pixel size.
+  { id: 'gauge_size_px',         label: 'Size (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', condition: (cfg, slot) => !slot?.canvas && !SC.gaugeIsResponsive(cfg) },
   { id: 'gauge_offset_x',      label: 'Offset X (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
   { id: 'gauge_offset_y',      label: 'Offset Y (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
 
