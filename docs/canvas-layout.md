@@ -602,10 +602,29 @@ would be handed a new `.config` at pointer frequency and re-render completely
 on each frame. During a drag the boxes come back. It is also the clearer thing
 to drag.
 
-The remaining gap is typography: `_itemStyles` addresses `::slotted(...)` and
-`.sc-item-slot[data-item-id]`, neither of which exists in the editor, so text
-inside a previewed element is at its default size rather than the card's. The
-geometry - which is what the canvas editor is for - is exact.
+### The text has to be the card's text
+
+An element's typography is not in the element's own config. The Layout tab
+sets `font_size` / `font_weight` / `font_color` on the *canvas element*, and
+the card turns that into CSS on the slot it renders the element into. Anything
+the element then sizes in `em` or `%` resolves against that.
+
+So the preview has to carry the same CSS, or it is not previewing the card: a
+bar with `value_font_size: 3em` in an element with `font_size: 6px` drew at
+18px on the card and at 39px in the preview - more than twice as large, which
+is enough for a value and its label to end up on top of each other.
+`itemTypography` builds those rules for both, taking the two selectors as
+arguments, because the card puts them on `.sc-item-slot` and the editor on its
+own box.
+
+The box's own styling had the same problem from the other side: `.el` draws
+the element's id at 10px bold, and everything in the box inherited it,
+including the previewed component. Live boxes put the text properties back to
+inherited, so a previewed element resolves relative sizes against the same
+number the card gives it.
+
+What is still missing is label elements: they are drawn by the layout module
+itself rather than by a component, so the preview shows them as plain boxes.
 
 ## 9. Build order
 
