@@ -104,7 +104,10 @@ function getTargets(slot) {
     elements: { label: 'Direct elements (exact fit)', items: [] }
   };
   const els = getAvailableElements(slot);
-  if (Array.isArray(slot.layout_rows)) {
+  // Converted cards keep layout_rows, so the cell ids are still there to list -
+  // but the parts they name are gone, and a target that cannot work is worse
+  // than one absent. Elements below cover the canvas, surfaces included.
+  if (!slot?.canvas && Array.isArray(slot.layout_rows)) {
     slot.layout_rows.forEach((row, rIdx) => {
       row.cells.forEach((cell, cIdx) => {
         const typeLabel = els[cell.content] || 'Empty';
@@ -113,7 +116,11 @@ function getTargets(slot) {
     });
   }
   Object.entries(els).forEach(([key, label]) => {
-    if (key !== 'empty') groups.elements.items.push({ id: `elm_${key}`, label: `Element: ${label}` });
+    // Same rule as the cells above: an element the canvas does not place has
+    // no part to reach. showsElement passes everything on a rows card.
+    if (key !== 'empty' && SC.showsElement(slot, key)) {
+      groups.elements.items.push({ id: `elm_${key}`, label: `Element: ${label}` });
+    }
   });
   return groups;
 }
@@ -229,7 +236,7 @@ class ScFxGlassEditor extends LitElement {
                     <div class="row">
                       <label>Target / element</label>
                       <select style="width:60%" @change=${e => { this._set(patterns, idx, 'target', e.target.value); }}>
-                        ${Object.values(targetGroups).map(group => html`
+                        ${Object.values(targetGroups).filter(group => group.items.length).map(group => html`
                           <optgroup label="${group.label}">
                             ${group.items.map(t => {
                               const isLocked = t.id !== 'none' && t.id !== pat.target && usedTargets.includes(t.id);

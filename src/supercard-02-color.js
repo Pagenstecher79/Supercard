@@ -11,7 +11,19 @@ function getTargets(slot) {
     { id: 'main', label: 'Main card (entire background)' }
   ];
   const els = getAvailableElements(slot);
-  if (Array.isArray(slot.layout_rows)) {
+  // Two models, two kinds of region. A canvas has no cells, and the cell ids a
+  // converted card still carries name parts that stopped existing when it was
+  // converted - offering those would be offering a target that cannot work.
+  // The element boxes are the regions there, surfaces included, which is what
+  // migration turned each targeted cell into.
+  if (slot?.canvas) {
+    for (const [id, label] of Object.entries(els)) {
+      // An element the canvas does not place has no box and no part, so it is
+      // as unpaintable as a stale cell. On a rows card showsElement says yes
+      // to everything, which is why the check can live in the shared filter.
+      if (id !== 'empty' && SC.showsElement(slot, id)) targets.push({ id: `elm_${id}`, label });
+    }
+  } else if (Array.isArray(slot.layout_rows)) {
     slot.layout_rows.forEach((row, rIdx) => {
       row.cells.forEach((cell, cIdx) => {
         const typeLabel = els[cell.content] || 'Empty';

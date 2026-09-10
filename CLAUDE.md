@@ -96,7 +96,8 @@ Lovelace card config.
   `#rgb`, `#rrggbb`, `rgb()`/`rgba()`
 - `resolveVar(v)` - looks up a `var(--x)` against the document root
 - `sampleGradient(stops, pct)`
-- `getAvailableElements(slot)` - flat `{id: label}` target map
+- `getAvailableElements(slot)` - flat `{id: label}` target map, canvas
+  surfaces included
 - `listElements(slot)` - which gauges and bars a slot contains
 - `resolveAlias(list, cfg, entityKey?, attrKey?)` - resolves entity/attribute
   through `global_entities`
