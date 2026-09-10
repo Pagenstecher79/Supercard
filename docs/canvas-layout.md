@@ -651,6 +651,33 @@ both fall back to the full list: removing the selected element clears the
 selection, and an id that no longer names an element - a gauge deleted in its
 own editor - is ignored rather than leaving an empty panel.
 
+### Copying an element, and removing one
+
+A canvas element is a *reference*, not a definition: the card fills
+`<slot name="gauge_0">` with the one gauge of that index, so a second box
+carrying the same id draws nothing at all. Duplicating a box therefore cannot
+be a copy of the box. `duplicateElement` copies whatever the id names - the
+bar, the gauge, the label - appends it to its list, and points the new box at
+the new index, offset by one snap step so the copy is visible rather than
+exactly under its original.
+
+A surface is the exception, and the easy case: it exists only on the canvas,
+so a free `surface_N` is the whole copy. `icon`, `name` and `state` are the
+other end - they are parts of the card itself, there is only ever one of each,
+and the button is disabled. So is a gauge on a slot that never grew a `gauges`
+array, where the gauge *is* the card's config: materialising a list there
+would rewrite the gauge rather than copy it.
+
+The new box and the entry it points at go out as one `__merge__`. Two commits
+in one tick would lose the first, because `_commit` clones `this.config` and
+Home Assistant writes it back asynchronously.
+
+Removing is the older half of the pair and means what it has always meant:
+the element leaves the canvas, its definition stays. A bar taken off the
+canvas is still in the progressbar editor and still in the *Place an element*
+dropdown - which is also the only tidy way back after a duplicate that was not
+wanted, since the copy is a real bar and deleting its box does not delete it.
+
 ### Clicking down through a stack
 
 If the canvas is how you pick, it has to be able to pick anything, including

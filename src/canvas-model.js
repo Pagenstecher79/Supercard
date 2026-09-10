@@ -481,3 +481,92 @@ export function rescaleCanvas(canvas, shape) {
 export function isHeightPinned(cardConfig) {
   return typeof cardConfig?.grid_options?.rows === 'number';
 }
+
+/**
+ * What a canvas element's id names, and the list it lives in.
+ *
+ * A canvas element is a *reference*, not a definition: the card fills
+ * `<slot name="gauge_0">` with the one gauge of that index, so a second box
+ * carrying the same id would draw nothing at all. Copying an element
+ * therefore means copying whatever its id names and pointing the copy at the
+ * new index.
+ *
+ * Null for everything that has no list to grow: `icon`, `name` and `state`
+ * are parts of the card itself, and a gauge on a slot that never grew a
+ * `gauges` array is the card's own config - materialising one here would
+ * rewrite the gauge rather than copy it.
+ *
+ * @param {any} slot
+ * @param {any} el a canvas element
+ * @returns {{ key: string, list: any[], from: number, id: (n: number) => string } | null}
+ */
+function copySpec(slot, el) {
+  const id = String(el?.id || '');
+  /** @type {[RegExp, string, (n: number, m: RegExpMatchArray) => string][]} */
+  const kinds = [
+    [/^progressbar_(\d+)$/, 'progressbars', n => `progressbar_${n}`],
+    [/^gauge_(\d+)$/, 'gauges', n => `gauge_${n}`],
+    [/^label_(\d+)(_(?:icon|name|value))?$/, 'labels_list', (n, m) => `label_${n}${m[2] || ''}`],
+  ];
+  for (const [re, key, name] of kinds) {
+    const m = id.match(re);
+    if (!m) continue;
+    const list = slot?.[key];
+    const from = Number(m[1]);
+    if (!Array.isArray(list) || !list[from]) return null;
+    return { key, list, from, id: n => name(n, m) };
+  }
+  return null;
+}
+
+/**
+ * Whether an element can be duplicated: a surface, or something with a list
+ * behind it. See `copySpec`.
+ *
+ * @param {any} slot
+ * @param {any} el a canvas element
+ * @returns {boolean}
+ */
+export function canDuplicate(slot, el) {
+  return !!el?.surface || !!copySpec(slot, el);
+}
+
+/**
+ * The canvas and the slot fields that result from duplicating one element.
+ *
+ * The copy is offset by one snap step so it does not land exactly on its
+ * original and look like nothing happened, and clamped so it stays on the
+ * canvas. A surface exists only on the canvas, so a free id is the whole
+ * copy; everything else grows its list by one entry.
+ *
+ * Pure: mutates neither argument. Null when the element cannot be
+ * duplicated.
+ *
+ * @param {any} slot
+ * @param {any} canvas
+ * @param {number} idx index into `canvas.elements`
+ * @returns {{ canvas: any, patch: Record<string, any[]>, id: string } | null}
+ */
+export function duplicateElement(slot, canvas, idx) {
+  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
+  const el = elements[idx];
+  if (!el) return null;
+
+  let id, patch = {};
+  if (el.surface) {
+    let n = 0;
+    while (elements.some(e => e.id === `surface_${n}`)) n++;
+    id = `surface_${n}`;
+  } else {
+    const spec = copySpec(slot, el);
+    if (!spec) return null;
+    id = spec.id(spec.list.length);
+    patch = { [spec.key]: [...spec.list, structuredClone(spec.list[spec.from])] };
+  }
+
+  const step = resolveSnap(canvas);
+  const copy = { ...el, id,
+    x: Math.max(0, Math.min(el.x + step, canvas.w - el.w)),
+    y: Math.max(0, Math.min(el.y + step, canvas.h - el.h)) };
+  return { canvas: { ...canvas, elements: [...elements, copy] }, patch, id };
+}
