@@ -608,7 +608,7 @@ Object.assign(window.SupercardModules['color'], (() => {
           // order is the stacking order - that is what the editor's forward and
           // backward buttons move. Lifting one box to 510 would drop a surface
           // on top of the gauges it was emitted underneath.
-          selector = `${SC.canvasPartSelector(pat.target.slice(4))}::before`;
+          selector = `${SC.elementPartSelector(pat.target.slice(4))}::before`;
         }
       }
       if (!selector) return;

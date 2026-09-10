@@ -385,9 +385,12 @@ class ScLayoutRenderer extends LitElement {
                         }
                       }
 
+                      // Named as a part like a canvas element box, so the one
+                      // thing the renderer draws itself rather than slotting -
+                      // a label - can be reached by the card's own CSS here too.
                       return html`
                       <div class="sc-item-slot ${item.overflow ? 'overflow-visible' : ''}" 
-                           data-item-id="${item.id}" 
+                           part="element-${item.id}" data-item-id="${item.id}" 
                            style="left:${item.x}%; top:${item.y}%; width:${item.w}%; height:${item.h}%; ${this._innerStyle(item.inner||'cc')} ${containerCSS}">
                         
                         ${debug ? html`<div class="dbg-id" style="position:absolute; bottom:0; right:0; font-size:9px; color:#fff; background:rgba(244,67,54,0.9); padding:1px 3px; z-index:999; border-radius:3px 0 0 0; font-weight:bold; white-space:nowrap; pointer-events:none;">${item.id}</div>` : ''}

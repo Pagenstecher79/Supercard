@@ -175,16 +175,18 @@ Object.assign(window.SupercardUtils, (() => {
   }
 
   /**
-   * The selector for the box the canvas draws an element in.
+   * The selector for the box the layout renderer draws an element in.
    *
-   * On the canvas model every element gets a shadow part named after its id -
-   * a surface included, which is the only thing a surface *is*. That box is
-   * the region a layout cell used to be, so it is what colour and fx-glass
-   * paint. Canvas-only by nature: the rows renderer names cells instead.
+   * Every element box the renderer draws gets a shadow part named after its
+   * id - a surface included, which is the only thing a surface *is*. That box
+   * is the region a layout cell used to be, so it is what colour and fx-glass
+   * paint. Rows name their cells as parts too, and their item boxes by this
+   * same name, because a label is drawn in the renderer's shadow on either
+   * model and card-level CSS has no other way in.
    * @param {string} id
    * @returns {string}
    */
-  function canvasPartSelector(id) {
+  function elementPartSelector(id) {
     return `sc-layout-renderer::part(element-${id})`;
   }
 
@@ -299,7 +301,7 @@ Object.assign(window.SupercardUtils, (() => {
 
   return /** @type {SupercardUtilsApi} */ ({
     safeFloat, hexToRgb, rgbToHex, toRgb, resolveVar, sampleGradient,
-    getAvailableElements, listElements, showsElement, canvasPartSelector,
+    getAvailableElements, listElements, showsElement, elementPartSelector,
     resolveAlias, withPatch, gaugeIsResponsive,
     editorStyles, formStyles
   });

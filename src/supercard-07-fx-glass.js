@@ -426,12 +426,16 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
     if (id === 'state') return '.sc-lbl-v';
     if (id.startsWith('gauge_')) return `sc-gauge[data-idx="${id.split('_')[1]}"]`;
     if (id.startsWith('progressbar_')) return `sc-progressbar[data-idx="${id.split('_')[1]}"]`;
-    if (id.startsWith('label_')) return `sc-label-${id.split('_')[1]}`;
+    // A label is the one element the renderer draws itself instead of taking it
+    // as slotted content - on both models. `sc-label-<n>` was never a tag this
+    // project defines, so glass on a label used to paint nothing at all; the
+    // box the renderer draws it in is a part, the same as a canvas element's.
+    if (id.startsWith('label_')) return SC.elementPartSelector(id);
     // A surface has no component of its own - it exists only as the box the
     // canvas draws it in, so the part is the whole element. Without this it
     // fell through to [slot="surface_0"], which matches nothing: a surface is
     // not slotted content but a div inside the renderer's shadow.
-    if (id.startsWith('surface_')) return SC.canvasPartSelector(id);
+    if (id.startsWith('surface_')) return SC.elementPartSelector(id);
     return `[slot="${id}"]`;
   }
 
