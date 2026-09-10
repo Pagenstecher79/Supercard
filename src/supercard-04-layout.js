@@ -5,6 +5,51 @@ import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS,
 
 const SC = window.SupercardUtils;
 
+/**
+ * Per-element typography, as CSS text.
+ *
+ * The card puts this on the slot it renders an element into; the canvas
+ * editor puts it on the box it previews that element in. It has to be one
+ * function, because a size written in em or % resolves against whichever box
+ * the element is sitting in - and a preview whose text is a different size
+ * from the card's is not previewing the card.
+ *
+ * @param {any} item element carrying font_size / font_weight / font_color / overflow
+ * @param {string} boxSel selector for the box around the element
+ * @param {string} elSel selector for the element inside that box
+ * @returns {string}
+ */
+function itemTypography(item, boxSel, elSel) {
+  let styles = '';
+  const fc = item.font_adaptive ? 'var(--primary-text-color)' : (item.font_color || '');
+
+  if (item.font_size || item.font_weight || item.font_color || item.font_adaptive) {
+    const fsInherit = item.font_size ? `font-size: inherit !important;` : '';
+    const fw = item.font_weight ? `font-weight:${item.font_weight}!important;` : '';
+    const fccss = fc ? `color:${fc}!important;` : '';
+
+    styles += `${elSel} { ${fsInherit}${fw}${fccss} }\n`;
+
+    let vars = '';
+    if (item.font_size) {
+      const fsBase = `${item.font_size}${item.font_unit||'px'}`;
+      const fsVar = `min(${fsBase}, 100cqh, 100cqi)`;
+      vars += `font-size: ${fsVar} !important; --sc-fs-n:${fsVar}; --sc-fs-v:${fsVar}; `;
+    }
+    if (item.font_weight) { vars += `--sc-fw-n:${item.font_weight}; --sc-fw-v:${item.font_weight}; `; }
+    if (fc) { vars += `--sc-fc-n:${fc}; --sc-fc-v:${fc}; `; }
+
+    if (vars) { styles += `${boxSel} { ${vars} }\n`; }
+  }
+
+  if (item.overflow) {
+    styles += `${boxSel} { overflow: visible !important; }
+      ${elSel} { overflow: visible !important; max-width: none !important; text-overflow: clip !important; }\n`;
+  }
+
+  return styles;
+}
+
 // --- AVAILABLE ELEMENTS ---
 // Grouped, and with four sub-targets per label, so this is not the flat
 // SC.getAvailableElements the other editors use - but which gauges and bars
@@ -208,33 +253,14 @@ class ScLayoutRenderer extends LitElement {
    */
   _itemStyles(items) {
     return items.map(item => {
-      let styles = '';
-      const getFc = (color, adaptive) => adaptive ? 'var(--primary-text-color)' : (color ? color : '');
+      const box = `.sc-item-slot[data-item-id="${item.id}"]`;
+      let styles = itemTypography(item, box, `::slotted([slot="${item.id}"])`);
 
-      if (item.font_size || item.font_weight || item.font_color || item.font_adaptive) {
-        const fsInherit = item.font_size ? `font-size: inherit !important;` : '';
-        const fw = item.font_weight ? `font-weight:${item.font_weight}!important;` : '';
-        const fc = getFc(item.font_color, item.font_adaptive);
-        const fccss = fc ? `color:${fc}!important;` : '';
-
-        styles += `::slotted([slot="${item.id}"]) { ${fsInherit}${fw}${fccss} }\n`;
-
-        let vars = '';
-        if (item.font_size) {
-          const fsBase = `${item.font_size}${item.font_unit||'px'}`;
-          const fsVar = `min(${fsBase}, 100cqh, 100cqi)`;
-          vars += `font-size: ${fsVar} !important; --sc-fs-n:${fsVar}; --sc-fs-v:${fsVar}; `;
-        }
-        if (item.font_weight) { vars += `--sc-fw-n:${item.font_weight}; --sc-fw-v:${item.font_weight}; `; }
-        if (fc) { vars += `--sc-fc-n:${fc}; --sc-fc-v:${fc}; `; }
-
-        if (vars) { styles += `.sc-item-slot[data-item-id="${item.id}"] { ${vars} }\n`; }
-      }
-      
+      // The label module draws its own spans inside the slot, so they need the
+      // same release from clipping. Nothing else renders text in there, which
+      // is why this stays here rather than in the shared function.
       if (item.overflow) {
-         styles += `.sc-item-slot[data-item-id="${item.id}"] { overflow: visible !important; }
-           .sc-item-slot[data-item-id="${item.id}"] .sc-lbl-n, .sc-item-slot[data-item-id="${item.id}"] .sc-lbl-v,
-           ::slotted([slot="${item.id}"]) { overflow: visible !important; max-width: none !important; text-overflow: clip !important; }\n`;
+        styles += `${box} .sc-lbl-n, ${box} .sc-lbl-v { overflow: visible !important; max-width: none !important; text-overflow: clip !important; }\n`;
       }
       return styles;
     }).filter(Boolean).join('\n');
@@ -1483,6 +1509,10 @@ class ScCanvasEditor extends LitElement {
           ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
           : html`Plain boxes - easier to see and to grab.`}</div>
 
+        <style>${this._live ? els.filter(e => !e.surface).map(el => itemTypography(el,
+          `.el.live[data-item-id="${el.id}"]`,
+          `.el.live[data-item-id="${el.id}"] > :not(.handle)`)).join('\n') : ''}</style>
+
         <div class="canvas-wrap">
           <div class="canvas" style="aspect-ratio:${c.w} / ${c.h};"
                @pointermove=${this._onMove}
@@ -1500,7 +1530,7 @@ class ScCanvasEditor extends LitElement {
               return html`
               <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._sel === el.id ? 'sel' : ''}"
                    style="left:${pct(el.x, c.w)}; top:${pct(el.y, c.h)}; width:${pct(el.w, c.w)}; height:${pct(el.h, c.h)};"
-                   title=${el.id}
+                   data-item-id=${el.id} title=${el.id}
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
                 ${live ?? el.id}
                 <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>
