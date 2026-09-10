@@ -230,7 +230,7 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts 
     if (!(key in cellTargets)) {
       warnings.push(
         `${key} does not exist in this layout, so the pattern targeting it was already ` +
-        `doing nothing; it is dropped rather than repointed.`,
+        `doing nothing; it keeps that target rather than being repointed.`,
       );
     }
   }
@@ -239,22 +239,103 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts 
 }
 
 /**
- * Every cell a colour, fx-glass or interaction pattern points at.
+ * Every cell a colour or fx-glass pattern paints.
  *
- * Migration needs these to know which cells to turn into surfaces, and they
- * live in three different lists, so they are collected in one place.
+ * These are the cells migration turns into surfaces, because painting a region
+ * is the whole of what a surface is for. Interactions are deliberately absent:
+ * `.sc-canvas .sc-surface` takes no pointer events, so a cell's tap action
+ * turned into one would be a box that looks migrated and never fires.
+ * `clickedCells` collects those separately, to be reported instead.
  *
  * @param {any} slot
  * @returns {string[]}
  */
-export function targetedCells(slot) {
-  const lists = [slot?.color_patterns, slot?.fx_glass_patterns, slot?.interactions];
+export function paintedCells(slot) {
+  return cellTargetsIn([slot?.color_patterns, slot?.fx_glass_patterns]);
+}
+
+/**
+ * Every cell an interaction points at - the ones conversion cannot carry over.
+ *
+ * @param {any} slot
+ * @returns {string[]}
+ */
+export function clickedCells(slot) {
+  return cellTargetsIn([slot?.interactions]);
+}
+
+/** @param {any[]} lists @returns {string[]} */
+function cellTargetsIn(lists) {
   const keys = new Set();
   for (const list of lists) {
     if (!Array.isArray(list)) continue;
     for (const p of list) if (/^r\d+c\d+$/.test(String(p?.target))) keys.add(p.target);
   }
   return [...keys];
+}
+
+/**
+ * The cell targets that name a cell this layout does not have.
+ *
+ * Conversion reports these before it runs, so the offer can say what will
+ * happen instead of leaving someone to find out. They are the same set
+ * `migrateLayoutToCanvas` describes in its `warnings`, answered from the rows
+ * directly because the offer is rendered long before any migration runs.
+ *
+ * @param {any} slot
+ * @returns {string[]}
+ */
+export function deadCellTargets(slot) {
+  const rows = Array.isArray(slot?.layout_rows) ? slot.layout_rows : [];
+  const missing = (/** @type {string} */ key) => {
+    const m = /^r(\d+)c(\d+)$/.exec(key);
+    if (!m) return true;
+    const row = rows[Number(m[1])];
+    return !row || !Array.isArray(row.cells) || Number(m[2]) >= row.cells.length;
+  };
+  return [...paintedCells(slot), ...clickedCells(slot)].filter(missing);
+}
+
+/**
+ * The pattern lists, with every mapped cell target pointed at the surface that
+ * replaced it.
+ *
+ * This has to travel in the same commit as the canvas. `_commit` clones the
+ * card config and Home Assistant writes it back asynchronously, so a second
+ * commit in the same tick silently loses the first - and a card that got its
+ * canvas but not its repointed patterns is exactly the card whose background
+ * vanished.
+ *
+ * Colour and fx-glass both store an element target as `elm_<id>`, which is the
+ * form `cellTargets` already carries, so one map serves both. A target naming
+ * a cell that does not exist is left untouched: it was inert on the rows card
+ * too, and an entry can carry a whole palette, so dropping it would throw away
+ * work to tidy something that costs nothing.
+ *
+ * Only the lists that actually changed come back, so the merge payload stays
+ * as small as the edit.
+ *
+ * @param {any} slot
+ * @param {Record<string, string>} cellTargets
+ * @returns {{ lists: Record<string, any[]>, changed: number }}
+ */
+export function repointPatterns(slot, cellTargets) {
+  const lists = /** @type {Record<string, any[]>} */ ({});
+  let changed = 0;
+  for (const key of ['color_patterns', 'fx_glass_patterns']) {
+    const list = slot?.[key];
+    if (!Array.isArray(list)) continue;
+    let hit = false;
+    const next = list.map(p => {
+      const to = cellTargets?.[p?.target];
+      if (!to) return p;
+      hit = true;
+      changed++;
+      return { ...p, target: to };
+    });
+    if (hit) lists[key] = next;
+  }
+  return { lists, changed };
 }
 
 /**

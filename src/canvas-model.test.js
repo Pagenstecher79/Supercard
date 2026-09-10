@@ -5,7 +5,10 @@ import {
   rowHeights,
   cellWidths,
   migrateLayoutToCanvas,
-  targetedCells,
+  paintedCells,
+  clickedCells,
+  deadCellTargets,
+  repointPatterns,
   resolveSnap,
   applyDrag,
   gridRowsToPx,
@@ -392,18 +395,94 @@ describe('real dashboard layouts', () => {
   });
 });
 
-describe('targetedCells', () => {
-  it('collects cell targets out of all three pattern lists', () => {
-    expect(targetedCells({
+describe('paintedCells / clickedCells', () => {
+  it('collects paint targets out of the two paint lists only', () => {
+    expect(paintedCells({
       color_patterns: [{ target: 'r0c0' }, { target: 'main' }],
       fx_glass_patterns: [{ target: 'r1c1' }],
-      interactions: [{ target: 'elm_gauge_0' }, { target: 'r0c0' }],
+      interactions: [{ target: 'r2c2' }],
     }).sort()).toEqual(['r0c0', 'r1c1']);
   });
 
+  it('keeps interaction targets apart, since a surface cannot take a click', () => {
+    expect(clickedCells({
+      color_patterns: [{ target: 'r0c0' }],
+      interactions: [{ target: 'elm_gauge_0' }, { target: 'r2c2' }, { target: 'r2c2' }],
+    })).toEqual(['r2c2']);
+  });
+
   it('is quiet about a configuration with no patterns at all', () => {
-    expect(targetedCells({})).toEqual([]);
-    expect(targetedCells(undefined)).toEqual([]);
+    expect(paintedCells({})).toEqual([]);
+    expect(paintedCells(undefined)).toEqual([]);
+    expect(clickedCells(undefined)).toEqual([]);
+  });
+});
+
+describe('deadCellTargets', () => {
+  const rows = [{ cells: [{}, {}] }, { cells: [{}] }];
+
+  it('finds the targets naming a cell the layout does not have', () => {
+    expect(deadCellTargets({
+      layout_rows: rows,
+      color_patterns: [{ target: 'r0c1' }, { target: 'r1c1' }, { target: 'r2c0' }],
+      interactions: [{ target: 'r9c9' }],
+    }).sort()).toEqual(['r1c1', 'r2c0', 'r9c9']);
+  });
+
+  it('calls every cell target dead when there is no layout at all', () => {
+    expect(deadCellTargets({ color_patterns: [{ target: 'r0c0' }] })).toEqual(['r0c0']);
+  });
+
+  it('says nothing about a card with no cell targets', () => {
+    expect(deadCellTargets({ layout_rows: rows, color_patterns: [{ target: 'main' }] })).toEqual([]);
+  });
+});
+
+describe('repointPatterns', () => {
+  const cellTargets = { r0c0: 'elm_surface_0', r1c0: 'elm_surface_1' };
+
+  it('points a mapped cell target at its surface and counts the change', () => {
+    const slot = {
+      color_patterns: [{ id: 1, target: 'r0c0', colors: ['#f00'] }, { id: 2, target: 'main' }],
+      fx_glass_patterns: [{ id: 3, target: 'r1c0' }],
+    };
+    const { lists, changed } = repointPatterns(slot, cellTargets);
+    expect(changed).toBe(2);
+    expect(lists.color_patterns[0]).toEqual({ id: 1, target: 'elm_surface_0', colors: ['#f00'] });
+    expect(lists.color_patterns[1]).toEqual({ id: 2, target: 'main' });
+    expect(lists.fx_glass_patterns[0]).toEqual({ id: 3, target: 'elm_surface_1' });
+  });
+
+  it('never mutates the lists it was given', () => {
+    const slot = { color_patterns: [{ id: 1, target: 'r0c0' }] };
+    repointPatterns(slot, cellTargets);
+    expect(slot.color_patterns[0].target).toBe('r0c0');
+  });
+
+  it('leaves an unmapped target exactly as it is', () => {
+    const slot = { color_patterns: [{ id: 1, target: 'r7c7', colors: ['#0f0'] }] };
+    const { lists, changed } = repointPatterns(slot, cellTargets);
+    expect(changed).toBe(0);
+    expect(lists).toEqual({});
+  });
+
+  it('returns only the lists that changed, so the merge stays small', () => {
+    const slot = {
+      color_patterns: [{ id: 1, target: 'r0c0' }],
+      fx_glass_patterns: [{ id: 2, target: 'main' }],
+    };
+    expect(Object.keys(repointPatterns(slot, cellTargets).lists)).toEqual(['color_patterns']);
+  });
+
+  it('does not touch interactions, which cannot use a surface', () => {
+    const slot = { interactions: [{ id: 1, target: 'r0c0' }] };
+    expect(repointPatterns(slot, cellTargets).lists).toEqual({});
+  });
+
+  it('survives a missing list and an empty map', () => {
+    expect(repointPatterns({}, cellTargets).lists).toEqual({});
+    expect(repointPatterns({ color_patterns: [{ target: 'r0c0' }] }, {}).lists).toEqual({});
+    expect(repointPatterns(undefined, cellTargets).changed).toBe(0);
   });
 });
 
