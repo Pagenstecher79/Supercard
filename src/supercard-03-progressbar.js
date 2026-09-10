@@ -1480,7 +1480,9 @@ Object.assign(window.SupercardModules['progressbar'], (() => {
     const bars = Array.isArray(config.progressbars) && config.progressbars.length > 0 ? config.progressbars : [];
     if (bars.length === 0) return {};
     return {
-      litOverlay: html`${bars.map((cfg, idx) => cfg.active !== false ? html`
+      // See the note in the gauge module: a bar the canvas has no box for is
+      // never slotted, and would draw full-width in the card's own flow.
+      litOverlay: html`${bars.map((cfg, idx) => cfg.active !== false && SC.showsElement(config, `progressbar_${idx}`) ? html`
         <sc-progressbar data-idx="${idx}" .config=${cfg} .hass=${hass} .rootConfig=${config} .globalEntities=${config.global_entities}></sc-progressbar>
       ` : '')}`
     };

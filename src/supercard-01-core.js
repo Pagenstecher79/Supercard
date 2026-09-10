@@ -175,6 +175,29 @@ Object.assign(window.SupercardUtils, (() => {
   }
 
   /**
+   * Whether the card actually shows the element with this id.
+   *
+   * On the canvas model the canvas is the whole answer. `onAfterRender` moves
+   * exactly the elements the canvas names into the renderer, so one that is
+   * not on it is never moved - it stays in the card's own flow and draws at
+   * its natural size, which for a gauge is most of the card. Removing an
+   * element from the canvas is what the editor's remove button does, so this
+   * is the difference between "removed" and "still in the list but unplaced".
+   *
+   * Every other model draws everything the lists contain, and a card whose
+   * layout is switched off draws them in the plain content row - so both
+   * answer yes regardless of what a leftover `canvas` key says.
+   * @param {any} config
+   * @param {string} id
+   * @returns {boolean}
+   */
+  function showsElement(config, id) {
+    const els = config?.canvas?.elements;
+    if (!config?.layout_active || !Array.isArray(els)) return true;
+    return els.some(el => el?.id === id);
+  }
+
+  /**
    * Flat {id: label} map of elements available for targeting (color patterns,
    * fx-glass, interactions). The layout editor builds its own grouped list
    * from listElements instead, because it also offers per-label sub-targets.
@@ -251,7 +274,7 @@ Object.assign(window.SupercardUtils, (() => {
 
   return /** @type {SupercardUtilsApi} */ ({
     safeFloat, hexToRgb, rgbToHex, toRgb, resolveVar, sampleGradient,
-    getAvailableElements, listElements, resolveAlias, withPatch, gaugeIsResponsive,
+    getAvailableElements, listElements, showsElement, resolveAlias, withPatch, gaugeIsResponsive,
     editorStyles, formStyles
   });
 })());

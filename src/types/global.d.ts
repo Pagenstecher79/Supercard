@@ -66,6 +66,12 @@ declare global {
       gauges: { id: string; label: string }[];
       bars: { id: string; label: string }[];
     };
+    /**
+     * Whether the card actually draws this element. False only on a canvas
+     * card that has no box for the id - there, being absent from the canvas
+     * is what "removed" means.
+     */
+    showsElement: (config: any, id: string) => boolean;
     /** Resolves entity/attribute through the global alias list. */
     resolveAlias: (
       list: { id: string; entity: string; attribute: string; alias?: string }[],

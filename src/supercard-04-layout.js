@@ -1907,6 +1907,17 @@ Object.assign(window.SupercardModules['layout'], (() => {
     // default position. Converted cards keep their rows, which is the only
     // reason this went unnoticed.
     if (Array.isArray(config.canvas?.elements)) {
+      const placed = new Set(config.canvas.elements.map(el => el.id));
+      // assignSlot moved these out of the template lit created them in, so
+      // lit cannot take them back when the module stops rendering them. One
+      // whose element has been removed from the canvas would stay here for
+      // good - invisible, still bound to hass, and still the first thing
+      // resolveElement finds if that element is ever placed again.
+      [...renderer.children].forEach(node => {
+        const tag = node.tagName;
+        if (tag !== 'SC-GAUGE' && tag !== 'SC-PROGRESSBAR') return;
+        if (!placed.has(node.slot)) node.remove();
+      });
       config.canvas.elements.forEach(el => {
         if (el.surface || el.id?.startsWith('label_')) return;
         assignSlot(resolveElement(shadow, el.id), el.id);
