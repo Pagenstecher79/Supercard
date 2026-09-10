@@ -638,6 +638,21 @@ the token Home Assistant sets it from, so a theme that changes it moves both.
 What is still missing is label elements: they are drawn by the layout module
 itself rather than by a component, so the preview shows them as plain boxes.
 
+### The list edits, the canvas picks
+
+The list under the canvas used to show every element at once - a second place
+to hunt for the thing already under the pointer. It now shows the selected
+element alone, with its position, its size and its stacking: the canvas is
+how you pick, the list is how you edit.
+
+With nothing selected it shows the whole list again, which is the state where
+listing everything is the point - and it is the only way back to an element
+that another one covers completely, where a click on the canvas can never
+reach it. Two things can strand a selection there, and both fall back to the
+full list: removing the selected element clears the selection, and an id that
+no longer names an element - a gauge deleted in its own editor - is ignored
+rather than leaving an empty panel.
+
 ## 9. Build order
 
 1. ~~**The migration function alone**, pure.~~ `src/canvas-model.js`.
@@ -665,13 +680,9 @@ release decision, not a code one - see §4.
 
 ### Where the editor goes next
 
-Two things would move it from *drawing the layout* to *editing the card*, and
-neither is blocked by the model:
+One thing would move it further from *drawing the layout* towards *editing the
+card*, and it is not blocked by the model:
 
-- **The element list follows the selection.** The list under the canvas shows
-  every element at once, which is a second place to hunt for the thing already
-  under the pointer. Showing only the selected element makes the canvas the way
-  you pick, and the list the way you edit.
 - **Add elements from the canvas.** Placing one is a dropdown of everything
   not yet placed, under the list; creating a gauge or a bar happens in a
   different editor entirely. Buttons on the canvas edge - the way
