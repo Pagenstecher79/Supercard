@@ -313,14 +313,44 @@ several elements, which was the one with no faithful answer.
   h: 150
 ```
 
-Surfaces are created **only** for cells something actually targets; migration
-does not invent elements nobody asked for. Targets naming a cell that does not
-exist are dropped and reported, because repointing a pattern that was doing
-nothing would make the card change appearance for the worse.
+Surfaces are created **only** for cells a colour or fx-glass pattern paints;
+migration does not invent elements nobody asked for. `paintedCells` is that
+list. Interactions are deliberately not in it - `clickedCells` collects those
+apart, because a surface takes no pointer events, so a cell's tap action turned
+into one would be a box that looks migrated and never fires. Targets naming a
+cell that does not exist keep the target they have: repointing a pattern that
+was doing nothing would make the card change appearance for the worse, and an
+entry can carry a whole palette, so deleting it throws away work to tidy
+something that already costs nothing.
 
 This is the "animated surfaces" feature arriving early, in its smallest form:
 a placeable box that colour and fx-glass can address like any other element.
 It is here because migration needs it, not because the editor does yet.
+
+### Conversion repoints the patterns, in the same commit
+
+A surface is only half the answer. `migrateLayoutToCanvas` returns the mapping
+it made as `cellTargets` (`{ r0c0: 'elm_surface_0' }`), and `repointPatterns`
+writes it into the colour and fx-glass lists. Both store an element target as
+`elm_<id>`, which is the form the map already carries, so one map serves both.
+
+It has to travel in the **same** commit as the canvas. `_commit` clones the
+card config and Home Assistant writes it back asynchronously, so two commits in
+one tick silently lose the first - and a card that got its canvas but not its
+repointed targets is exactly the card whose background disappeared. That is why
+Convert merges `canvas` and the changed lists together, and why only the lists
+that changed are in the payload.
+
+The pattern list itself is otherwise untouched: same entries, same order, same
+ids, same colours, conditions and names. Only `target` moves, and only where
+the cell really existed.
+
+The offer says all of this before it is taken. The convert box counts the cells
+whose paint will be carried over, names the dead targets it is leaving alone,
+and warns - in bold, because this one loses behaviour - about tap actions on
+cells, which have to be pointed at an element by hand afterwards. `npm test`
+covers `paintedCells`, `clickedCells`, `deadCellTargets` and `repointPatterns`,
+because a wrong answer here is invisible until someone's background is gone.
 
 ### Addressing an element on the canvas
 

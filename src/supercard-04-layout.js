@@ -1,7 +1,8 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, rescaleCanvas,
-         migrateLayoutToCanvas, targetedCells,
+         migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
+         repointPatterns,
          canDuplicate, duplicateElement,
          NEW_ELEMENT_KINDS, canAddKind, addElement } from "./canvas-model.js";
 
@@ -1952,6 +1953,9 @@ Object.assign(window.SupercardModules['layout'], (() => {
                                     .commitFn=${commitFn}></sc-canvas-editor>`;
     }
     const convertible = Array.isArray(slot?.layout_rows) && slot.layout_rows.length > 0;
+    const dead = deadCellTargets(slot);
+    const painted = paintedCells(slot).filter(k => !dead.includes(k));
+    const clicked = clickedCells(slot).filter(k => !dead.includes(k));
     return html`
       <sc-layout-editor .slot=${slot} .hass=${hass} .commitFn=${commitFn}></sc-layout-editor>
       ${convertible ? html`
@@ -1960,6 +1964,17 @@ Object.assign(window.SupercardModules['layout'], (() => {
             <b style="color:var(--primary-text-color)">Try the canvas layout.</b>
             Everything keeps its position; the card takes a fixed shape you can
             then change. Your rows stay in the config, so this is reversible.
+            ${painted.length ? html`<br>Colour and glass patterns on
+              ${painted.length === 1 ? 'one cell' : `${painted.length} cells`}
+              are repointed at a surface covering the same region, so the
+              backgrounds stay.` : ''}
+            ${dead.length ? html`<br>${dead.length === 1 ? 'One pattern points' : `${dead.length} patterns point`}
+              at a cell this layout does not have (${dead.join(', ')}); already
+              doing nothing, and left as they are.` : ''}
+            ${clicked.length ? html`<br><b style="color:var(--primary-text-color)">Tap actions on
+              ${clicked.length === 1 ? 'a cell' : 'cells'} do not come along</b>
+              (${clicked.join(', ')}) - a surface takes no clicks. Point them at
+              an element after converting.` : ''}
           </span>
           <button type="button" style="background: var(--primary-color,#03a9f4); border: none; color: #fff; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap;"
             @click=${() => {
@@ -1967,9 +1982,13 @@ Object.assign(window.SupercardModules['layout'], (() => {
               // model and not the picture. A blind default would reshape every
               // card that is not 2:1 and shrink whatever had to fit inside it.
               const shape = canvasFromGrid(cardConfig, slot);
-              const { elements } = migrateLayoutToCanvas(slot.layout_rows, shape,
-                { targetedCells: targetedCells(slot) });
-              commitFn('__merge__', { canvas: { ...shape, elements } });
+              const { elements, cellTargets } = migrateLayoutToCanvas(slot.layout_rows, shape,
+                { targetedCells: paintedCells(slot) });
+              // The patterns have to travel with the canvas, in one commit: a
+              // card that got its canvas but not its repointed targets is
+              // exactly the card whose background disappeared.
+              const { lists } = repointPatterns(slot, cellTargets);
+              commitFn('__merge__', { canvas: { ...shape, elements }, ...lists });
             }}>
             Convert
           </button>
