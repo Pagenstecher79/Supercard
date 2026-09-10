@@ -1469,17 +1469,13 @@ class ScCanvasEditor extends LitElement {
         </div>
 
         <div class="row">
-          <label>Preview</label>
-          <div style="display:flex; gap:6px; align-items:center;">
-            <select style="width:110px" @change=${e => { this._live = e.target.value === 'live'; }}>
-              <option value="live" ?selected=${this._live}>Live</option>
-              <option value="boxes" ?selected=${!this._live}>Boxes</option>
-            </select>
-            <span class="hint">${this._live
-              ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
-              : html`Plain boxes - easier to see and to grab.`}</span>
-          </div>
+          <label>Live preview</label>
+          <ha-switch .checked=${this._live}
+                     @change=${e => { this._live = e.target.checked; }}></ha-switch>
         </div>
+        <div class="hint" style="margin:-4px 0 4px 0;">${this._live
+          ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
+          : html`Plain boxes - easier to see and to grab.`}</div>
 
         <div class="canvas-wrap">
           <div class="canvas" style="aspect-ratio:${c.w} / ${c.h};"

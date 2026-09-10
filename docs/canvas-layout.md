@@ -575,8 +575,9 @@ from the other in both directions is a circle.
 
 The canvas editor renders the actual `sc-gauge` and `sc-progressbar` for every
 element it can resolve, in the box that element occupies, instead of a blue
-rectangle with an id in it. A *Preview* control switches back to the plain
-boxes, which stay the easier thing to see and to grab when elements overlap.
+rectangle with an id in it. A *Live preview* switch turns that off again and
+gives back the plain boxes, which stay the easier thing to see and to grab
+when elements overlap.
 
 Three facts make this cost almost nothing:
 
