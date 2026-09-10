@@ -1176,6 +1176,15 @@ customElements.define('sc-layout-editor', ScLayoutEditor);
 // All geometry maths lives in canvas-model.js and is unit-tested there; this
 // component turns pointer positions into a delta in virtual units and draws
 // the result. Nothing here decides where an element lands.
+
+/**
+ * How far a press may sit from the one before it and still count as the same
+ * spot - both for walking down the stack under the pointer and for telling a
+ * click from a drag. Small enough that aiming at a different element never
+ * counts as the same spot, large enough to absorb the hand's own wobble.
+ */
+const SAME_SPOT_PX = 4;
+
 class ScCanvasEditor extends LitElement {
   static get properties() {
     return {
@@ -1191,7 +1200,15 @@ class ScCanvasEditor extends LitElement {
     };
   }
 
-  constructor() { super(); this._sel = null; this._drag = null; this._live = true; }
+  constructor() {
+    super();
+    this._sel = null;
+    this._drag = null;
+    this._live = true;
+    // The last press: where it was, whether it moved, and what lay under it.
+    // Not reactive - nothing renders from it.
+    this._lastDown = null;
+  }
 
   static get styles() {
     return [SC.editorStyles, css`
@@ -1321,10 +1338,58 @@ class ScCanvasEditor extends LitElement {
   }
 
   // --- dragging ---------------------------------------------------------
+
+  /**
+   * Which elements lie under a pointer position, topmost first.
+   *
+   * Later in the array draws on top, so reversed is the order a click meets
+   * them. Geometry, not the event's target: an element the click cannot
+   * reach because another one covers it is exactly what this has to find.
+   */
+  _stackAt(e, rect) {
+    const c = this._canvas;
+    const px = (e.clientX - rect.left) / rect.width * c.w;
+    const py = (e.clientY - rect.top) / rect.height * c.h;
+    const hit = [];
+    for (let i = c.elements.length - 1; i >= 0; i--) {
+      const el = c.elements[i];
+      if (px >= el.x && px <= el.x + el.w && py >= el.y && py <= el.y + el.h) hit.push(i);
+    }
+    return hit;
+  }
+
+  /**
+   * Which element this press acts on, and what the release will need to know.
+   *
+   * Pressing the same spot again keeps whatever is selected there rather than
+   * jumping back to the top of the stack - otherwise an element you clicked
+   * your way down to could be selected but never dragged. The walking itself
+   * happens on release, in `_onUp`, so that a press-and-drag moves what you
+   * picked instead of the next one down.
+   */
+  _pressTarget(e, rect, idx) {
+    const stack = this._stackAt(e, rect);
+    const prev = this._lastDown;
+    const same = !!prev && Math.abs(prev.x - e.clientX) <= SAME_SPOT_PX
+                        && Math.abs(prev.y - e.clientY) <= SAME_SPOT_PX;
+    this._lastDown = { x: e.clientX, y: e.clientY, moved: false, same, stack };
+    if (!stack.length) return idx;
+    const at = stack.findIndex(i => this._canvas.elements[i].id === this._sel);
+    return same && at >= 0 ? stack[at] : stack[0];
+  }
+
+  /** A click on the canvas itself: nothing selected, and the walk starts over. */
+  _deselect() { this._sel = null; this._lastDown = null; }
+
   _onDown(e, idx, mode) {
     e.stopPropagation();
     const surface = e.currentTarget.closest('.canvas');
     const rect = surface.getBoundingClientRect();
+    // A resize handle names its own element; only a press on the box itself
+    // has a stack to choose from. Resizing still ends the walk, so the next
+    // click on the box starts from the top again.
+    if (mode === 'move') idx = this._pressTarget(e, rect, idx);
+    else this._lastDown = null;
     const el = this._canvas.elements[idx];
     this._sel = el.id;
     this._drag = {
@@ -1344,10 +1409,27 @@ class ScCanvasEditor extends LitElement {
       dx: (e.clientX - startX) / rect.width * c.w,
       dy: (e.clientY - startY) / rect.height * c.h,
     };
+    if (this._lastDown && (Math.abs(e.clientX - startX) > SAME_SPOT_PX
+                        || Math.abs(e.clientY - startY) > SAME_SPOT_PX)) {
+      this._lastDown.moved = true;
+    }
     this._setEl(idx, applyDrag(c, origin, mode, delta));
   }
 
-  _onUp() { this._drag = null; }
+  _onUp() {
+    const mode = this._drag?.mode;
+    const d = this._lastDown;
+    this._drag = null;
+    // Clicking the same spot again walks one step down the stack under the
+    // pointer, the way easy-floorplan does it: an element another one covers
+    // completely can be reached no other way. A press that moved was a drag,
+    // and a drag picks nothing new.
+    if (mode !== 'move' || !d || d.moved || !d.same || d.stack.length < 2) return;
+    const els = this._canvas.elements;
+    const at = d.stack.findIndex(i => els[i]?.id === this._sel);
+    const next = els[d.stack[(Math.max(at, 0) + 1) % d.stack.length]];
+    if (next) this._sel = next.id;
+  }
 
   /**
    * The real component for an element, or null to keep the plain box.
@@ -1530,7 +1612,7 @@ class ScCanvasEditor extends LitElement {
                @pointermove=${this._onMove}
                @pointerup=${this._onUp}
                @pointercancel=${this._onUp}
-               @pointerdown=${() => { this._sel = null; }}>
+               @pointerdown=${() => this._deselect()}>
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
             ${els.map((el, idx) => {
               // Never live mid-drag. Every pointermove commits, so the config

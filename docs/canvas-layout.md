@@ -646,12 +646,34 @@ element alone, with its position, its size and its stacking: the canvas is
 how you pick, the list is how you edit.
 
 With nothing selected it shows the whole list again, which is the state where
-listing everything is the point - and it is the only way back to an element
-that another one covers completely, where a click on the canvas can never
-reach it. Two things can strand a selection there, and both fall back to the
-full list: removing the selected element clears the selection, and an id that
-no longer names an element - a gauge deleted in its own editor - is ignored
-rather than leaving an empty panel.
+listing everything is the point. Two things can strand a selection there, and
+both fall back to the full list: removing the selected element clears the
+selection, and an id that no longer names an element - a gauge deleted in its
+own editor - is ignored rather than leaving an empty panel.
+
+### Clicking down through a stack
+
+If the canvas is how you pick, it has to be able to pick anything, including
+an element another one covers completely. Clicking the same spot again walks
+one step down the stack under the pointer and wraps at the bottom, the way
+easy-floorplan does it - so a covered element is a click or two away rather
+than unreachable.
+
+The stack is geometry, not the event's target: `_stackAt` asks which element
+boxes contain the point and returns them in reverse array order, because later
+in `canvas.elements` draws on top. "The same spot" is four pixels, measured
+against the press before it - loose enough for the hand's own wobble, tight
+enough that aiming at a neighbour never counts.
+
+Two decisions keep the walk out of the way of dragging. The step happens on
+release, not on the press, so a press-and-drag moves the element you had
+rather than the next one down. And a press at the same spot keeps whatever is
+already selected there instead of jumping back to the top of the stack -
+without that, an element you clicked your way down to could be selected but
+never moved, because the press that starts the drag would re-target the
+element covering it. A press that travelled more than those four pixels was a
+drag and picks nothing new; a press on a resize handle ends the walk, so the
+next click on the box starts from the top again.
 
 ## 9. Build order
 
