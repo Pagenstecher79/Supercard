@@ -707,6 +707,25 @@ canvas is still a bar, and comes back under *Not on the canvas* in the add
 menu - which is also the only tidy way back after a duplicate that was not
 wanted, since the copy is a real bar and deleting its box does not delete it.
 
+For that to be *removal* rather than a mess, the canvas has to be the whole
+answer to what the card draws. `onAfterRender` moves exactly the elements the
+canvas names into the renderer, so anything else the gauge and progressbar
+modules created stayed in the card's own flow and drew at its natural size -
+a gauge taking half the card, a bar the full width of it, right beside the
+canvas it had just been removed from. `SC.showsElement(config, id)` is the
+gate: on a canvas card those modules do not create the component at all unless
+the canvas has a box for it. Off the canvas model it always answers yes, so a
+card on rows and cells, or one with its layout switched off, draws everything
+its lists contain exactly as before.
+
+The same move is why `onAfterRender` also clears up after itself. `assignSlot`
+takes a node out of the template lit created it in, and lit cannot take it
+back once the module stops rendering it - so an element removed from the
+canvas would leave its component parked in the renderer for good: invisible,
+still bound to `hass`, and still the first thing `resolveElement` finds if
+that element is ever placed again. Each pass drops the ones the canvas no
+longer names.
+
 ### Clicking down through a stack
 
 If the canvas is how you pick, it has to be able to pick anything, including

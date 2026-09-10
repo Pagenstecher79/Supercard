@@ -917,9 +917,12 @@ Object.assign(window.SupercardModules['gauge'], (() => {
       ? config.gauges
       : [config];
     return {
-      litOverlay: html`${gauges.map((cfg, idx) => html`
+      // Not created at all when the canvas does not show it: an element the
+      // canvas has no box for is never moved into the renderer, so it would
+      // draw in the card's own flow at its natural size.
+      litOverlay: html`${gauges.map((cfg, idx) => SC.showsElement(config, `gauge_${idx}`) ? html`
         <sc-gauge data-idx="${idx}" .config=${cfg} .hass=${hass} .globalEntities=${config.global_entities} .onCanvas=${!!config.canvas}></sc-gauge>
-      `)}`
+      ` : '')}`
     };
   }
 
