@@ -517,12 +517,50 @@ export const HA_COLUMN_GAP = 8;
 export const HA_SECTION_WIDTH = 480;
 
 /**
+ * How many columns the section holding this card actually offers.
+ *
+ * `HA_COLUMN_COUNT` is one section's worth, and a section can be several wide:
+ * Home Assistant's own layout tab sizes its width control as
+ * `12 * (column_span ?? 1)`, so a card in a section two columns wide goes up
+ * to 24. Ours has to arrive at the same number or one of the two is lying
+ * about the same setting.
+ *
+ * The card config does not carry it - `column_span` belongs to the section,
+ * not to the card - and the only thing that knows which section is being
+ * edited is the edit dialog, which puts it on `_params.sectionConfig` for its
+ * own layout tab. So it is read by walking out of the editor's shadow roots
+ * until that turns up. Anywhere else - a masonry view, YAML mode, a card
+ * rendered outside a dialog - there is nothing to find and one section's
+ * worth is the honest answer.
+ *
+ * @param {any} node the editor element to start from
+ * @returns {number}
+ */
+export function sectionColumns(node) {
+  for (let n = node, hops = 0; n && hops < 20; hops++) {
+    const root = typeof n.getRootNode === 'function' ? n.getRootNode() : null;
+    n = root && root.host ? root.host : n.parentElement;
+    const section = n && n._params && n._params.sectionConfig;
+    if (!section) continue;
+    const span = Number(section.column_span);
+    return HA_COLUMN_COUNT * (span > 0 ? Math.round(span) : 1);
+  }
+  return HA_COLUMN_COUNT;
+}
+
+/**
  * @param {number | 'full'} columns
+ * @param {number} [total] the section's column count, from `sectionColumns`
  * @returns {number} the card width that many grid columns give
  */
-export function gridColumnsToPx(columns) {
-  const raw = columns === 'full' ? HA_COLUMN_COUNT : Math.round(Number(columns) || 0);
-  const n = Math.max(1, Math.min(HA_COLUMN_COUNT, raw));
+export function gridColumnsToPx(columns, total = HA_COLUMN_COUNT) {
+  const asked = Math.round(Number(total));
+  const max = asked > 0 ? asked : HA_COLUMN_COUNT;
+  const raw = columns === 'full' ? max : Math.round(Number(columns) || 0);
+  const n = Math.max(1, Math.min(max, raw));
+  // A column is the same width in a wide section as in a narrow one - the
+  // section is wider because it has more of them - so the unit stays one
+  // section's worth however many columns the card may span.
   const unit = (HA_SECTION_WIDTH - (HA_COLUMN_COUNT - 1) * HA_COLUMN_GAP) / HA_COLUMN_COUNT;
   return n * unit + (n - 1) * HA_COLUMN_GAP;
 }
@@ -562,11 +600,12 @@ export function gridSize(cardConfig, slot) {
  * @param {any} cardConfig
  * @param {any} slot
  * @param {number} [scale]
+ * @param {number} [total] the section's column count, from `sectionColumns`
  * @returns {{ w: number, h: number }}
  */
-export function canvasFromGrid(cardConfig, slot, scale = 400) {
+export function canvasFromGrid(cardConfig, slot, scale = 400, total = HA_COLUMN_COUNT) {
   const { columns, rows } = gridSize(cardConfig, slot);
-  const w = gridColumnsToPx(columns);
+  const w = gridColumnsToPx(columns, total);
   const h = gridRowsToPx(rows);
   const k = scale / Math.max(w, h);
   return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
