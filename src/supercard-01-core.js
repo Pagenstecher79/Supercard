@@ -174,6 +174,18 @@ Object.assign(window.SupercardUtils, (() => {
    */
   function cardRadius(slot) {
     if (cardIsPill(slot)) return '999px';
+    // A canvas card that still says `pill` and has never had a unit written to
+    // it was a pill before the canvas took the shape control away: half the
+    // shorter side is that same stadium, so the corner such a card has on
+    // someone's dashboard right now is kept rather than squared off by an
+    // update they did not ask for. The unit key is what dates the card - it
+    // did not exist before this - and setting a radius in the editor retires
+    // `layout_shape` besides, because that is the answer to the shape question
+    // the canvas no longer asks.
+    if (onCanvas(slot) && slot?.layout_shape !== 'rectangle'
+        && slot?.border_radius_unit === undefined) {
+      return `calc(${CARD_SIDES.min} * 50 / 100)`;
+    }
     const v = slot?.border_radius;
     if (v === undefined || v === null || v === '') return null;
     // A radius written before the unit existed is a pixel one, so an absent
@@ -970,6 +982,12 @@ Object.assign(window.SupercardModules['core'], (() => {
       // SC.cardRadius, which has to read a card written before the unit
       // existed the same way it always did.
       const onCanvas = SC_UTILS.onCanvas(this.slot);
+      // A canvas card carrying a `pill` from its rows days is read as the
+      // stadium that shape was, so a radius set here has to retire the key in
+      // the same commit or it would be the one thing the control cannot do.
+      const updateRadius = (k, v) => onCanvas && this.slot.layout_shape !== 'rectangle'
+        ? this.commitFn('__merge__', { [k]: v, layout_shape: 'rectangle' })
+        : update(k, v);
       const brUnit = this.slot.border_radius_unit === '%' ? '%' : 'px';
       const brRef = this.slot.border_radius_ref || 'min';
       const brMax = brUnit === '%' ? 50 : 100;
@@ -1102,9 +1120,9 @@ Object.assign(window.SupercardModules['core'], (() => {
                 <div class="col">
                   <label>Corner radius</label>
                   <div style="display:flex; gap:8px; align-items:center;">
-                    <input type="range" min="0" max=${brMax} step="1" style="flex:1;" .value=${brValue} @input=${e => update('border_radius', parseInt(e.target.value))}>
-                    <input type="number" min="0" max=${brMax} style="width:56px;" .value=${brValue} @input=${e => update('border_radius', parseInt(e.target.value))}>
-                    <select style="width:56px;" @change=${e => update('border_radius_unit', e.target.value)}>
+                    <input type="range" min="0" max=${brMax} step="1" style="flex:1;" .value=${brValue} @input=${e => updateRadius('border_radius', parseInt(e.target.value))}>
+                    <input type="number" min="0" max=${brMax} style="width:56px;" .value=${brValue} @input=${e => updateRadius('border_radius', parseInt(e.target.value))}>
+                    <select style="width:56px;" @change=${e => updateRadius('border_radius_unit', e.target.value)}>
                       <option value="px" ?selected=${brUnit === 'px'}>px</option>
                       <option value="%" ?selected=${brUnit === '%'}>%</option>
                     </select>
@@ -1113,7 +1131,7 @@ Object.assign(window.SupercardModules['core'], (() => {
                 ${brUnit === '%' ? html`
                   <div class="row">
                     <label>Percent of</label>
-                    <select @change=${e => update('border_radius_ref', e.target.value)}>
+                    <select @change=${e => updateRadius('border_radius_ref', e.target.value)}>
                       <option value="min" ?selected=${brRef === 'min'}>Shorter side</option>
                       <option value="max" ?selected=${brRef === 'max'}>Longer side</option>
                       <option value="width" ?selected=${brRef === 'width'}>Width</option>
