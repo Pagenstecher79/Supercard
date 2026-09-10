@@ -42,12 +42,20 @@ jobs:
           git fetch --force origin \
             "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
           # Only an annotated tag carries a message of its own. For a
-          # lightweight tag %(contents:body) silently falls back to the commit
-          # body - trailers and all - so guard on the object type and write
+          # lightweight tag %(contents:...) silently falls back to the commit
+          # message - trailers and all - so guard on the object type and write
           # nothing rather than leaking a commit message into the release.
+          #
+          # Subject *and* body: git counts the message's first paragraph as the
+          # subject, so %(contents:body) alone drops it, and the first paragraph
+          # of a message written for users is the sentence that says what the
+          # release is. Not %(contents), which would carry a signature block
+          # into the release text if a tag is ever signed - the body stops
+          # before it.
           if git rev-parse -q --verify "refs/tags/${GITHUB_REF_NAME}" >/dev/null \
              && [ "$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}")" = "tag" ]; then
-            git tag -l --format='%(contents:body)' "${GITHUB_REF_NAME}" > release-intro.md
+            git tag -l --format='%(contents:subject)%0a%0a%(contents:body)' \
+              "${GITHUB_REF_NAME}" > release-intro.md
           else
             : > release-intro.md
           fi
