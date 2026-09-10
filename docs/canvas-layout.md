@@ -239,15 +239,21 @@ The legacy shapes in §1 are resolved **first**, by running the existing
 way there is exactly one place that understands the old field names, and it is
 the one already proven against real configurations.
 
-### Migration runs on read, and writes back
+### Migration runs on Convert, and only there
 
-Read `layout_rows` → produce `canvas` → hand the canvas to the renderer. Write
-the migrated config back only when the user next saves in the editor, not on
-load. A card that rewrites someone's stored config just for being displayed is
-a card that can corrupt a dashboard while nobody is watching it.
+Migration is one button's job. The renderer takes the new path only for a
+config that already carries a `canvas`; nothing migrates on the way in.
 
-Keep `layout_rows` in the config after migrating. It costs a few hundred bytes
-and it is the only way back if the migration turns out to be wrong for a
+This was originally drafted the other way — migrate on read, hand the result
+to the renderer, write it back at the user's next save — and `resolveCanvas()`
+existed for it. Nothing ever called it. Convert is the better answer to the
+same worry: a card that rewrites someone's stored config just for being
+displayed can corrupt a dashboard while nobody is watching, and a button
+cannot. It also keeps the two paths comparable while both exist, which is the
+only way to check that the new one puts things where the old one did.
+
+Keep `layout_rows` in the config after converting. It costs a few hundred
+bytes and it is the only way back if the migration turns out to be wrong for a
 configuration nobody anticipated.
 
 ---
