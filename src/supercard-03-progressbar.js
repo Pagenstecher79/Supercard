@@ -1050,7 +1050,8 @@ const STYLE_FIELDS = [
 
 class ScProgressbarEditor extends LitElement {
   static get properties() {
-    return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Function }, _expanded: { type: Object, state: true } };
+    return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Function },
+             only: { type: Number }, _expanded: { type: Object, state: true } };
   }
 
   constructor() {
@@ -1337,6 +1338,20 @@ class ScProgressbarEditor extends LitElement {
               @click=${e => { e.preventDefault(); this._removeProgressbar(idx, bars); }}>🗑</button>
           </div>
         </summary>
+        ${this._renderBarBody(entry, idx, bars)}
+      </details>`;
+  }
+
+  /**
+   * One bar's fields, without the panel around them.
+   *
+   * Its own section renders it inside a `<details>` that names the entry; the
+   * canvas editor renders it alone, under the element the user has selected,
+   * where the element list above it has already said which bar this is.
+   */
+  _renderBarBody(entry, idx, bars) {
+    const updateEntry = (key, val) => { this.commitFn('progressbars', SC.withPatch(bars, idx, key, val)); };
+    return html`
         <div class="inner-content">
           <div class="entity-row">
             <label>Internal name / manual label</label>
@@ -1403,13 +1418,17 @@ class ScProgressbarEditor extends LitElement {
               </select>
             </div>` : ''}
           ${this._renderFieldsGroup(STYLE_FIELDS, entry, idx, bars)}
-        </div>
-      </details>`;
+        </div>`;
   }
 
   render() {
     if (!this.slot) return html``;
     const bars = Array.isArray(this.slot.progressbars) ? this.slot.progressbars : [];
+    // One entry alone, for the canvas editor: no section, no switch, no add
+    // button - the canvas has already chosen which bar is being edited.
+    if (typeof this.only === 'number') {
+      return bars[this.only] ? this._renderBarBody(bars[this.only], this.only, bars) : html``;
+    }
     if (this._expanded['_main'] === undefined) this._expanded['_main'] = false;
 
     return html`

@@ -1198,6 +1198,7 @@ class ScCanvasEditor extends LitElement {
       _sel: { type: String, state: true },
       _drag: { type: Object, state: true },
       _live: { type: Boolean, state: true },
+      _configOpen: { type: Boolean, state: true },
     };
   }
 
@@ -1206,6 +1207,7 @@ class ScCanvasEditor extends LitElement {
     this._sel = null;
     this._drag = null;
     this._live = true;
+    this._configOpen = true;
     // The last press: where it was, whether it moved, and what lay under it.
     // Not reactive - nothing renders from it.
     this._lastDown = null;
@@ -1255,6 +1257,12 @@ class ScCanvasEditor extends LitElement {
       .icon-btn[disabled] { opacity: 0.3; cursor: default; }
       .icon-btn[disabled]:hover { color: var(--secondary-text-color); }
       .hint { font-size: 11px; color: var(--secondary-text-color); }
+      .el-config { border: 1px solid var(--divider-color,#444); border-radius: 6px; background: rgba(0,0,0,0.15); }
+      .el-config > summary { padding: 7px 10px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--primary-color,#03a9f4); list-style: none; display: flex; align-items: center; gap: 6px; user-select: none; }
+      .el-config > summary::-webkit-details-marker { display: none; }
+      .el-config > summary::before { content: '▶'; font-size: 9px; transition: transform 0.15s; }
+      .el-config[open] > summary::before { transform: rotate(90deg); }
+      .el-config-body { padding: 0 6px 6px; }
     `];
   }
 
@@ -1539,6 +1547,51 @@ class ScCanvasEditor extends LitElement {
     this._commit(c);
   }
 
+  /**
+   * The selected element's own settings, under the canvas.
+   *
+   * A mount point, not a second implementation: the editor that owns those
+   * fields renders one entry alone when given `only`, so a change to a bar's
+   * fields is a change in the progressbar editor and shows up here without
+   * anything being kept in step. `.slot` is the config sub-object every
+   * editor takes - the property shadows the HTML attribute of that name, the
+   * way this editor is itself mounted.
+   */
+  _renderElementConfig(id) {
+    const wrap = (title, body) => html`
+      <details class="el-config" ?open=${this._configOpen}
+               @toggle=${e => { this._configOpen = e.target.open; }}>
+        <summary>${title}</summary>
+        <div class="el-config-body">${body}</div>
+      </details>`;
+    const props = { hass: this.hass, slot: this.slot, commitFn: this.commitFn };
+
+    let m;
+    if ((m = id.match(/^progressbar_(\d+)$/))) {
+      return wrap('Progressbar settings', html`
+        <sc-progressbar-editor .hass=${props.hass} .slot=${props.slot}
+                               .commitFn=${props.commitFn} .only=${Number(m[1])}></sc-progressbar-editor>`);
+    }
+    if ((m = id.match(/^gauge_(\d+)$/))) {
+      return wrap('Gauge settings', html`
+        <sc-gauge-editor .hass=${props.hass} .slot=${props.slot}
+                         .commitFn=${props.commitFn} .only=${Number(m[1])}></sc-gauge-editor>`);
+    }
+    if ((m = id.match(/^label_(\d+)(?:_(?:icon|name|value))?$/))) {
+      return wrap('Label settings', html`
+        <sc-labels-editor .hass=${props.hass} .slot=${props.slot}
+                          .commitFn=${props.commitFn} .only=${Number(m[1])}></sc-labels-editor>`);
+    }
+
+    const el = this._canvas.elements.find(e => e.id === id);
+    return wrap('Element settings', html`<div class="hint" style="padding:4px 4px 8px;">${el?.surface
+      ? html`A surface has no settings of its own - it is a box for a colour or
+             glass pattern to paint. Target <code>${id}</code> in the colour or
+             fx-glass section.`
+      : html`<code>${id}</code> comes from the card's main entity, so its
+             settings are the card's rather than this element's.`}</div>`);
+  }
+
   render() {
     if (!this.slot?.canvas) return html``;
     const c = this._canvas;
@@ -1685,6 +1738,8 @@ class ScCanvasEditor extends LitElement {
         <div class="hint">${sel
           ? html`Click the canvas background to list every element again.`
           : html`Click an element on the canvas to work on it here.`}</div>
+
+        ${sel ? this._renderElementConfig(sel) : ''}
 
         <div class="row">
           <select style="flex:1" @change=${e => { if (e.target.value) { this._add(e.target.value); e.target.value = ''; } }}>
