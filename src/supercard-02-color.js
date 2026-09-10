@@ -573,9 +573,13 @@ Object.assign(window.SupercardModules['color'], (() => {
       if (isMain) {
         selector = 'ha-card::before';
       } else {
-        const match = pat.target.match(/r(\d+)c(\d+)/);
-        if (match) {
-          const partSel = `sc-layout-renderer::part(cell-${match[1]}-${match[2]})`;
+        // A cell and a canvas element are the same kind of thing here: a box
+        // the renderer names as a shadow part, whose ::before the pattern
+        // paints. A canvas has no cells, so on a converted card the target is
+        // an element id - the surface migration left behind for exactly this.
+        const cell = pat.target.match(/^r(\d+)c(\d+)$/);
+        if (cell) {
+          const partSel = `sc-layout-renderer::part(cell-${cell[1]}-${cell[2]})`;
           selector = `${partSel}::before`;
 
           // CELL: gets z-index 510 as a solid foundation. No isolation hack needed anymore!
@@ -586,6 +590,13 @@ Object.assign(window.SupercardModules['color'], (() => {
               background: transparent !important;
             }
           \n`;
+        } else if (pat.target.startsWith('elm_')) {
+          // No such foundation on a canvas, deliberately. Every element box is
+          // already positioned and they all share one z-index, so the array
+          // order is the stacking order - that is what the editor's forward and
+          // backward buttons move. Lifting one box to 510 would drop a surface
+          // on top of the gauges it was emitted underneath.
+          selector = `${SC.canvasPartSelector(pat.target.slice(4))}::before`;
         }
       }
       if (!selector) return;

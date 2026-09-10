@@ -175,6 +175,20 @@ Object.assign(window.SupercardUtils, (() => {
   }
 
   /**
+   * The selector for the box the canvas draws an element in.
+   *
+   * On the canvas model every element gets a shadow part named after its id -
+   * a surface included, which is the only thing a surface *is*. That box is
+   * the region a layout cell used to be, so it is what colour and fx-glass
+   * paint. Canvas-only by nature: the rows renderer names cells instead.
+   * @param {string} id
+   * @returns {string}
+   */
+  function canvasPartSelector(id) {
+    return `sc-layout-renderer::part(element-${id})`;
+  }
+
+  /**
    * Whether the card actually shows the element with this id.
    *
    * On the canvas model the canvas is the whole answer. `onAfterRender` moves
@@ -274,7 +288,8 @@ Object.assign(window.SupercardUtils, (() => {
 
   return /** @type {SupercardUtilsApi} */ ({
     safeFloat, hexToRgb, rgbToHex, toRgb, resolveVar, sampleGradient,
-    getAvailableElements, listElements, showsElement, resolveAlias, withPatch, gaugeIsResponsive,
+    getAvailableElements, listElements, showsElement, canvasPartSelector,
+    resolveAlias, withPatch, gaugeIsResponsive,
     editorStyles, formStyles
   });
 })());

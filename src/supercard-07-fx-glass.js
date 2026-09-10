@@ -420,6 +420,11 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
     if (id.startsWith('gauge_')) return `sc-gauge[data-idx="${id.split('_')[1]}"]`;
     if (id.startsWith('progressbar_')) return `sc-progressbar[data-idx="${id.split('_')[1]}"]`;
     if (id.startsWith('label_')) return `sc-label-${id.split('_')[1]}`;
+    // A surface has no component of its own - it exists only as the box the
+    // canvas draws it in, so the part is the whole element. Without this it
+    // fell through to [slot="surface_0"], which matches nothing: a surface is
+    // not slotted content but a div inside the renderer's shadow.
+    if (id.startsWith('surface_')) return SC.canvasPartSelector(id);
     return `[slot="${id}"]`;
   }
 
