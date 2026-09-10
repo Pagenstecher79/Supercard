@@ -238,9 +238,16 @@ comparing against the previous build:
 3. Compare `shadowRoot.innerHTML` byte for byte, and compare what each editor
    commits when every control in it is driven.
 
-Normalise the two known sources of nondeterminism first: lit's per-load marker
-ids (`lit$<digits>$`) and the per-instance random SVG filter ids. Freeze
-animations (`animation_duration: 0`) or the snapshot catches a bar mid-flight.
+Normalise the three known sources of nondeterminism first: lit's per-load
+marker ids (`lit$<digits>$`), the per-instance random SVG filter ids, and
+fx-glass's keyframe names, which carry a random suffix per pattern
+(`sc-glass-awake-<pattern id>-<random>`). Freeze animations
+(`animation_duration: 0`) or the snapshot catches a bar mid-flight.
+
+All three are per-load, so they differ between two runs of the *same* build.
+If a comparison shows a handful of differences that are equal in number and
+position and differ only in an id, look for a fourth such source before
+reading it as a behaviour change.
 
 That comparison covers rendering and committed values. It cannot cover the
 editor inside HA's config dialog, drag and drop, or whether an animation looks

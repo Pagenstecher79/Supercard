@@ -72,6 +72,11 @@ declare global {
      * is what "removed" means.
      */
     showsElement: (config: any, id: string) => boolean;
+    /**
+     * The selector for the shadow part the canvas draws an element in, for a
+     * bare element id. Canvas-only: the rows renderer names cells instead.
+     */
+    canvasPartSelector: (id: string) => string;
     /** Resolves entity/attribute through the global alias list. */
     resolveAlias: (
       list: { id: string; entity: string; attribute: string; alias?: string }[],

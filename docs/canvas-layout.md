@@ -322,6 +322,33 @@ This is the "animated surfaces" feature arriving early, in its smallest form:
 a placeable box that colour and fx-glass can address like any other element.
 It is here because migration needs it, not because the editor does yet.
 
+### Addressing an element on the canvas
+
+A surface is only worth creating if something can paint it, and for a while
+nothing could. The canvas renderer names every element it draws as a shadow
+part - `part="element-<id>"`, surfaces included - and that box is exactly the
+region a cell used to be, so it is what a pattern should paint. But colour
+resolved only `main` and `rXcY`, and fx-glass's element selectors all named a
+component: a gauge, a bar, a label. A surface has no component. It fell
+through to `[slot="surface_0"]`, which matches nothing, because a surface is
+not slotted content - it is a div inside the renderer's shadow.
+
+`SC.canvasPartSelector(id)` is that one selector, shared rather than written
+out in each module, since the renderer and both consumers have to agree on it.
+Colour now resolves an `elm_` target through it, which makes every canvas
+element paintable and not just surfaces; fx-glass uses it for the ids that
+have no component of their own.
+
+The cell case keeps a foundation the canvas case must not copy. A cell got
+`position: relative; z-index: 510` so its `::before` had something solid to
+sit on, and cells do not overlap, so lifting one changed nothing. Canvas
+element boxes are already positioned, they all share one z-index, and their
+array order *is* their stacking order - that is what the editor's forward and
+backward buttons move. Forcing one box to 510 would drop a surface on top of
+the very elements it was emitted underneath. The `::before` keeps its own
+`z-index: -1`, which puts the paint behind the element's content within the
+element's own stacking context, and leaves the siblings alone.
+
 ### Verified against real configurations
 
 The arithmetic in `src/canvas-model.js` was run against 30 Supercards from a
