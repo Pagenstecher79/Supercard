@@ -73,10 +73,10 @@ declare global {
      */
     showsElement: (config: any, id: string) => boolean;
     /**
-     * The selector for the shadow part the canvas draws an element in, for a
-     * bare element id. Canvas-only: the rows renderer names cells instead.
+     * The selector for the shadow part the layout renderer draws an element
+     * in, for a bare element id. Both models name their item boxes this way.
      */
-    canvasPartSelector: (id: string) => string;
+    elementPartSelector: (id: string) => string;
     /** Resolves entity/attribute through the global alias list. */
     resolveAlias: (
       list: { id: string; entity: string; attribute: string; alias?: string }[],
