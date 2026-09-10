@@ -920,3 +920,86 @@ left is the sections that are still lists of their own:
   selected element's settings under the canvas would finish the move, and
   needs a decision first: a rule can target several elements at once, and one
   that does has no single element to live under.
+
+---
+
+## 10. A new card starts on the canvas
+
+Reaching the canvas used to be four steps of the model it replaces: switch the
+layout section on, add a row, add a cell, assign content, then convert. Nothing
+about a card added a moment ago justifies that, so `getStubConfig` now returns a
+canvas card - `layout_active` plus a `canvas` from `canvasFromCard`, which
+places exactly what the stub card draws.
+
+That leaves three kinds of card and one offer each:
+
+| The card has | The layout tab offers |
+|---|---|
+| `canvas` | the canvas editor |
+| `layout_rows` | **Convert** - migration, §3 |
+| neither | **Use canvas** - `canvasFromCard`, no migration to do |
+
+Only a rows layout can be *converted*, which is why only that card is offered a
+conversion. A card on neither model - every card was, before it had a layout -
+has nothing to migrate, so its canvas is built from what it draws.
+
+### The pill was a shape; the canvas has a radius
+
+`layout_shape: 'pill'` is a card shape, and the canvas has no use for one: its
+elements are placed in a rectangle, and a stadium outline would cut the corner
+boxes off. So the shape control is not offered on a canvas card, and
+`SC.cardIsPill` answers no there whatever the key says - a shape nothing in the
+editor can change is worse than no shape at all.
+
+Nothing is lost by it. A radius of half the shorter side *is* that stadium, so
+Convert and Use canvas write `border_radius: 50` with unit `%` and reference
+`min` when the card was a pill, in the same commit as the canvas. A 400 × 60
+card goes from a clamped `999px` to a computed `30px` - the same corner, to the
+pixel.
+
+`layout_active` is part of the test. A card carrying a stale `canvas` with the
+layout switched off draws the plain content row, so it keeps its pill and both
+sets of dimension controls - the same reading `SC.showsElement` takes.
+
+### Corner radius in percent, of a side you name
+
+A px radius does not follow a card whose width is a column count and whose
+height is an aspect ratio. A percentage does - but `border-radius: 10%` is not
+that percentage: CSS resolves the horizontal radius against the width and the
+vertical against the height, which draws an elliptical corner, more elliptical
+the further the card is from square.
+
+So the reference side is named - width, height, shorter, longer - and the radius
+is `calc(<that side> * P / 100)`. The lengths come from the card's own
+`ResizeObserver`, which already measured them:
+
+```
+--sc-avail-w  --sc-avail-h  --sc-avail-min       max(w, h) for "longer"
+```
+
+Those three moved from `#main-container` to the host. lit owns the container's
+`style` attribute and rewrites it whole on every render, which dropped them
+until the next resize - survivable while nothing read them, not survivable for a
+radius. A custom property inherits down, so everything inside still resolves
+them. `--sc-scale` moved with them, for the same reason.
+
+An absent `border_radius_unit` still means px. The key predates the unit, so
+reading a card that set a radius before it existed as anything else would resize
+every such card's corners; the stub writes `'%'` explicitly, and the editor
+offers the switch on a canvas card.
+
+`SC.cardRadius(slot)` is the one reading of all of this - `999px` for a pill,
+`Npx`, a `calc()`, or `null` when the card set nothing and the caller's own
+fallback is the right answer. The renderer, a `main`-targeted colour pattern, a
+`main`-targeted fx-glass pattern and a bar's card-edge indent all used to
+compute it themselves, and disagreed: the glass ignored `layout_shape`, so a
+pill card's full-card glass kept a 12px corner inside a round one.
+
+### The responsive switches are not offered either
+
+**Responsive width** and **Responsive height** exist to set `--sc-scale`, which
+scales the plain content row's icon and type. A canvas card does not draw that
+row, and its type already scales with each element's own box (§2), so the
+switches have nothing to act on there - and the observer no longer honours a
+leftover one. **Absolute height** has never had any effect at all (§5), and
+`card_width` is read nowhere in rendering, so neither field is a loss.

@@ -612,6 +612,122 @@ export function canvasFromGrid(cardConfig, slot, scale = 400, total = HA_COLUMN_
 }
 
 /**
+ * A first canvas for a card that has no layout to migrate.
+ *
+ * Reaching the canvas used to mean building a rows layout first and converting
+ * it - switch the section on, add a row, add a cell, assign content, convert.
+ * Four steps in the model the canvas replaces, which is a strange thing to ask
+ * of someone who has just added a card.
+ *
+ * What lands on it is exactly what the card draws today, so switching models
+ * changes the arrangement and not the contents. That means honouring every gate
+ * the modules apply: `hide_icon` and its two siblings, the gauge and bar module
+ * switches, a bar's own `active`, a label's `enabled`. Nothing here turns
+ * anything on - an element someone switched off must not reappear because they
+ * tried the canvas - and nothing is dropped either, because an element the
+ * canvas does not name is not drawn at all, so a canvas that started empty
+ * would blank the card.
+ *
+ * The arrangement is bands: the card's own three across the top the way the
+ * content row has them, icon at the left with name over state beside it, then
+ * one band each for every gauge, bar and label. Boxes fill their band rather
+ * than taking `newBox`'s default size, which is tuned for dropping a single
+ * element onto an existing canvas - a default box on the card's own default
+ * shape, three columns wide, leaves a name in a 75-pixel strip.
+ *
+ * @param {any} cardConfig
+ * @param {any} slot
+ * @returns {any} a canvas
+ */
+export function canvasFromCard(cardConfig, slot) {
+  const shape = canvasFromGrid(cardConfig, slot);
+  const icon = !slot?.hide_icon;
+  const name = !slot?.hide_entity_name;
+  const state = !slot?.hide_entity_state;
+
+  const gauges = !slot?.gauge_active ? []
+    : Array.isArray(slot.gauges) ? slot.gauges.map((_, i) => `gauge_${i}`)
+    : ['gauge_0'];  // the legacy single gauge: the slot is the gauge
+  const bars = !slot?.progressbar_active || !Array.isArray(slot.progressbars) ? []
+    : slot.progressbars.map((b, i) => b?.active !== false ? `progressbar_${i}` : '').filter(Boolean);
+  const labels = !Array.isArray(slot?.labels_list) ? []
+    : slot.labels_list.map((l, i) => l?.enabled ? `label_${i}` : '').filter(Boolean);
+  const stacked = [...gauges, ...bars, ...labels];
+
+  const header = icon || name || state;
+  const bands = stacked.length + (header ? 1 : 0);
+  const elements = [];
+  let band = 0;
+
+  if (header) {
+    // A row, not a block. Text does not grow with the box it is in, so a
+    // header stretched down a tall card is a small icon and two small lines
+    // adrift in empty space - on the card's own default shape, three columns
+    // by three rows, that is most of the card.
+    const b = bandRect(shape, band++, bands, shape.h * 0.25);
+    // With nothing under it the cap has nothing to make room for, and a header
+    // pinned to the top of an otherwise empty card reads as unfinished. The
+    // content row centres it, and a card that has just been switched over
+    // should look like the card it was.
+    if (bands === 1) b.y = (shape.h - b.h) / 2;
+    // The icon takes a square at the left and the two lines share the rest,
+    // which is the content row's own arrangement. Without the icon the lines
+    // have the whole band, which is also what the content row does.
+    const iconW = icon ? Math.min(b.h, b.w / 3) : 0;
+    // Square and centred in the band: the icon is round, so a tall box would
+    // just be empty space that the editor still hands you as the element.
+    if (icon) elements.push(el('icon',
+      { x: b.x, y: b.y + (b.h - iconW) / 2, w: iconW, h: iconW }));
+    const textX = b.x + (icon ? iconW + shape.w * 0.02 : 0);
+    const textW = b.x + b.w - textX;
+    const lines = [name && 'name', state && 'state'].filter(Boolean);
+    lines.forEach((id, i) => elements.push(el(String(id), {
+      x: textX, y: b.y + b.h * i / lines.length, w: textW, h: b.h / lines.length,
+    })));
+  }
+
+  for (const id of stacked) {
+    const b = bandRect(shape, band++, bands);
+    // A gauge is drawn as the largest square that fits its box, so a wide box
+    // would be mostly empty space that still counts as the element.
+    const side = Math.min(b.w, b.h);
+    elements.push(el(id, isSquareLocked({ id })
+      ? { x: b.x + (b.w - side) / 2, y: b.y, w: side, h: side }
+      : b));
+  }
+
+  return { ...shape, elements };
+}
+
+/**
+ * The usable rectangle of one band, inset from the card's edges.
+ *
+ * @param {{w: number, h: number}} shape
+ * @param {number} idx
+ * @param {number} of
+ * @returns {{x: number, y: number, w: number, h: number}}
+ */
+function bandRect(shape, idx, of, maxH) {
+  const bands = Math.max(1, of);
+  const bandH = shape.h / bands;
+  // `maxH` caps a band that would otherwise be the whole card. The vertical
+  // margin comes off the capped height rather than the band, or a header
+  // asked to be a quarter of the card would still start a sixth of the way
+  // down it.
+  const h = Math.min(bandH, maxH ?? bandH);
+  // A margin all round, and a gap between bands: an arrangement that touches
+  // the card's edges reads as a mistake rather than as a starting point.
+  const mx = shape.w * 0.06, my = h * 0.15;
+  return { x: mx, y: bandH * idx + my, w: shape.w - 2 * mx, h: h - 2 * my };
+}
+
+/** @param {string} id @param {{x: number, y: number, w: number, h: number}} box */
+function el(id, box) {
+  const r = (/** @type {number} */ v) => Math.round(v);
+  return { id, inner: 'cc', x: r(box.x), y: r(box.y), w: r(box.w), h: r(box.h) };
+}
+
+/**
  * The same picture in a differently shaped coordinate space.
  *
  * Every element is a fraction of `w` and `h`, so scaling both the canvas and

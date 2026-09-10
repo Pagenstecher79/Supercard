@@ -479,8 +479,10 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
       let gaugeSizePx = 60;
 
       if (isMain) {
-        let cRad = config.supercard?.border_radius ?? config.border_radius;
-        autoRadiusFallback = (cRad !== undefined && cRad !== '') ? `${cRad}px` : 'var(--sc-border-radius, var(--ha-card-border-radius, 12px))';
+        // One reading of the card's corner for the renderer, the colour module
+        // and here: a percentage radius has no px for this to guess at, and a
+        // pill card's glass used to keep square-ish corners inside a round one.
+        autoRadiusFallback = SC.cardRadius(config) ?? 'var(--sc-border-radius, var(--ha-card-border-radius, 12px))';
       } else if (isDirectElement && !pat.manual_override) {
         if (pat.target.startsWith('elm_progressbar_')) {
           const pbIdx = parseInt(pat.target.split('_')[2]);

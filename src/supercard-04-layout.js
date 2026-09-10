@@ -4,6 +4,7 @@ import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS,
          sectionColumns,
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
          repointPatterns, colouredCells, glassedCells, soleElementTargets,
+         canvasFromCard,
          canDuplicate, duplicateElement,
          NEW_ELEMENT_KINDS, canAddKind, addElement } from "./canvas-model.js";
 
@@ -1960,8 +1961,12 @@ Object.assign(window.SupercardModules['layout'], (() => {
   }
 
   /**
-   * A card on the canvas model gets the canvas editor; one still on rows and
-   * cells gets the old one, plus the button that converts it.
+   * A card on the canvas model gets the canvas editor. One still on rows and
+   * cells gets the old one plus the button that converts it - and a card on
+   * neither, which every card was before it had a layout, is offered a canvas
+   * built from what it draws. Only a rows layout can be *converted*, so only
+   * that card is offered a conversion; a new card starts on the canvas and
+   * never sees either button.
    *
    * The conversion is offered rather than performed: it is one-way, it picks
    * an aspect ratio the old model never stored, and doing that to someone's
@@ -1984,6 +1989,14 @@ Object.assign(window.SupercardModules['layout'], (() => {
     const onElement = live(glassedCells(slot)).filter(k => k in follows);
     const surfaced = live(paintedCells(slot)).filter(k => !onElement.includes(k) || coloured.includes(k));
     const clicked = live(clickedCells(slot));
+    // Pill was a card *shape*, and the canvas has only a corner radius - the
+    // shape control is not offered there. Half the shorter side is the same
+    // stadium, so a round card stays round instead of being squared off by a
+    // change of model. It travels in the conversion's own commit; a second one
+    // in the same tick would be lost.
+    const pillAsRadius = SC.cardIsPill(slot)
+      ? { border_radius: 50, border_radius_unit: '%', border_radius_ref: 'min' }
+      : {};
     return html`
       <sc-layout-editor .slot=${slot} .hass=${hass} .commitFn=${commitFn}></sc-layout-editor>
       ${convertible ? html`
@@ -2027,11 +2040,32 @@ Object.assign(window.SupercardModules['layout'], (() => {
               // card that got its canvas but not its repointed targets is
               // exactly the card whose background disappeared.
               const { lists } = repointPatterns(slot, cellTargets, follows);
-              commitFn('__merge__', { canvas: { ...shape, elements }, ...lists });
+              commitFn('__merge__', { canvas: { ...shape, elements }, ...lists, ...pillAsRadius });
             }}>
             Convert
           </button>
-        </div>` : ''}`;
+        </div>` : html`
+        <div style="margin: 0 16px 16px 16px; padding: 10px 12px; border: 1px dashed var(--primary-color,#03a9f4); border-radius: 6px; font-size: 12px; color: var(--secondary-text-color); display: flex; align-items: center; gap: 12px;">
+          <span style="flex:1">
+            <b style="color:var(--primary-text-color)">Start on the canvas.</b>
+            Everything the card shows comes along - laid out top to bottom as a
+            starting point, then dragged and sized wherever you want it. You can
+            switch back by deleting <code>canvas</code> in the YAML editor.
+          </span>
+          <button type="button" style="background: var(--primary-color,#03a9f4); border: none; color: #fff; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap;"
+            @click=${() => {
+              // Rows, a cell, content, convert - four steps of the old model to
+              // reach the new one. There is nothing to migrate on a card like
+              // this, so the canvas is built from what the card draws instead.
+              // layout_active gates the renderer, so a canvas without it is a
+              // canvas nobody sees - and it travels in the same commit,
+              // because a second one in this tick would be lost.
+              commitFn('__merge__', { canvas: canvasFromCard(cardConfig, slot),
+                                      layout_active: true, ...pillAsRadius });
+            }}>
+            Use canvas
+          </button>
+        </div>`}`;
   }
 
   return /** @type {SupercardModule} */ ({ update, onAfterRender, editorFields: () => [], renderCustomBlock });

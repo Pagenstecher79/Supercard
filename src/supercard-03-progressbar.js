@@ -312,10 +312,14 @@ class ScProgressbar extends LitElement {
     
     // --- NEW: Hoist global card-edge indent logic ---
     const rc = this.rootConfig || {};
-    const hasCardRadius = rc.layout_shape === 'pill' || parseInt(rc.border_radius || '0') > 0;
+    const isCardPill = SC.cardIsPill(rc);
+    const hasCardRadius = isCardPill || SC.safeFloat(rc.border_radius, 0) > 0;
     let edgeIndentStr = '0px';
     if (hasCardRadius) {
-      edgeIndentStr = rc.layout_shape === 'pill' ? '20px' : Math.max(8, parseInt(rc.border_radius || 12) * 0.6) + 'px';
+      // The indent keeps a bar that reaches the card's edge out of the corner,
+      // so it follows whatever unit that corner is written in - a percentage
+      // one has no pixel figure to take 60% of here.
+      edgeIndentStr = isCardPill ? '20px' : `max(8px, calc(${SC.cardRadius(rc)} * 0.6))`;
     }
     
     // ==========================================
