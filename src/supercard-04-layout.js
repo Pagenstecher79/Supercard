@@ -1418,7 +1418,10 @@ class ScCanvasEditor extends LitElement {
 
   _remove(idx) {
     const c = structuredClone(this._canvas);
-    c.elements.splice(idx, 1);
+    const [gone] = c.elements.splice(idx, 1);
+    // The list below the canvas follows the selection, so an id that no
+    // longer exists would leave it empty with nothing left to click.
+    if (this._sel === gone?.id) this._sel = null;
     this._commit(c);
   }
 
@@ -1443,6 +1446,10 @@ class ScCanvasEditor extends LitElement {
     const gridPct = (c.grid > 0 ? c.grid : step) / c.w * 100;
     const pct = (v, total) => `${v / total * 100}%`;
     const unplaced = this._unplaced();
+    // The list below the canvas shows the selected element alone, so an id
+    // that no longer names one - a gauge deleted in its own editor, say -
+    // would leave it empty. Fall back to the whole list.
+    const sel = els.some(e => e.id === this._sel) ? this._sel : null;
 
     return html`
       <div class="col">
@@ -1545,7 +1552,9 @@ class ScCanvasEditor extends LitElement {
         </div>
 
         <div class="col" style="gap:4px;">
-          ${els.map((el, idx) => html`
+          ${els.map((el, idx) => [el, idx])
+               .filter(([el]) => !sel || sel === el.id)
+               .map(([el, idx]) => html`
             <div class="el-row ${this._sel === el.id ? 'sel' : ''}">
               <span class="el-name" @click=${() => { this._sel = el.id; }}>${el.id}</span>
               ${this._sel === el.id ? html`
@@ -1563,6 +1572,9 @@ class ScCanvasEditor extends LitElement {
               <button class="icon-btn" style="color:#f44" title="Remove" @click=${() => this._remove(idx)}>✕</button>
             </div>`)}
         </div>
+        <div class="hint">${sel
+          ? html`Click the canvas background to list every element again.`
+          : html`Click an element on the canvas to work on it here.`}</div>
 
         <div class="row">
           <select style="flex:1" @change=${e => { if (e.target.value) { this._add(e.target.value); e.target.value = ''; } }}>
