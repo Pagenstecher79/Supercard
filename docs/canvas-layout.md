@@ -490,11 +490,17 @@ The helper is shared because fx-glass has to reach the same answer: it picks
 `cqmin` or `px` units for the glass ring from it, and a disagreement measures
 the ring in pixels against a gauge measured in container units.
 
-Off the canvas the helper reproduces today's test exactly, including its known
-mismatch: the editor hides the pixel field when `gauge_size_responsive` is the
-*string* `"true"`, while the renderer only accepts the boolean, so such a card
-shows no control and still draws at `gauge_size_px`. Widening the test would
-resize those cards, so it is left alone and recorded here.
+Off the canvas the helper reads `gauge_size_responsive`, counting the string
+`"true"` as well as the boolean. A hand-written config can carry the string
+where the editor's checkbox would have written a boolean, and both editor
+controls have always read it that way - the checkbox shows such a card as
+switched on, and the pixel field hides itself. Only the renderer disagreed, so
+the card offered no size control and still drew at `gauge_size_px`. There is
+now one test rather than three, and the editor's field condition calls it.
+
+That does change how such a card is drawn: it becomes responsive, which is
+what its config already said and what its editor already showed. Setting
+**Responsive size** off writes a real boolean and restores the pixel size.
 
 The one behaviour this changes for an existing card: a canvas card whose gauge
 was in fixed-pixel mode now fills its element instead. `gauge_position_mode`
