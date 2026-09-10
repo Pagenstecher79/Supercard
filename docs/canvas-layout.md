@@ -651,6 +651,35 @@ both fall back to the full list: removing the selected element clears the
 selection, and an id that no longer names an element - a gauge deleted in its
 own editor - is ignored rather than leaving an empty panel.
 
+### The element's own settings, under the canvas
+
+Picking an element on the canvas and then hunting for it again in the
+*Progressbars* or *Gauges* section is two searches for one thing. The
+selected element's own settings now sit directly under the list, so the
+canvas is where you pick and everything about that element is in one column.
+
+It is a mount point, not a second implementation. Each editor takes an `only`
+property - an index into its own list - and then renders that one entry's
+fields alone: no section, no module switch, no add button, and none of the
+reorder or delete chrome, all of which belong to the list view rather than to
+one element. `render()` branches on `only` before it builds the section, and
+the panel body each list entry already had became a method the two paths
+share. So a change to a bar's fields is a change in the progressbar editor and
+shows up here without anything being kept in step.
+
+| id | what appears |
+|---|---|
+| `progressbar_N` | `sc-progressbar-editor` with `only: N` |
+| `gauge_N` | `sc-gauge-editor` with `only: N` |
+| `label_N`, `label_N_icon` / `_name` / `_value` | `sc-labels-editor` with `only: N` - a sub-target edits the label it belongs to |
+| `surface_N` | nothing to edit: a surface is a box for a colour or glass pattern to paint, and it is those sections that target it |
+| `icon`, `name`, `state` | nothing to edit: they come from the card's main entity |
+
+The split was verified against the build before it: with the section rendered
+normally, all three editors produce byte-identical DOM once lit's nested-
+template comment markers are stripped, and driving every control in each one
+commits exactly the same values.
+
 ### Copying an element, and removing one
 
 A canvas element is a *reference*, not a definition: the card fills

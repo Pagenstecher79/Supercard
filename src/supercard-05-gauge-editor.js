@@ -217,7 +217,8 @@ class ScGaugeEditor extends LitElement {
     return {
       hass: { type: Object },
       slot: { type: Object },
-      commitFn: { type: Object }
+      commitFn: { type: Object },
+      only: { type: Number }
     };
   }
 
@@ -261,17 +262,32 @@ class ScGaugeEditor extends LitElement {
     `];
   }
 
-  render() {
-    if (!this.slot) return html``;
-
-    const isActive = !!this.slot.gauge_active;
-    const gauges = Array.isArray(this.slot.gauges) && this.slot.gauges.length > 0
+  /**
+   * The gauges to edit. A slot that never grew a `gauges` array still has one
+   * gauge - the card's own config - and editing it materialises the array,
+   * which is why the fallback is a shape rather than an empty list.
+   */
+  get _gauges() {
+    return Array.isArray(this.slot.gauges) && this.slot.gauges.length > 0
       ? this.slot.gauges
-      : [{ 
+      : [{
           entity: this.slot.gauge_entity_0 || this.slot.entity || '',
           gauge_attribute: this.slot.gauge_attribute_0 || this.slot.gauge_attribute || '',
           inherit: false
         }];
+  }
+
+  render() {
+    if (!this.slot) return html``;
+
+    const isActive = !!this.slot.gauge_active;
+    const gauges = this._gauges;
+
+    // One entry alone, for the canvas editor: no section, no switch, no add
+    // button - the canvas has already chosen which gauge is being edited.
+    if (typeof this.only === 'number') {
+      return gauges[this.only] ? this._renderGaugeBody(gauges[this.only], this.only, gauges) : html``;
+    }
 
     return html`
       <details class="inner-section">
@@ -360,10 +376,6 @@ class ScGaugeEditor extends LitElement {
     const stateKey = `gauge_${idx}`;
     if (this._expanded[stateKey] === undefined) this._expanded[stateKey] = false;
 
-    const updateEntry = (key, val) => {
-      this.commitFn('gauges', SC.withPatch(gauges, idx, key, val));
-    };
-
     return html`
       <details class="inner-section" 
         ?open=${this._expanded[stateKey]} 
@@ -427,7 +439,23 @@ class ScGaugeEditor extends LitElement {
             </div>
           ` : ''}
         </summary>
-        
+        ${this._renderGaugeBody(entry, idx, gauges)}
+      </details>
+    `;
+  }
+
+  /**
+   * One gauge's fields, without the panel around them.
+   *
+   * Its own section renders it inside a `<details>` that names the entry; the
+   * canvas editor renders it alone, under the element the user has selected,
+   * where the element list above it has already said which gauge this is.
+   */
+  _renderGaugeBody(entry, idx, gauges) {
+    const updateEntry = (key, val) => {
+      this.commitFn('gauges', SC.withPatch(gauges, idx, key, val));
+    };
+    return html`
         <div class="inner-content">
           <div class="entity-row" style="margin-bottom: 8px;">
             <label>Data source</label>
@@ -499,9 +527,7 @@ class ScGaugeEditor extends LitElement {
           ` : ''}
 
           ${this._renderFieldsGroup(STYLE_FIELDS, entry, idx, gauges)}
-        </div>
-      </details>
-    `;
+        </div>`;
   }
 
 

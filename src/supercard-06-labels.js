@@ -8,6 +8,7 @@ class ScLabelsEditor extends LitElement {
       slot:       { type: Object },
       commitFn:   { type: Function },
       hass:       { type: Object },
+      only:       { type: Number },
       _expanded:  { type: Object, state: true },
       _outerOpen: { state: true }
     };
@@ -95,29 +96,11 @@ class ScLabelsEditor extends LitElement {
     `;
   }
 
-  render() {
-    if (!this.slot) return html``;
-    const list = Array.isArray(this.slot.labels_list) ? this.slot.labels_list : [];
-
+  /**
+   * One label, as the card its own section lists.
+   */
+  _renderLabelCard(item, idx, list) {
     return html`
-      <details class="inner-section" ?open=${this._outerOpen} @toggle=${e => this._outerOpen = e.target.open}>
-        <summary>── Labels &amp; Extra Texts <span style="font-size:10px;">▼</span></summary>
-        <div class="inner-content">
-          ${list.map((item, idx) => {
-
-            // --- Helper for the indicator state datalist ---
-            const mainResolvedEntity = SC.resolveAlias(this.slot?.global_entities, item).entity;
-
-            let availableStates = ['on', 'off', 'open', 'closed', 'true', 'false', 'home', 'not_home'];
-            if (mainResolvedEntity && this.hass?.states[mainResolvedEntity]) {
-              const sObj = this.hass.states[mainResolvedEntity];
-              if (sObj.attributes && Array.isArray(sObj.attributes.options)) {
-                availableStates = [...new Set([...availableStates, ...sObj.attributes.options])];
-              }
-            }
-            const datalistId = `states_${item.id}`;
-
-            return html`
             <div class="label-card">
               <div class="label-header" @click=${() => this._expanded = {...this._expanded, [item.id]: !this._expanded[item.id]}}>
                 ${this._getLabelTitle(item)}
@@ -131,7 +114,32 @@ class ScLabelsEditor extends LitElement {
                 </div>
               </div>
 
-              ${this._expanded[item.id] ? html`
+              ${this._expanded[item.id] ? this._renderLabelContent(item, idx, list) : ''}
+            </div>`;
+  }
+
+  /**
+   * One label's fields, without the card around them.
+   *
+   * Its own section renders them under a header that names the label and
+   * folds them away; the canvas editor renders them alone, under the element
+   * the user has selected, which has already said which label this is.
+   */
+  _renderLabelContent(item, idx, list) {
+
+            // --- Helper for the indicator state datalist ---
+            const mainResolvedEntity = SC.resolveAlias(this.slot?.global_entities, item).entity;
+
+            let availableStates = ['on', 'off', 'open', 'closed', 'true', 'false', 'home', 'not_home'];
+            if (mainResolvedEntity && this.hass?.states[mainResolvedEntity]) {
+              const sObj = this.hass.states[mainResolvedEntity];
+              if (sObj.attributes && Array.isArray(sObj.attributes.options)) {
+                availableStates = [...new Set([...availableStates, ...sObj.attributes.options])];
+              }
+            }
+            const datalistId = `states_${item.id}`;
+
+    return html`
                 <div class="label-content">
 
                   <div class="col">
@@ -388,10 +396,24 @@ class ScLabelsEditor extends LitElement {
                   ` : ''}
 
                 </div>
-              ` : ''}
-            </div>
-            `;
-          })}
+    `;
+  }
+
+  render() {
+    if (!this.slot) return html``;
+    const list = Array.isArray(this.slot.labels_list) ? this.slot.labels_list : [];
+
+    // One entry alone, for the canvas editor: no section, no header, no add
+    // button - the canvas has already chosen which label is being edited.
+    if (typeof this.only === 'number') {
+      return list[this.only] ? this._renderLabelContent(list[this.only], this.only, list) : html``;
+    }
+
+    return html`
+      <details class="inner-section" ?open=${this._outerOpen} @toggle=${e => this._outerOpen = e.target.open}>
+        <summary>── Labels &amp; Extra Texts <span style="font-size:10px;">▼</span></summary>
+        <div class="inner-content">
+          ${list.map((item, idx) => this._renderLabelCard(item, idx, list))}
 
           <button class="add-btn" @click=${() => {
             const n = [...list];
