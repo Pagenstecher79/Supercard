@@ -970,6 +970,26 @@ pixel.
 layout switched off draws the plain content row, so it keeps its pill and both
 sets of dimension controls - the same reading `SC.showsElement` takes.
 
+### The canvas cards that already exist
+
+Convert and Use canvas write the stadium for a card they turn over, but a card
+converted before any of this carries a `pill` nobody translated - and every one
+of them is round on someone's dashboard right now. Squaring those off would be
+this change reaching back into cards it was never asked about, so `SC.cardRadius`
+reads a canvas card that still says `pill` as the stadium it is: half the shorter
+side, the corner it already has.
+
+What dates such a card is `border_radius_unit`, which did not exist before this.
+A card that has one has had its corner decided under the new rules - by the stub,
+by Convert, or by the editor - and is read as it is written. A card without one
+predates them.
+
+That leaves the radius control the one thing that must not be ignored, so on a
+canvas it retires `layout_shape` in the same commit as the value it sets. Setting
+a corner *is* the answer to the shape question the canvas stopped asking, and
+without it the control would appear to do nothing on exactly the cards this
+paragraph is about.
+
 ### Corner radius in percent, of a side you name
 
 A px radius does not follow a card whose width is a column count and whose
