@@ -635,12 +635,18 @@ export function canvasFromGrid(cardConfig, slot, scale = 400, total = HA_COLUMN_
  * element onto an existing canvas - a default box on the card's own default
  * shape, three columns wide, leaves a name in a 75-pixel strip.
  *
+ * The section's column count is carried in for the same reason Convert carries
+ * it: `gridColumnsToPx` counts a card's columns against the section it sits in,
+ * and a full-width card in a wide section given one section's worth would take
+ * the ratio of a card half its width.
+ *
  * @param {any} cardConfig
  * @param {any} slot
+ * @param {number} [total] the section's column count, from `sectionColumns`
  * @returns {any} a canvas
  */
-export function canvasFromCard(cardConfig, slot) {
-  const shape = canvasFromGrid(cardConfig, slot);
+export function canvasFromCard(cardConfig, slot, total = HA_COLUMN_COUNT) {
+  const shape = canvasFromGrid(cardConfig, slot, 400, total);
   const icon = !slot?.hide_icon;
   const name = !slot?.hide_entity_name;
   const state = !slot?.hide_entity_state;

@@ -943,6 +943,15 @@ Only a rows layout can be *converted*, which is why only that card is offered a
 conversion. A card on neither model - every card was, before it had a layout -
 has nothing to migrate, so its canvas is built from what it draws.
 
+Both offers take the card's box from the section it is in, not from a section:
+`gridColumnsToPx` counts a card's columns against `12 * column_span`, so a card
+filling a section two columns wide is 968 pixels rather than 480, and a canvas
+shaped for 480 would letterbox everything on it. `sectionColumns` reads that
+span off the edit dialog and both `canvasFromGrid` and `canvasFromCard` take it
+as an argument. `getStubConfig` has no dialog to read - a card is not in a
+section until it is added - so a new card gets one section's worth, which is
+what the card it is about to become would get anyway.
+
 ### The pill was a shape; the canvas has a radius
 
 `layout_shape: 'pill'` is a card shape, and the canvas has no use for one: its
