@@ -1245,13 +1245,16 @@ class ScCanvasEditor extends LitElement {
       .handle { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; background: rgba(255,255,255,0.85); border-radius: 100% 0 0 0; cursor: nwse-resize; touch-action: none; }
       .handle::after { content: ''; position: absolute; right: -10px; bottom: -10px; width: 22px; height: 22px; }
       .num { width: 68px; }
-      /* Wraps because it has to: four number inputs and four buttons need
-         more than 500px, and Home Assistant's card editor is nowhere near
-         that wide - unwrapped, the remove button sat outside the dialog. The
-         name takes a line of its own so the controls below it line up. */
+      /* Only the selected row wraps, and it has to: its number inputs and four
+         buttons need more than 500px, and Home Assistant's card editor is
+         nowhere near that wide - unwrapped, the remove button sat outside the
+         dialog. There the name takes a line of its own so the controls below
+         it line up. Every other row is a name and four buttons and fits on one
+         line, which is what makes a long list readable. */
       .el-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; padding: 4px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); }
       .el-row.sel { background: rgba(3,169,244,0.18); }
-      .el-name { flex: 1 0 100%; font-family: monospace; cursor: pointer; }
+      .el-name { flex: 1; font-family: monospace; cursor: pointer; }
+      .el-row.sel .el-name { flex: 1 0 100%; }
       .icon-btn { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; padding: 2px 4px; font-size: 13px; }
       .icon-btn:hover { color: var(--primary-color); }
       .icon-btn[disabled] { opacity: 0.3; cursor: default; }
