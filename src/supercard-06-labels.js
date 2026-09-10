@@ -2,6 +2,26 @@ import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/co
 
 const SC = window.SupercardUtils;
 
+/**
+ * What a label is before anyone configures it.
+ *
+ * The canvas adds labels too, and it has no business knowing what one
+ * contains - that is this module's, so both add buttons ask here. The id is
+ * the label's own, used for its name and for remembering which card is open;
+ * it is not the `label_N` the canvas and every target list go by, which is
+ * the index in `labels_list`.
+ */
+function newEntry() {
+  return {
+    id: Date.now(), label_text: '', enabled: true,
+    use_entity: false, show_name: true, use_override: false,
+    use_icon: false, icon: '', icon_position: 'before',
+    icon_color: '', icon_size: '', icon_gap: null,
+    decimals: null, text_shadow: false, use_indicator: false,
+    indicator_shape: 'rect', indicator_visibility: 'always'
+  };
+}
+
 class ScLabelsEditor extends LitElement {
   static get properties() {
     return {
@@ -416,17 +436,9 @@ class ScLabelsEditor extends LitElement {
           ${list.map((item, idx) => this._renderLabelCard(item, idx, list))}
 
           <button class="add-btn" @click=${() => {
-            const n = [...list];
-            const newId = Date.now();
-            n.push({
-              id: newId, label_text: '', enabled: true,
-              use_entity: false, show_name: true, use_override: false,
-              use_icon: false, icon: '', icon_position: 'before',
-              icon_color: '', icon_size: '', icon_gap: null,
-              decimals: null, text_shadow: false, use_indicator: false, indicator_shape: 'rect', indicator_visibility: 'always'
-            });
-            this._commit(n);
-            this._expanded = { ...this._expanded, [newId]: true };
+            const entry = newEntry();
+            this._commit([...list, entry]);
+            this._expanded = { ...this._expanded, [entry.id]: true };
           }}>＋ Add label</button>
         </div>
       </details>
@@ -563,5 +575,6 @@ Object.assign(window.SupercardModules['labels'], (() => {
     </sc-labels-editor>`;
   }
 
-  return /** @type {SupercardModule} */ ({ update, renderCustomBlock });
+  return /** @type {SupercardModule} */ ({ update, renderCustomBlock, newEntry,
+                                           ownedByCanvas: true });
 })());

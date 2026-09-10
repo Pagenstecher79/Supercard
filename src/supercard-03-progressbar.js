@@ -1048,6 +1048,14 @@ const STYLE_FIELDS = [
   { id: 'indicator_value_font_size', label: 'Pill font size (CSS text)', type: 'text', placeholder: '10', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
 ];
 
+/**
+ * What a progressbar is before anyone configures it.
+ *
+ * The canvas adds bars too, and it has no business knowing what one contains
+ * - that is this module's, so both add buttons ask here.
+ */
+function newProgressbarEntry() { return { entity: '', attribute: '', label_text: '' }; }
+
 class ScProgressbarEditor extends LitElement {
   static get properties() {
     return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Function },
@@ -1086,7 +1094,7 @@ class ScProgressbarEditor extends LitElement {
 
   _addProgressbar(bars) {
     const newBars = structuredClone(bars);
-    newBars.push({ entity: '', attribute: '', label_text: '' });
+    newBars.push(newProgressbarEntry());
     this._expanded[`pb_${newBars.length - 1}`] = true;
     this.commitFn('progressbars', newBars);
   }
@@ -1489,5 +1497,7 @@ Object.assign(window.SupercardModules['progressbar'], (() => {
     return _cachedEditor;
   }
 
-  return /** @type {SupercardModule} */ ({ update, editorFields, renderCustomBlock });
+  return /** @type {SupercardModule} */ ({ update, editorFields, renderCustomBlock,
+                                           newEntry: newProgressbarEntry,
+                                           ownedByCanvas: true });
 })());

@@ -703,8 +703,8 @@ Home Assistant writes it back asynchronously.
 
 Removing is the older half of the pair and means what it has always meant:
 the element leaves the canvas, its definition stays. A bar taken off the
-canvas is still in the progressbar editor and still in the *Place an element*
-dropdown - which is also the only tidy way back after a duplicate that was not
+canvas is still a bar, and comes back under *Not on the canvas* in the add
+menu - which is also the only tidy way back after a duplicate that was not
 wanted, since the copy is a real bar and deleting its box does not delete it.
 
 ### Clicking down through a stack
@@ -731,6 +731,50 @@ element covering it. A press that travelled more than those four pixels was a
 drag and picks nothing new; a press on a resize handle ends the walk, so the
 next click on the box starts from the top again.
 
+### Adding an element, and where its section went
+
+Adding used to be two jobs in two places: a gauge was *created* in the
+*Gauges* section and then *placed* from a dropdown under the canvas. One
+button does both now. **+ Add element** opens a menu with two groups - what
+the card does not have yet (Gauge, Progressbar, Label, Surface) and what it
+has that the canvas is not showing (`icon`, `name`, `state`, and any entry
+whose box was removed) - and the next click on the canvas is where the
+element lands, centred on the pointer and snapped. Escape cancels; so does
+the button.
+
+`addElement` is the arithmetic and lives with the rest of it, in
+`canvas-model.js`. What it does *not* know is what a new gauge contains: each
+module answers that itself through `newEntry`, which its own add button uses
+too, so there is one definition of a fresh label rather than two that drift.
+The new box, the new list entry and the module switch that has to be on for
+it to draw anything go out as one `__merge__`, for the reason duplication
+does.
+
+Two refusals, both the ones duplication already makes. An id nothing backs is
+not placed - a box that references nothing would draw an empty rectangle for
+ever - and a gauge cannot be added to a slot that never grew a `gauges`
+array, because there the gauge *is* the card's config and writing a list
+would replace it.
+
+The box a new element gets is a fifth of the canvas' shorter side, not a
+multiple of the snap step: the step is one unit on a freely-placed canvas,
+and a four-unit box is invisible. A gauge is square because it has to be, a
+surface is twice as wide as it is tall because a backdrop is, and everything
+else is a flat strip, which is the shape of a bar and of a line of text.
+
+With adding on the canvas, the *Gauges*, *Progressbars* and *Labels* sections
+have nothing left that the canvas does not do better, and a card with a
+`canvas` no longer shows them: the module declares `ownedByCanvas` and the
+main editor leaves it out. A card still on rows and cells keeps every one of
+them - that is the only editor it has. The sections that remain - colour,
+fx-glass, interaction - are not per-element lists; they target elements by id
+and are still the card's own settings.
+
+One consequence is worth naming: those sections carried the module switches
+(`gauge_active`, `progressbar_active`). Adding an element from the canvas
+turns its module on, and taking every element of a kind off the canvas is how
+you turn it off, so the switch is no longer a control anyone has to find.
+
 ## 9. Build order
 
 1. ~~**The migration function alone**, pure.~~ `src/canvas-model.js`.
@@ -750,6 +794,10 @@ next click on the box starts from the top again.
    `grid_options`, and both halves of that box are settable here - see §7.
 8. ~~**A live preview.**~~ The editor draws the real gauges and bars in the
    boxes they occupy, with a switch back to plain boxes - see §8.
+9. ~~**The canvas as the element editor.**~~ Click to select, click again to
+   walk down the stack, the element's own settings under the canvas, copy and
+   remove, and one **+ Add element** button that creates and places - so the
+   per-element sections could leave the main editor - see §8.
 
 What is left is the part no amount of arithmetic settles: **switching cards
 over**. Today conversion is a button someone presses. Making it automatic
@@ -758,10 +806,12 @@ release decision, not a code one - see §4.
 
 ### Where the editor goes next
 
-One thing would move it further from *drawing the layout* towards *editing the
-card*, and it is not blocked by the model:
+The main editor is down to the card's own settings plus the canvas. What is
+left is the sections that are still lists of their own:
 
-- **Add elements from the canvas.** Placing one is a dropdown of everything
-  not yet placed, under the list; creating a gauge or a bar happens in a
-  different editor entirely. Buttons on the canvas edge - the way
-  easy-floorplan does it - would put adding an element where the element goes.
+- **Colour, fx-glass and interaction.** Each is a list of rules that name an
+  element by id, so each is really a *per-element* setting kept somewhere
+  else - the same split the gauge and bar sections had. Folding them into the
+  selected element's settings under the canvas would finish the move, and
+  needs a decision first: a rule can target several elements at once, and one
+  that does has no single element to live under.

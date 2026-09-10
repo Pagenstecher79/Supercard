@@ -2,7 +2,8 @@ import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/co
 import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, rescaleCanvas,
          migrateLayoutToCanvas, targetedCells,
-         canDuplicate, duplicateElement } from "./canvas-model.js";
+         canDuplicate, duplicateElement,
+         NEW_ELEMENT_KINDS, canAddKind, addElement } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
 
@@ -1199,6 +1200,8 @@ class ScCanvasEditor extends LitElement {
       _drag: { type: Object, state: true },
       _live: { type: Boolean, state: true },
       _configOpen: { type: Boolean, state: true },
+      _menu: { type: Boolean, state: true },
+      _placing: { type: String, state: true },
     };
   }
 
@@ -1208,9 +1211,32 @@ class ScCanvasEditor extends LitElement {
     this._drag = null;
     this._live = true;
     this._configOpen = true;
+    this._menu = false;
+    this._placing = null;
     // The last press: where it was, whether it moved, and what lay under it.
     // Not reactive - nothing renders from it.
     this._lastDown = null;
+    // A menu that outlives a click elsewhere, or a placement no key can get
+    // out of, is a trap - and the click that closes the menu is not one this
+    // element ever sees, so both listeners are the document's.
+    this._onKey = e => { if (e.key === 'Escape' && (this._menu || this._placing)) this._closeMenu(); };
+    this._onDocDown = e => {
+      if (this._menu && !e.composedPath().includes(this.shadowRoot?.querySelector('.menu-wrap'))) {
+        this._menu = false;
+      }
+    };
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener('keydown', this._onKey);
+    document.addEventListener('pointerdown', this._onDocDown, true);
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener('keydown', this._onKey);
+    document.removeEventListener('pointerdown', this._onDocDown, true);
+    super.disconnectedCallback();
   }
 
   static get styles() {
@@ -1219,7 +1245,12 @@ class ScCanvasEditor extends LitElement {
       .canvas-wrap { background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color,#444); border-radius: 4px; padding: 12px 8px; display: flex; justify-content: center; }
       .canvas { position: relative; width: 100%; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; overflow: hidden; touch-action: none; user-select: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
       .grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px); }
-      .el { position: absolute; box-sizing: border-box; cursor: grab; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px #000; border-radius: 2px; background: rgba(3,169,244,0.3); border: 1px solid var(--primary-color); overflow: hidden; }
+      /* Isolated because the live preview draws real gauges and bars, and
+         those stack themselves with SC_LAYERS - numbers in the thousands,
+         against the editor's own 2-to-5. Kept inside the box it is drawn in,
+         a preview cannot climb over the selection, the placing overlay or the
+         add menu. */
+      .el { position: absolute; isolation: isolate; box-sizing: border-box; cursor: grab; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px #000; border-radius: 2px; background: rgba(3,169,244,0.3); border: 1px solid var(--primary-color); overflow: hidden; }
       .el.surface { background: rgba(255,193,7,0.18); border-style: dashed; border-color: #ffc107; }
       .el.sel { background: rgba(3,169,244,0.55); border-width: 2px; z-index: 3; }
       /* Live, the box is a frame around someone else's drawing rather than a
@@ -1266,6 +1297,24 @@ class ScCanvasEditor extends LitElement {
       .el-config > summary::before { content: '▶'; font-size: 9px; transition: transform 0.15s; }
       .el-config[open] > summary::before { transform: rotate(90deg); }
       .el-config-body { padding: 0 6px 6px; }
+      /* The editor stacks against itself, not against the card SC_LAYERS
+         orders: 2 and 3 are the resize handle and the selected element, so
+         the placing overlay and the menu sit just above those. */
+      .tool-row { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; }
+      .menu-wrap { position: relative; }
+      .menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; min-width: 200px;
+              max-height: 280px; overflow-y: auto; padding: 4px; border-radius: 6px;
+              border: 1px solid var(--divider-color,#444); box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+              background: var(--card-background-color, var(--secondary-background-color, #1c1c1c)); }
+      .menu-group { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+                    color: var(--secondary-text-color); padding: 6px 8px 2px; }
+      .menu-item { display: block; width: 100%; text-align: left; background: none; border: none;
+                   color: var(--primary-text-color); font-size: 12px; padding: 6px 8px;
+                   border-radius: 4px; cursor: pointer; }
+      .menu-item:hover { background: rgba(3,169,244,0.18); }
+      .menu-item[disabled] { opacity: 0.4; cursor: default; }
+      .menu-item[disabled]:hover { background: none; }
+      .place-layer { position: absolute; inset: 0; z-index: 4; cursor: crosshair; }
     `];
   }
 
@@ -1493,27 +1542,80 @@ class ScCanvasEditor extends LitElement {
       .filter(t => t.id !== 'empty' && !placed.has(t.id));
   }
 
-  _add(id) {
-    const c = structuredClone(this._canvas);
-    const step = resolveSnap(c);
-    const w = Math.min(c.w, step * 4), h = Math.min(c.h, step * 4);
-    const side = Math.min(w, h);
-    const square = isSquareLocked({ id });
-    c.elements.push({ id, x: 0, y: 0,
-      w: square ? side : w, h: square ? side : h, inner: 'cc' });
-    this._sel = id;
-    this._commit(c);
+  /** What the menu picked, ready for the next click on the canvas to land. */
+  _startPlacing(what) {
+    this._menu = false;
+    this._placing = what;
   }
 
-  _addSurface() {
-    const c = structuredClone(this._canvas);
-    let n = 0;
-    while (c.elements.some(e => e.id === `surface_${n}`)) n++;
-    const step = resolveSnap(c);
-    c.elements.push({ id: `surface_${n}`, surface: true, x: 0, y: 0,
-      w: Math.min(c.w, step * 6), h: Math.min(c.h, step * 3) });
-    this._sel = `surface_${n}`;
-    this._commit(c);
+  _closeMenu() {
+    this._menu = false;
+    this._placing = null;
+  }
+
+  /** The label the menu gave whatever is waiting to be placed. */
+  get _placingLabel() {
+    const kind = NEW_ELEMENT_KINDS.find(k => k.kind === this._placing);
+    if (kind) return kind.label.toLowerCase();
+    const t = this._unplaced().find(t => t.id === this._placing);
+    return t ? (t.group === 'Basic' ? t.label : `${t.group} - ${t.label}`) : this._placing;
+  }
+
+  /**
+   * Put the chosen element down where the pointer is.
+   *
+   * The definition comes from the module that renders it - `newEntry` - so
+   * the canvas decides where a new gauge goes without knowing what a gauge
+   * contains. One `__merge__` rather than two commits, for the reason
+   * `_duplicate` gives.
+   */
+  _place(e) {
+    // The overlay is a child of the canvas, whose own press clears the
+    // selection - and the point of placing is to end up with the new element
+    // selected.
+    e.stopPropagation();
+    const what = this._placing;
+    this._placing = null;
+    if (!what || !this.commitFn) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const c = this._canvas;
+    const at = { x: (e.clientX - rect.left) / rect.width * c.w,
+                 y: (e.clientY - rect.top) / rect.height * c.h };
+
+    const kind = NEW_ELEMENT_KINDS.find(k => k.kind === what);
+    const entry = kind?.module
+      ? window.SupercardModules[kind.module]?.newEntry?.()
+      : undefined;
+
+    const made = addElement(this.slot, c, what, entry, at);
+    if (!made) return;
+    this._sel = made.id;
+    this.commitFn('__merge__', { canvas: made.canvas, ...made.patch });
+  }
+
+  /**
+   * What can be added, in two groups: something the card does not have yet,
+   * and something it has that the canvas is not showing.
+   */
+  _renderAddMenu() {
+    const unplaced = this._unplaced();
+    return html`
+      <div class="menu">
+        <div class="menu-group">New</div>
+        ${NEW_ELEMENT_KINDS.map(k => {
+          const ok = canAddKind(this.slot, k.kind);
+          return html`
+            <button class="menu-item" ?disabled=${!ok}
+                    title=${ok ? '' : "This card's gauge is the card itself, from before a card could have more than one - a second one would replace it."}
+                    @click=${() => this._startPlacing(k.kind)}>${k.label}</button>`;
+        })}
+        ${unplaced.length ? html`
+          <div class="menu-group">Not on the canvas</div>
+          ${unplaced.map(t => html`
+            <button class="menu-item" @click=${() => this._startPlacing(t.id)}>${
+              t.group === 'Basic' ? t.label : `${t.group} - ${t.label}`}</button>`)}` : ''}
+      </div>`;
   }
 
   /**
@@ -1605,7 +1707,6 @@ class ScCanvasEditor extends LitElement {
     const mismatch = this._gridMismatch;
     const gridPct = (c.grid > 0 ? c.grid : step) / c.w * 100;
     const pct = (v, total) => `${v / total * 100}%`;
-    const unplaced = this._unplaced();
     // The list below the canvas shows the selected element alone, so an id
     // that no longer names one - a gauge deleted in its own editor, say -
     // would leave it empty. Fall back to the whole list.
@@ -1685,6 +1786,19 @@ class ScCanvasEditor extends LitElement {
           `.el.live[data-item-id="${el.id}"]`,
           `.el.live[data-item-id="${el.id}"] > :not(.handle)`)).join('\n') : ''}</style>
 
+        <div class="tool-row">
+          <div class="menu-wrap">
+            <button class="add-btn" style="width:auto; padding:6px 12px;"
+                    @click=${() => { this._menu = !this._menu; this._placing = null; }}>
+              ＋ Add element
+            </button>
+            ${this._menu ? this._renderAddMenu() : ''}
+          </div>
+          <span class="hint" style="flex:1">${this._placing
+            ? html`Click on the canvas to place the ${this._placingLabel}. Escape cancels.`
+            : html`Later in the list draws on top. A gauge stays square and fills its box.`}</span>
+        </div>
+
         <div class="canvas-wrap">
           <div class="canvas" style="aspect-ratio:${c.w} / ${c.h};"
                @pointermove=${this._onMove}
@@ -1692,6 +1806,8 @@ class ScCanvasEditor extends LitElement {
                @pointercancel=${this._onUp}
                @pointerdown=${() => this._deselect()}>
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
+            ${this._placing ? html`
+              <div class="place-layer" @pointerdown=${this._place}></div>` : ''}
             ${els.map((el, idx) => {
               // Never live mid-drag. Every pointermove commits, so the config
               // objects are cloned and the components would be handed a new
@@ -1744,14 +1860,6 @@ class ScCanvasEditor extends LitElement {
 
         ${sel ? this._renderElementConfig(sel) : ''}
 
-        <div class="row">
-          <select style="flex:1" @change=${e => { if (e.target.value) { this._add(e.target.value); e.target.value = ''; } }}>
-            <option value="" selected>＋ Place an element…</option>
-            ${unplaced.map(t => html`<option value=${t.id}>${t.label}</option>`)}
-          </select>
-          <button class="add-btn" style="width:auto; padding:6px 10px;" @click=${this._addSurface}>＋ Surface</button>
-        </div>
-        <div class="hint">Later in the list draws on top. A surface is a plain box for a colour or glass pattern to paint. A gauge stays square, and fills its box - its size is set here, not in the gauge editor.</div>
       </div>`;
   }
 }

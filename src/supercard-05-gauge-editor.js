@@ -9,6 +9,14 @@ Object.assign(window.SupercardModules['gauge'], (() => {
 
 function editorFields() {}
 
+/**
+ * What a gauge is before anyone configures it.
+ *
+ * The canvas adds gauges too, and it has no business knowing what one
+ * contains - that is this module's, so both add buttons ask here.
+ */
+function newEntry() { return { entity: '', gauge_attribute: '' }; }
+
 const STYLE_FIELDS = [
   { id: '_section_shape',      label: '── Shape & Position',    type: 'section' },
   { id: 'gauge_type',          label: 'Gauge type',             type: 'select', options: [ { value: 'full', label: 'Full 360°' }, { value: 'semi', label: 'Semi 270°' } ] },
@@ -318,7 +326,7 @@ class ScGaugeEditor extends LitElement {
 
   _addGauge(gauges) {
     const newGauges = structuredClone(gauges);
-    newGauges.push({ entity: '', gauge_attribute: '' });
+    newGauges.push(newEntry());
     this._expanded[`gauge_${newGauges.length - 1}`] = true;
     this.commitFn('gauges', newGauges);
   }
@@ -1145,6 +1153,7 @@ function renderCustomBlock(commitFn, hass, slot) {
     return html`<sc-gauge-editor .commitFn=${commitFn} .hass=${hass} .slot=${slot}></sc-gauge-editor>`;
   }
 
-return /** @type {SupercardModule} */ ({ editorFields, renderCustomBlock });
+return /** @type {SupercardModule} */ ({ editorFields, renderCustomBlock, newEntry,
+                                        ownedByCanvas: true });
 
 })());

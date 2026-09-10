@@ -35,6 +35,18 @@ declare global {
       slot: any,
       cardConfig?: any
     ) => any;
+    /**
+     * A fresh, unconfigured entry for this module's list, so that whoever
+     * adds one - the module's own editor, or the canvas - gets the same
+     * thing. What an entry contains is the module's business.
+     */
+    newEntry?: () => any;
+    /**
+     * The canvas editor is where these elements are added and configured, so
+     * the module's own section is left out of the main editor on a card that
+     * has a canvas. A card still on rows and cells keeps it.
+     */
+    ownedByCanvas?: boolean;
     /** Extra <style> text injected once per render. */
   }
 
