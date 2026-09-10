@@ -150,3 +150,13 @@ supercard:
 
   gauge_active: false
   layout_active: false
+
+---
+
+## 📄 License
+
+Supercard is released under the [MIT License](LICENSE).
+
+The development harness under [`docker/`](docker/) is adapted from
+[easy-floorplan](https://github.com/nicosandller/easy-floorplan) and carries
+its own MIT notice in [`docker/LICENSE`](docker/LICENSE).

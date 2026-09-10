@@ -23,7 +23,7 @@
     "hacs",
     "supercard"
   ],
-  "license": "",
+  "license": "MIT",
   "author": "Pagenstecher79",
   "repository": {
     "type": "git",

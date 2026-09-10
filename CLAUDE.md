@@ -25,9 +25,15 @@ hard-refresh - and do not add a second resource entry for a test build, see
 the registration note below.
 
 `package.json`'s `"version"` is **not** the version of record and has read
-`1.0.0` across every release so far. The version is the git tag; there is no
-`hacs.json`, and HACS reads the tag. Do not bump the field expecting it to
-matter, and do not trust it when identifying a build.
+`1.0.0` across every release so far. The version is the git tag: `hacs.json`
+names the card and the asset to install but carries no version of its own, so
+HACS reads the tag. Do not bump the field expecting it to matter, and do not
+trust it when identifying a build.
+
+The project is MIT licensed - `LICENSE` at the root, and `"license": "MIT"` in
+`package.json`. `docker/LICENSE` is a separate notice: the machinery under
+`docker/` is adapted from another MIT project and reproduces its copyright as
+that licence requires.
 
 `npm test` runs vitest. Almost nothing here is unit-tested, and that is not a
 gap to close indiscriminately: the modules register custom elements and read
