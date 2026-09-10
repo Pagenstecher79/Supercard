@@ -1180,8 +1180,14 @@ class ScCanvasEditor extends LitElement {
          block of colour: the fill would hide the very thing being previewed,
          so selection is an inset ring instead. Size containment mirrors
          .sc-canvas in the renderer, which is what the 100cqmin below
-         resolves against there. */
-      .el.live { background: none; border-color: rgba(3,169,244,0.5); container-type: size; }
+         resolves against there.
+         The text properties go back to inherited because .el sets 10px bold
+         with a shadow for the id it draws, and that would be the font a
+         previewed element resolves em and % against - in the card it inherits
+         the dashboard's text instead, so the same config rendered smaller
+         here than on the card it is previewing. */
+      .el.live { background: none; border-color: rgba(3,169,244,0.5); container-type: size;
+                 font: inherit; color: inherit; text-shadow: none; letter-spacing: normal; }
       .el.live.sel { background: none; box-shadow: inset 0 0 0 2px var(--primary-color); }
       .el.live > sc-gauge { width: 100cqmin; height: 100cqmin; max-width: 100%; max-height: 100%; }
       .el.live > sc-progressbar { width: 100%; max-height: 100%; }
