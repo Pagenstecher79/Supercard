@@ -623,6 +623,18 @@ including the previewed component. Live boxes put the text properties back to
 inherited, so a previewed element resolves relative sizes against the same
 number the card gives it.
 
+Putting the text properties back to inherited has one trap of its own, and it
+took a measurement in a real instance to see it: `font` is a shorthand, so it
+resets `line-height` too - to whatever the box inherits. A card on a dashboard
+inherits Home Assistant's `1.6`; the card config dialog inherits `normal`. A
+circular bar draws its value and its label as two lines that
+`circular_value_offset_y` and `circular_label_offset_y` nudge towards each
+other, and those offsets are only clear of one another because of the leading
+that `1.6` adds. At `normal` the label sat on the value - the same bar, the
+same numbers, drawn correctly on the card next to it. Live boxes therefore name
+`line-height: var(--ha-line-height-normal, 1.6)` after the shorthand, which is
+the token Home Assistant sets it from, so a theme that changes it moves both.
+
 What is still missing is label elements: they are drawn by the layout module
 itself rather than by a component, so the preview shows them as plain boxes.
 
