@@ -1161,10 +1161,11 @@ class ScCanvasEditor extends LitElement {
       commitFn: { type: Function },
       _sel: { type: String, state: true },
       _drag: { type: Object, state: true },
+      _live: { type: Boolean, state: true },
     };
   }
 
-  constructor() { super(); this._sel = null; this._drag = null; }
+  constructor() { super(); this._sel = null; this._drag = null; this._live = true; }
 
   static get styles() {
     return [SC.editorStyles, css`
@@ -1175,6 +1176,15 @@ class ScCanvasEditor extends LitElement {
       .el { position: absolute; box-sizing: border-box; cursor: grab; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px #000; border-radius: 2px; background: rgba(3,169,244,0.3); border: 1px solid var(--primary-color); overflow: hidden; }
       .el.surface { background: rgba(255,193,7,0.18); border-style: dashed; border-color: #ffc107; }
       .el.sel { background: rgba(3,169,244,0.55); border-width: 2px; z-index: 3; }
+      /* Live, the box is a frame around someone else's drawing rather than a
+         block of colour: the fill would hide the very thing being previewed,
+         so selection is an inset ring instead. Size containment mirrors
+         .sc-canvas in the renderer, which is what the 100cqmin below
+         resolves against there. */
+      .el.live { background: none; border-color: rgba(3,169,244,0.5); container-type: size; }
+      .el.live.sel { background: none; box-shadow: inset 0 0 0 2px var(--primary-color); }
+      .el.live > sc-gauge { width: 100cqmin; height: 100cqmin; max-width: 100%; max-height: 100%; }
+      .el.live > sc-progressbar { width: 100%; max-height: 100%; }
       .handle { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; background: rgba(255,255,255,0.85); border-radius: 100% 0 0 0; cursor: nwse-resize; touch-action: none; }
       .handle::after { content: ''; position: absolute; right: -10px; bottom: -10px; width: 22px; height: 22px; }
       .num { width: 68px; }
@@ -1302,6 +1312,43 @@ class ScCanvasEditor extends LitElement {
 
   _onUp() { this._drag = null; }
 
+  /**
+   * The real component for an element, or null to keep the plain box.
+   *
+   * The id *is* the index - the same `gauge_0` / `progressbar_0` convention
+   * `onAfterRender` slots by - and the two branches mirror what each module's
+   * `update()` does, including its own active flags, so the preview cannot
+   * show a card the renderer would not draw. `slot` is what the card passes
+   * as `rootConfig`, because it is the same object.
+   *
+   * Both hosts are `pointer-events: none`, which is why a live element can sit
+   * inside a draggable box without swallowing the drag.
+   */
+  _liveContent(el) {
+    const slot = this.slot || {};
+    if (el.surface || !this.hass) return null;
+    const m = /^(gauge|progressbar)_(\d+)$/.exec(String(el.id || ''));
+    if (!m) return null;
+    const idx = Number(m[2]);
+
+    if (m[1] === 'gauge') {
+      if (!slot.gauge_active) return null;
+      const gauges = Array.isArray(slot.gauges) && slot.gauges.length > 0 ? slot.gauges : [slot];
+      const cfg = gauges[idx];
+      if (!cfg) return null;
+      // onCanvas: the element's box is the size here, exactly as on the card.
+      return html`<sc-gauge .config=${cfg} .hass=${this.hass}
+                            .globalEntities=${slot.global_entities} .onCanvas=${true}></sc-gauge>`;
+    }
+
+    if (!slot.progressbar_active) return null;
+    const bars = Array.isArray(slot.progressbars) ? slot.progressbars : [];
+    const cfg = bars[idx];
+    if (!cfg || cfg.active === false) return null;
+    return html`<sc-progressbar .config=${cfg} .hass=${this.hass} .rootConfig=${slot}
+                                .globalEntities=${slot.global_entities}></sc-progressbar>`;
+  }
+
   // --- element list -----------------------------------------------------
   _unplaced() {
     const placed = new Set(this._canvas.elements.map(e => e.id));
@@ -1421,6 +1468,19 @@ class ScCanvasEditor extends LitElement {
           </div>
         </div>
 
+        <div class="row">
+          <label>Preview</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <select style="width:110px" @change=${e => { this._live = e.target.value === 'live'; }}>
+              <option value="live" ?selected=${this._live}>Live</option>
+              <option value="boxes" ?selected=${!this._live}>Boxes</option>
+            </select>
+            <span class="hint">${this._live
+              ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
+              : html`Plain boxes - easier to see and to grab.`}</span>
+          </div>
+        </div>
+
         <div class="canvas-wrap">
           <div class="canvas" style="aspect-ratio:${c.w} / ${c.h};"
                @pointermove=${this._onMove}
@@ -1428,14 +1488,22 @@ class ScCanvasEditor extends LitElement {
                @pointercancel=${this._onUp}
                @pointerdown=${() => { this._sel = null; }}>
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
-            ${els.map((el, idx) => html`
-              <div class="el ${el.surface ? 'surface' : ''} ${this._sel === el.id ? 'sel' : ''}"
+            ${els.map((el, idx) => {
+              // Never live mid-drag. Every pointermove commits, so the config
+              // objects are cloned and the components would be handed a new
+              // `.config` at pointer frequency - a full re-render of every
+              // gauge on the canvas per frame. The plain box is also the
+              // clearer thing to drag.
+              const live = this._live && !this._drag ? this._liveContent(el) : null;
+              return html`
+              <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._sel === el.id ? 'sel' : ''}"
                    style="left:${pct(el.x, c.w)}; top:${pct(el.y, c.h)}; width:${pct(el.w, c.w)}; height:${pct(el.h, c.h)};"
                    title=${el.id}
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
-                ${el.id}
+                ${live ?? el.id}
                 <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>
-              </div>`)}
+              </div>`;
+            })}
           </div>
         </div>
 
