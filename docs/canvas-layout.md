@@ -631,3 +631,17 @@ What is left is the part no amount of arithmetic settles: **switching cards
 over**. Today conversion is a button someone presses. Making it automatic
 means choosing an aspect ratio for every existing card at once, and that is a
 release decision, not a code one - see §4.
+
+### Where the editor goes next
+
+Two things would move it from *drawing the layout* to *editing the card*, and
+neither is blocked by the model:
+
+- **The element list follows the selection.** The list under the canvas shows
+  every element at once, which is a second place to hunt for the thing already
+  under the pointer. Showing only the selected element makes the canvas the way
+  you pick, and the list the way you edit.
+- **Add elements from the canvas.** Placing one is a dropdown of everything
+  not yet placed, under the list; creating a gauge or a bar happens in a
+  different editor entirely. Buttons on the canvas edge - the way
+  easy-floorplan does it - would put adding an element where the element goes.
