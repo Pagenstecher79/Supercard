@@ -1257,6 +1257,37 @@ class ScCanvasEditor extends LitElement {
     super.disconnectedCallback();
   }
 
+  /**
+   * Follow the card's size when it is changed in Home Assistant's Layout tab.
+   *
+   * Changing it here reshapes the canvas - see `_setGrid` - and the Layout tab
+   * writes the same `grid_options` the same controls do, so it is the same
+   * person asking for the same thing. It used to leave the canvas behind: the
+   * numbers in this tab updated, the shape did not, until something was typed
+   * here again.
+   *
+   * Only on a change, and never on the first `cardConfig` to arrive. A canvas
+   * that has always been a different shape from its card is somebody's
+   * decision, and reshaping it for merely opening the editor is the rewrite
+   * while nobody is watching that `_matchGrid` exists to avoid - the Match
+   * button still offers that one. And only with a row count: under
+   * `rows: auto` the card takes its height from the canvas, so there is no
+   * shape to match. `_shapedToGrid` is null when the canvas already fits,
+   * which is what stops the commit this causes from causing another.
+   */
+  updated(changed) {
+    super.updated(changed);
+    if (!changed.has('cardConfig')) return;
+    const was = changed.get('cardConfig');
+    if (!was) return;
+    const grid = this.cardConfig?.grid_options || {};
+    const before = was.grid_options || {};
+    if (grid.columns === before.columns && grid.rows === before.rows) return;
+    if (typeof grid.rows !== 'number') return;
+    const shaped = this._shapedToGrid();
+    if (shaped) this._commit(shaped);
+  }
+
   static get styles() {
     return [SC.editorStyles, css`
       .row { gap: 8px; }
