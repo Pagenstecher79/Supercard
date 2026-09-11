@@ -27,6 +27,7 @@ import {
   canvasFromGrid,
   canvasFromCard,
   rescaleCanvas,
+  roundBox,
   canDuplicate,
   canAddKind,
   addElement,
@@ -328,7 +329,9 @@ describe('migrateLayoutToCanvas', () => {
     // so both compress to half.
     expect(elements[1].x).toBe(0);
     expect(elements[1].y).toBe(50);
-    expect(elements[1].w).toBeCloseTo(50 * 0.33333, 2);
+    // 16.6665 of a canvas, rounded: a coordinate is a whole number - see
+    // `roundBox`.
+    expect(elements[1].w).toBe(17);
   });
 });
 
@@ -882,7 +885,8 @@ describe('migration squares gauges', () => {
   it('leaves a progressbar filling its cell', () => {
     const rows = [{ cells: [{ width: 100, content: 'progressbar_0' }] }];
     const { elements } = migrateLayoutToCanvas(rows, { w: 400, h: 200 });
-    expect(elements[0]).toMatchObject({ w: 33.333 / 100 * 400, h: 33.333 / 100 * 200 });
+    // 133.332 x 66.666 of the cell, as whole canvas units.
+    expect(elements[0]).toMatchObject({ w: 133, h: 67 });
   });
 
   it('leaves surfaces alone, so a pattern still paints the whole cell', () => {
@@ -983,6 +987,46 @@ describe('rescaleCanvas', () => {
   it('is a no-op when the shape has not changed', () => {
     const canvas = { w: 400, h: 200, elements: [{ id: 'x', x: 1, y: 2, w: 3, h: 4 }] };
     expect(rescaleCanvas(canvas, { w: 400, h: 200 })).toEqual(canvas);
+  });
+
+  it('leaves whole numbers behind, whatever the factors were', () => {
+    const canvas = { w: 248, h: 200, elements: [
+      { id: 'icon', x: 10, y: 10, w: 60, h: 60 },
+      { id: 'name', x: 80, y: 10, w: 150, h: 40 },
+      { id: 'surface_0', surface: true, x: 7, y: 33, w: 111, h: 29 },
+    ]};
+    const out = rescaleCanvas(canvas, { w: 381, h: 400 });
+    for (const el of out.elements) {
+      for (const k of ['x', 'y', 'w', 'h']) expect(Number.isInteger(el[k])).toBe(true);
+    }
+  });
+
+  it('keeps a squared element square after rounding', () => {
+    const canvas = { w: 248, h: 200, elements: [{ id: 'gauge_0', x: 3, y: 7, w: 61, h: 61 }] };
+    const out = rescaleCanvas(canvas, { w: 381, h: 400 });
+    expect(out.elements[0].w).toBe(out.elements[0].h);
+  });
+
+  it('never rounds an element away to nothing', () => {
+    const canvas = { w: 400, h: 400, elements: [{ id: 'label_0', x: 0, y: 0, w: 1, h: 1 }] };
+    const out = rescaleCanvas(canvas, { w: 20, h: 20 });
+    expect(out.elements[0]).toMatchObject({ w: 1, h: 1 });
+  });
+});
+
+describe('roundBox', () => {
+  it('rounds the box and leaves everything else alone', () => {
+    expect(roundBox({ id: 'a', surface: true, inner: 'tl',
+                      x: 15.362903225806452, y: 3.825, w: 252.4, h: 68.85 }))
+      .toEqual({ id: 'a', surface: true, inner: 'tl', x: 15, y: 4, w: 252, h: 69 });
+  });
+
+  it('clears floating point noise', () => {
+    expect(roundBox({ x: 14.000000000000002, y: 0, w: 10, h: 10 }).x).toBe(14);
+  });
+
+  it('holds a box at one unit rather than letting it vanish', () => {
+    expect(roundBox({ x: 0, y: 0, w: 0.2, h: 0 })).toMatchObject({ w: 1, h: 1 });
   });
 });
 
