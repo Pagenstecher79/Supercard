@@ -163,6 +163,16 @@ class ScLayoutRenderer extends LitElement {
       ::slotted(*) { pointer-events:auto !important; }
       ::slotted(sc-gauge) { width:100cqmin !important; height:100cqmin !important; max-width:100% !important; max-height:100% !important; }
       ::slotted(sc-progressbar) { width:100% !important; max-height:100% !important; }
+      /* The icon draws itself at a fixed 42px plus its border, scaled by
+         --sc-scale - and --sc-scale is pinned to 1 on a canvas, so without
+         this the box someone drew is ignored: cropped in a small one, lost in
+         a large one. The glyph keeps the proportion it has in the content
+         row, 24px inside the 44px the container actually occupies. */
+      ::slotted(.sc-primary-icon) {
+        box-sizing: border-box !important;
+        width: 100cqmin !important; height: 100cqmin !important;
+        --sc-icon-glyph: 54.5cqmin;
+      }
       ::slotted([slot^="label_"]) {
         display:flex !important; flex-direction:column !important;
         align-items:center; justify-content:center; width:100%; height:100%;
