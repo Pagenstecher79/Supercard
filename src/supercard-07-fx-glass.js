@@ -1,5 +1,6 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { DEAD_PATTERN_TARGETS } from "./config-cleanup.js";
+import { lightParams, bevelShadow, px, isRoundTarget } from "./glass-light.js";
 
 const SC = window.SupercardUtils;
 
@@ -9,7 +10,12 @@ class ScShadowPad extends LitElement {
     return {
       angle: { type: Number },
       distance: { type: Number },
-      maxDistance: { type: Number }
+      maxDistance: { type: Number },
+      // The pattern the light belongs to, for the preview - only its bevel,
+      // thickness, style and brightness are read, and the angle and distance
+      // are the pad's own, which are ahead of the pattern while dragging.
+      pattern: { type: Object },
+      preview: { type: Boolean }
     };
   }
 
@@ -18,14 +24,19 @@ class ScShadowPad extends LitElement {
     this.angle = 90;
     this.distance = 1.0;
     this.maxDistance = 5;
+    this.pattern = null;
+    // On, because a control whose effect is elsewhere on a long page is the
+    // problem the preview exists to solve - but off is a click away, since a
+    // lit sample under the sun is also one more thing moving while dragging.
+    this.preview = true;
     this._isDragging = false;
   }
 
   static get styles() {
     return css`
-      :host { display: block; width: 100%; max-width: 120px; aspect-ratio: 1 / 1; margin: 0 auto; touch-action: none; }
+      :host { display: block; width: 100%; max-width: 120px; margin: 0 auto; touch-action: none; }
       .pad-container {
-        position: relative; width: 100%; height: 100%;
+        position: relative; width: 100%; aspect-ratio: 1 / 1;
         background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%);
         border: 2px solid var(--divider-color, #444);
         border-radius: 50%; box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);
@@ -41,6 +52,27 @@ class ScShadowPad extends LitElement {
       }
       .pad-container:active .thumb { box-shadow: 0 0 15px var(--warning-color, #ff9800), 0 2px 4px rgba(0,0,0,0.5); }
       .sun-icon { font-size: 10px; line-height: 1; margin-top: -1px; }
+      /* The sample the light falls on. Not the element the glass will sit on
+         - that is drawn on the canvas, at its own size, and a thumbnail of it
+         in here would say nothing about the light. What this shows is the one
+         thing the pad sets: which edge is lit and which one is in shadow.
+         Bevel widths are the pattern's own pixels, so a bevel that swallows
+         this sample is a bevel that would swallow a small element too. */
+      .sample {
+        position: absolute; left: 50%; top: 50%; width: 56%; height: 56%;
+        transform: translate(-50%, -50%); border-radius: 10px;
+        background: rgba(255,255,255,0.06); pointer-events: none; z-index: 1;
+      }
+      /* A gauge's glass is a disc, and a bevel reads differently around one:
+         the lit edge is an arc that thins out towards the shadow rather than
+         two sides meeting at a corner. */
+      .sample.round { border-radius: 50%; }
+      .preview-toggle {
+        display: flex; align-items: center; justify-content: center; gap: 4px;
+        margin-top: 6px; font-size: 10px; color: var(--secondary-text-color);
+        cursor: pointer; user-select: none;
+      }
+      .preview-toggle input { margin: 0; cursor: pointer; }
     `;
   }
 
@@ -86,10 +118,23 @@ class ScShadowPad extends LitElement {
     const rPct = (this.distance / this.maxDistance) * 50;
     const tx = 50 + Math.cos(lightAngle) * rPct;
     const ty = 50 + Math.sin(lightAngle) * rPct;
+    // The pattern's own light, with the pad's live angle and distance: a drag
+    // moves those before the commit has come back around, and a preview a
+    // render behind the sun it is under is worse than none.
+    const light = lightParams({ ...(this.pattern || {}),
+                                shadow_angle: this.angle, shadow_distance: this.distance });
     return html`
       <div class="pad-container" @pointerdown=${this._handlePointerDown} @pointermove=${this._handlePointerMove} @pointerup=${this._handlePointerUp} @pointercancel=${this._handlePointerUp}>
+        ${this.preview ? html`
+          <div class="sample ${isRoundTarget(this.pattern?.target) ? 'round' : ''}"
+               style="box-shadow: ${bevelShadow(light, px)};"></div>` : ''}
         <div class="thumb" style="left: ${tx}%; top: ${ty}%;"><div class="sun-icon">☀️</div></div>
       </div>
+      <label class="preview-toggle" title="A sample lit from where the sun is. Turn it off for a plain pad.">
+        <input type="checkbox" .checked=${this.preview}
+               @change=${e => { this.preview = e.target.checked; }}>
+        Light preview
+      </label>
     `;
   }
 }
@@ -268,6 +313,7 @@ function glassBody(pat, set, setMany) {
         .angle=${pat.shadow_angle ?? 90}
         .distance=${pat.shadow_distance ?? 1}
         .maxDistance=${5}
+        .pattern=${pat}
         @pad-change=${e => setMany({ shadow_angle: e.detail.angle, shadow_distance: e.detail.distance })}
       ></sc-shadow-pad>
       <div style="display: flex; gap: 16px; font-size: 11px; color: var(--secondary-text-color);">
@@ -593,6 +639,8 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
         // pill card's glass used to keep square-ish corners inside a round one.
         autoRadiusFallback = SC.cardRadius(config) ?? 'var(--sc-border-radius, var(--ha-card-border-radius, 12px))';
       } else if (isDirectElement) {
+        if (isRoundTarget(pat.target)) { autoRadiusFallback = '50%'; computedForceSquare = true; }
+
         if (pat.target.startsWith('elm_progressbar_')) {
           const pbIdx = parseInt(pat.target.split('_')[2]);
           const pbConf = config.progressbars?.[pbIdx];
@@ -602,8 +650,6 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
           } else autoRadiusFallback = 'var(--pb-radius, 4px)';
           computedForceSquare = false;
         } else if (pat.target.startsWith('elm_gauge_')) {
-          autoRadiusFallback = '50%'; computedForceSquare = true;
-
           const gIdx = parseInt(pat.target.split('_')[2]);
           const gConf = (Array.isArray(config.gauges) && config.gauges[gIdx]) ? config.gauges[gIdx] : config;
 
@@ -620,7 +666,6 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
             scaleFactor = 90;
           }
         } else if (pat.target === 'elm_icon') {
-          autoRadiusFallback = '50%'; computedForceSquare = true;
           isGaugeResponsive = true;
         }
       }
@@ -707,42 +752,11 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
       }
 
       // --- 4. Physical light calculation & refraction fake (entirely without the border bug!) ---
-      const shadowStyle = pat.shadow_style || 'frosted';
-
-      const bWidth = pat.bevel_width ?? pat.bevel_size ?? 2;
-      const gThick = pat.glass_thickness ?? 5;
-      const lBright = pat.light_brightness ?? 0.4;
-
-      const sAngle = pat.shadow_angle ?? 90;
-      const sDist = pat.shadow_distance ?? 1;
-      const sRad = sAngle * Math.PI / 180;
-
-      const shadowX = sDist * Math.cos(sRad);
-      const shadowY = sDist * Math.sin(sRad);
-      const lightX = -shadowX;
-      const lightY = -shadowY;
-
-      const steepness = gThick / (bWidth > 0 ? bWidth : 1);
-      const edgeLight = Math.min(1, lBright * (1 + steepness * 0.4));
-      const edgeShadow = Math.min(1, (lBright * 0.5) * (1 + steepness * 0.4));
-
-      let mainShadow = 'none';
-      if (shadowStyle === 'frosted') {
-        const s1 = bWidth - 0.5 < 0 ? 0 : bWidth - 0.5;
-        // The hard border rules were removed and replaced with a soft inset shadow
-        mainShadow = `
-          inset ${u(lightX * s1)} ${u(lightY * s1)} ${u(bWidth)} 0px rgba(255, 255, 255, ${edgeLight}),
-          inset ${u(shadowX * bWidth)} ${u(shadowY * bWidth)} ${u(bWidth + 1)} 0px rgba(0, 0, 0, ${edgeShadow * 0.5}),
-          inset 0 0 0 ${u(bWidth)} rgba(255, 255, 255, 0.05)
-        `;
-      } else if (shadowStyle === 'liquid') {
-        mainShadow = `
-          inset ${u(lightX * bWidth)} ${u(lightY * bWidth)} ${u(bWidth)} rgba(255,255,255,${edgeLight * 0.6}),
-          inset ${u(shadowX * bWidth)} ${u(shadowY * bWidth)} ${u(bWidth)} rgba(0,0,0,${edgeShadow * 0.4}),
-          inset ${u(lightX * (bWidth + 1))} ${u(lightY * (bWidth + 1))} ${u(1)} rgba(255,255,255,${edgeLight}),
-          inset ${u(shadowX * (bWidth + 1))} ${u(shadowY * (bWidth + 1))} ${u(1)} rgba(0,0,0,${edgeShadow})
-        `;
-      }
+      // The same numbers the editor's light-source pad draws its preview
+      // with - see glass-light.js.
+      const light = lightParams(pat);
+      const bWidth = light.bevelWidth;
+      const mainShadow = bevelShadow(light, u);
 
       // The Chrome bug fix: never use physical borders when blur is active!
       const faseCSS = 'border: none !important;';
