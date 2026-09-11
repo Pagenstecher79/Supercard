@@ -1289,6 +1289,59 @@ describe('addElement', () => {
     expect(made.canvas.elements.at(-1).id).toBe('progressbar_2');
   });
 
+  describe('the shape a template asks for', () => {
+    const box = aspect =>
+      addElement(slot(), canvas(), 'progressbar', {}, { x: 200, y: 200 }, aspect)
+        .canvas.elements.at(-1);
+
+    it('is the usual strip when nothing asks', () => {
+      const plain = box(undefined);
+      expect(plain.w).toBe(box(3).w);
+      expect(plain.h).toBe(box(3).h);
+    });
+
+    it('turns the strip on its side for a vertical bar', () => {
+      const b = box(1 / 3);
+      expect(b.w).toBe(box(3).h);
+      expect(b.h).toBe(box(3).w);
+    });
+
+    it('is square for a ring', () => {
+      const b = box(1);
+      expect(b.w).toBe(b.h);
+    });
+
+    // A canvas the box would not fit on, and a ratio steep enough to round an
+    // edge to nothing, are both places a template could otherwise place an
+    // element nobody can grab again.
+    it('stays on the canvas and never has an edge of zero', () => {
+      for (const c of [{ w: 400, h: 400, grid: 25, elements: [] },
+                       { w: 40, h: 20, grid: 10, elements: [] },
+                       { w: 12, h: 9, elements: [] }]) {
+        for (const aspect of [1 / 3, 1, 3, 0.01, 100]) {
+          const made = addElement({}, c, 'progressbar', {}, { x: c.w, y: c.h }, aspect);
+          const el = made.canvas.elements.at(-1);
+          expect(el.w, `${c.w}x${c.h} @ ${aspect}`).toBeGreaterThan(0);
+          expect(el.h, `${c.w}x${c.h} @ ${aspect}`).toBeGreaterThan(0);
+          expect(el.x).toBeGreaterThanOrEqual(0);
+          expect(el.y).toBeGreaterThanOrEqual(0);
+          expect(el.x + el.w).toBeLessThanOrEqual(c.w);
+          expect(el.y + el.h).toBeLessThanOrEqual(c.h);
+        }
+      }
+    });
+
+    // The square is a lock - a gauge that is not square draws outside its box
+    // - so it is not a default a template is allowed to talk out of.
+    it('cannot unsquare a gauge', () => {
+      for (const aspect of [1 / 3, 3, 100]) {
+        const el = addElement({}, canvas(), 'gauge', {}, { x: 200, y: 200 }, aspect)
+          .canvas.elements.at(-1);
+        expect(el.w, String(aspect)).toBe(el.h);
+      }
+    });
+  });
+
   it('starts a list the card does not have yet', () => {
     const made = addElement({}, canvas(), 'label', { label_text: '' });
     expect(made.id).toBe('label_0');
@@ -1431,6 +1484,18 @@ describe('newElementPreview', () => {
           .toEqual({ id: made.id, surface: el.surface === true,
                      x: el.x, y: el.y, w: el.w, h: el.h });
       }
+    }
+  });
+
+  // The ghost has to follow the aspect too, or the box under the crosshair is
+  // a strip and the one the click makes is a square.
+  it('is the element addElement would add for a template that wants a shape', () => {
+    const s = slot(), c = canvas();
+    for (const aspect of [undefined, 1, 3, 1 / 3, 0.2, 5]) {
+      const made = addElement(s, c, 'progressbar', {}, { x: 200, y: 200 }, aspect);
+      const el = made.canvas.elements.at(-1);
+      expect(newElementPreview(s, c, 'progressbar', { x: 200, y: 200 }, aspect), String(aspect))
+        .toEqual({ id: made.id, surface: false, x: el.x, y: el.y, w: el.w, h: el.h });
     }
   });
 

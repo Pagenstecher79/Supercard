@@ -1161,20 +1161,34 @@ export function canAddKind(slot, kind) {
  * everything else is a flat strip, which is the shape of a bar and of a line
  * of text.
  *
+ * `aspect` overrides that last case for something that knows its own shape -
+ * a vertical bar, a ring - because the strip is only right for the horizontal
+ * one, and a vertical bar dropped into a strip is a template that arrives
+ * looking broken. It cannot override the square, which is a lock rather than
+ * a default.
+ *
  * @param {{w: number, h: number, grid?: number, snap?: number}} canvas
  * @param {string} id
  * @param {boolean} surface
  * @param {{x: number, y: number}} [at] defaults to the middle of the canvas
+ * @param {number} [aspect] wanted width divided by height
  * @returns {{x: number, y: number, w: number, h: number}}
  */
-function newBox(canvas, id, surface, at) {
+function newBox(canvas, id, surface, at, aspect) {
   const step = resolveSnap(canvas);
   const snap = v => Math.max(step, Math.round(v / step) * step);
   const side = snap(Math.min(canvas.w, canvas.h) / 5);
 
   const square = isSquareLocked({ id }) || id === 'icon';
   let w = side, h = side;
-  if (surface) w = snap(side * 2);
+  if (!square && aspect > 0) {
+    // The long edge is the strip's, so a bar asking for 3 gets exactly the
+    // strip back and the default stays one rule rather than two.
+    const long = snap(side * 1.5);
+    if (aspect >= 1) { w = long; h = snap(long / aspect); }
+    else { h = long; w = snap(long * aspect); }
+  }
+  else if (surface) w = snap(side * 2);
   else if (!square) { w = snap(side * 1.5); h = snap(side * 0.5); }
   w = Math.min(w, canvas.w);
   h = Math.min(h, canvas.h);
@@ -1237,9 +1251,10 @@ function placeableId(slot, id) {
  * @param {string} what a kind, or the id of an existing element
  * @param {any} [entry] the new list entry, for a kind that has a list
  * @param {{x: number, y: number}} [at] point the box is centred on
+ * @param {number} [aspect] the shape the entry wants, see `newBox`
  * @returns {{ canvas: any, patch: Record<string, any>, id: string } | null}
  */
-export function addElement(slot, canvas, what, entry, at) {
+export function addElement(slot, canvas, what, entry, at, aspect) {
   const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
   const who = newIdentity(slot, canvas, what);
   if (!who) return null;
@@ -1256,7 +1271,7 @@ export function addElement(slot, canvas, what, entry, at) {
   }
 
   const el = { id, ...(surface ? { surface: true } : { inner: 'cc' }),
-               ...newBox(canvas, id, surface, at) };
+               ...newBox(canvas, id, surface, at, aspect) };
   return { canvas: { ...canvas, elements: [...elements, el] }, patch, id };
 }
 
@@ -1306,11 +1321,12 @@ function newIdentity(slot, canvas, what) {
  * @param {any} canvas
  * @param {string} what a kind, or the id of an existing element
  * @param {{x: number, y: number}} [at] point the box is centred on
+ * @param {number} [aspect] the shape the entry wants, see `newBox`
  * @returns {{ id: string, surface: boolean, x: number, y: number, w: number, h: number } | null}
  */
-export function newElementPreview(slot, canvas, what, at) {
+export function newElementPreview(slot, canvas, what, at, aspect) {
   const who = newIdentity(slot, canvas, what);
   if (!who) return null;
   return { id: who.id, surface: who.surface,
-           ...newBox(canvas, who.id, who.surface, at) };
+           ...newBox(canvas, who.id, who.surface, at, aspect) };
 }

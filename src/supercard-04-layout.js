@@ -9,8 +9,22 @@ import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElement
          canvasFromCard,
          canDuplicate, duplicateElement,
          NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
+import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 
 const SC = window.SupercardUtils;
+
+/**
+ * The cell a template's miniature is drawn into, in CSS pixels.
+ *
+ * Here rather than in the stylesheet because `_previewBox` has to fit the
+ * element's own shape inside it, and a cell size that lived in both places
+ * would eventually disagree - the miniature would then be laid out to one
+ * size and clipped to another.
+ *
+ * 3:2, because a 270-degree gauge face is wider than it is tall and a bar of
+ * any orientation fits inside one.
+ */
+const TPL_CELL = Object.freeze({ w: 100, h: 66 });
 
 /**
  * Per-element typography, as CSS text.
@@ -1240,6 +1254,7 @@ class ScCanvasEditor extends LitElement {
       _live: { type: Boolean, state: true },
       _configOpen: { type: Boolean, state: true },
       _menu: { type: Boolean, state: true },
+      _menuKind: { type: String, state: true },
       _placing: { type: String, state: true },
       _ghost: { type: Object, state: true },
       _zoom: { type: Number, state: true },
@@ -1256,7 +1271,15 @@ class ScCanvasEditor extends LitElement {
     this._live = true;
     this._configOpen = true;
     this._menu = false;
+    // Which kind's template page the menu is showing, null for its front
+    // page. State, because the menu is drawn from it.
+    this._menuKind = null;
     this._placing = null;
+    // The template the next placement lays down and the config it copied out
+    // of it, or null for whatever the module makes. Not reactive - the hint
+    // reads the label, and the hint re-renders with `_placing` anyway.
+    this._placingTemplate = null;
+    this._placingEntry = null;
     this._ghost = null;
     this._zoom = 1;
     // Off, because the id is what the rest of the editor calls an element -
@@ -1275,6 +1298,7 @@ class ScCanvasEditor extends LitElement {
     this._onDocDown = e => {
       if (this._menu && !e.composedPath().includes(this.shadowRoot?.querySelector('.menu-wrap'))) {
         this._menu = false;
+        this._menuKind = null;
       }
     };
   }
@@ -1485,6 +1509,29 @@ class ScCanvasEditor extends LitElement {
       .menu-item:hover { background: rgba(3,169,244,0.18); }
       .menu-item[disabled] { opacity: 0.4; cursor: default; }
       .menu-item[disabled]:hover { background: none; }
+      /* The template page is two columns wide rather than one, so the
+         miniature is big enough to tell a temperature from a humidity. Still
+         bounded by the max-height above and scrolling, because seven of these
+         are taller than any menu should be allowed to grow. */
+      .menu.wide { min-width: 340px; max-height: 420px; }
+      .menu-item .chev { float: right; color: var(--secondary-text-color); }
+      .menu-item .chev.back { float: none; margin-right: 6px; }
+      .menu-item.back { color: var(--secondary-text-color); font-size: 11px; }
+      .menu-item.tpl { display: flex; align-items: center; gap: 10px; padding: 6px; }
+      /* The box the element is rendered into is the element's size - a gauge
+         on the canvas is the size of its box - so the miniature's proportions
+         are the cell's and not the template's. The cell's own size is written
+         inline from TPL_CELL, which is where _previewBox reads it. */
+      .tpl-pv { flex: 0 0 auto; border-radius: 4px;
+                overflow: hidden; background: rgba(255,255,255,0.04);
+                display: flex; align-items: center; justify-content: center; }
+      .tpl-fit { display: block; position: relative; }
+      .tpl-pv.empty { display: flex; align-items: center; justify-content: center;
+                      font-size: 18px; color: var(--secondary-text-color); }
+      .tpl-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+      .tpl-text b { font-size: 12px; font-weight: 600; }
+      .tpl-text em { font-style: normal; font-size: 10px; line-height: 1.3;
+                     color: var(--secondary-text-color); }
       .place-layer { position: absolute; inset: 0; z-index: 4; cursor: crosshair; }
       /* The box the next click makes, drawn where it would land. Faint and
          dashed so it reads as not-yet-there, and pointer-events:none so the
@@ -1995,10 +2042,23 @@ class ScCanvasEditor extends LitElement {
       .filter(t => t.id !== 'empty' && !placed.has(t.id));
   }
 
-  /** What the menu picked, ready for the next click on the canvas to land. */
-  _startPlacing(what) {
+  /**
+   * What the menu picked, ready for the next click on the canvas to land.
+   *
+   * `template` is the one the submenu offered, or null for an empty element.
+   * Its config is taken here rather than at the click, because by then the
+   * menu that knew which template it was is gone - and taken as a copy, so the
+   * element the click makes is the person's own from the start.
+   *
+   * @param {string} what
+   * @param {{ id: string, label: string, aspect?: number } | null} [template]
+   */
+  _startPlacing(what, template = null) {
     this._menu = false;
+    this._menuKind = null;
     this._placing = what;
+    this._placingTemplate = template;
+    this._placingEntry = template ? templateEntry(what, template.id) : null;
     // No ghost until the pointer says where. Drawing one at the last position
     // would put a box under a crosshair that has since moved on.
     this._ghost = null;
@@ -2006,7 +2066,10 @@ class ScCanvasEditor extends LitElement {
 
   _closeMenu() {
     this._menu = false;
+    this._menuKind = null;
     this._placing = null;
+    this._placingTemplate = null;
+    this._placingEntry = null;
     this._ghost = null;
   }
 
@@ -2028,7 +2091,8 @@ class ScCanvasEditor extends LitElement {
    */
   _ghostAt(e) {
     if (!this._placing) return;
-    this._ghost = newElementPreview(this.slot, this._canvas, this._placing, this._atPointer(e));
+    this._ghost = newElementPreview(this.slot, this._canvas, this._placing,
+                                    this._atPointer(e), this._placingTemplate?.aspect);
   }
 
   /**
@@ -2041,7 +2105,9 @@ class ScCanvasEditor extends LitElement {
   /** The label the menu gave whatever is waiting to be placed. */
   get _placingLabel() {
     const kind = NEW_ELEMENT_KINDS.find(k => k.kind === this._placing);
-    if (kind) return kind.label.toLowerCase();
+    if (kind) return this._placingTemplate
+      ? `${this._placingTemplate.label.toLowerCase()} ${kind.label.toLowerCase()}`
+      : kind.label.toLowerCase();
     const t = this._unplaced().find(t => t.id === this._placing);
     return t ? (t.group === 'Basic' ? t.label : `${t.group} - ${t.label}`) : this._placing;
   }
@@ -2060,7 +2126,11 @@ class ScCanvasEditor extends LitElement {
     // selected.
     e.stopPropagation();
     const what = this._placing;
+    const chosen = this._placingEntry;
+    const aspect = this._placingTemplate?.aspect;
     this._placing = null;
+    this._placingTemplate = null;
+    this._placingEntry = null;
     this._ghost = null;
     if (!what || !this.commitFn) return;
 
@@ -2068,11 +2138,11 @@ class ScCanvasEditor extends LitElement {
     const at = this._atPointer(e);
 
     const kind = NEW_ELEMENT_KINDS.find(k => k.kind === what);
-    const entry = kind?.module
+    const entry = chosen ?? (kind?.module
       ? window.SupercardModules[kind.module]?.newEntry?.()
-      : undefined;
+      : undefined);
 
-    const made = addElement(this.slot, c, what, entry, at);
+    const made = addElement(this.slot, c, what, entry, at, aspect);
     if (!made) return;
     this._sel = made.id;
     this.commitFn('__merge__', { canvas: made.canvas, ...made.patch });
@@ -2081,18 +2151,27 @@ class ScCanvasEditor extends LitElement {
   /**
    * What can be added, in two groups: something the card does not have yet,
    * and something it has that the canvas is not showing.
+   *
+   * A kind that has templates opens a second page rather than a flyout beside
+   * this one: the menu is `overflow-y: auto` because it has to be - the list
+   * of unplaced targets can be longer than the editor - and anything that
+   * flew out of it would be clipped by exactly that.
    */
   _renderAddMenu() {
+    if (this._menuKind) return this._renderTemplateMenu(this._menuKind);
     const unplaced = this._unplaced();
     return html`
       <div class="menu">
         <div class="menu-group">New</div>
         ${NEW_ELEMENT_KINDS.map(k => {
           const ok = canAddKind(this.slot, k.kind);
+          const hasTemplates = ok && templatesFor(k.kind).length > 0;
           return html`
             <button class="menu-item" ?disabled=${!ok}
                     title=${ok ? '' : "This card's gauge is the card itself, from before a card could have more than one - a second one would replace it."}
-                    @click=${() => this._startPlacing(k.kind)}>${k.label}</button>`;
+                    @click=${() => hasTemplates ? (this._menuKind = k.kind) : this._startPlacing(k.kind)}>
+              ${k.label}${hasTemplates ? html`<span class="chev">›</span>` : ''}
+            </button>`;
         })}
         ${unplaced.length ? html`
           <div class="menu-group">Not on the canvas</div>
@@ -2100,6 +2179,93 @@ class ScCanvasEditor extends LitElement {
             <button class="menu-item" @click=${() => this._startPlacing(t.id)}>${
               t.group === 'Basic' ? t.label : `${t.group} - ${t.label}`}</button>`)}` : ''}
       </div>`;
+  }
+
+  /**
+   * The templates for one kind, each shown as the thing it makes.
+   *
+   * The miniature is the element itself, rendered from the template with a
+   * sample reading - not a picture of one. A screenshot would have to be taken
+   * again every time a default moves, would be wrong in the meantime without
+   * saying so, and would be lit in whichever theme the person taking it had.
+   * This one is right by construction and follows the theme, because it is the
+   * same component the canvas is about to put down.
+   *
+   * @param {string} kind
+   */
+  _renderTemplateMenu(kind) {
+    const k = NEW_ELEMENT_KINDS.find(n => n.kind === kind);
+    const cell = `width:${TPL_CELL.w}px; height:${TPL_CELL.h}px;`;
+    return html`
+      <div class="menu wide">
+        <button class="menu-item back" @click=${() => { this._menuKind = null; }}>
+          <span class="chev back">‹</span>Back
+        </button>
+        <div class="menu-group">New ${(k?.label || kind).toLowerCase()}</div>
+        <button class="menu-item tpl" @click=${() => this._startPlacing(kind)}>
+          <span class="tpl-pv empty" style=${cell}>＋</span>
+          <span class="tpl-text"><b>Empty</b><em>Nothing set, the way Add has always made one.</em></span>
+        </button>
+        ${templatesFor(kind).map(t => html`
+          <button class="menu-item tpl" @click=${() => this._startPlacing(kind, t)}>
+            <span class="tpl-pv" style=${cell}>${this._renderTemplatePreview(kind, t)}</span>
+            <span class="tpl-text"><b>${t.label}</b><em>${t.hint}</em></span>
+          </button>`)}
+      </div>`;
+  }
+
+  /**
+   * The largest box of the template's own shape that fits in a preview cell.
+   *
+   * The shape is the one `newBox` will give the element: a gauge is square
+   * because it is locked square, and everything else is the strip unless the
+   * template asked for something.
+   *
+   * @param {string} kind
+   * @param {{ aspect?: number }} t
+   */
+  _previewBox(kind, t) {
+    // Clamped, because past about 1:2 a miniature stops being a small picture
+    // of the element and becomes a line: the vertical bar's own 1:3 would
+    // leave it a third of the cell's height across, too narrow to show that it
+    // has a scale down one side. The shape still reads as upright, which is
+    // the whole question this row is answering.
+    const want = kind === 'gauge' ? 1 : (t.aspect || 3);
+    const aspect = Math.min(3, Math.max(0.5, want));
+    const w = Math.min(TPL_CELL.w, TPL_CELL.h * aspect);
+    return { w: Math.round(w), h: Math.round(w / aspect) };
+  }
+
+  /**
+   * One miniature, or nothing at all where the renderer is not on the page.
+   *
+   * `previewFor` lends the element a synthetic entity so the needle stands at
+   * a plausible reading instead of against the left stop, which is the only
+   * position at which all seven gauges look identical. The `hass` it builds
+   * carries that one state and nothing else - the renderers read nothing else
+   * off it - so the preview cannot show, or leak, anything of the person's.
+   *
+   * @param {string} kind
+   * @param {{ id: string }} t
+   */
+  _renderTemplatePreview(kind, t) {
+    const pv = previewFor(kind, t.id);
+    if (!pv) return '';
+    // The miniature is the shape the click will make, not the cell it sits in:
+    // a ring shown in a 3:2 cell is an ellipse, and a vertical bar is a
+    // horizontal one. The cell stays one size so the rows keep their rhythm,
+    // and the element is fitted inside it.
+    const box = this._previewBox(kind, t);
+    const el = kind === 'gauge'
+      ? html`<sc-gauge .hass=${pv.hass} .config=${pv.config}
+                       .globalEntities=${[]} .onCanvas=${true}></sc-gauge>`
+      : kind === 'progressbar'
+        ? html`<sc-progressbar .hass=${pv.hass} .config=${pv.config}
+                               .globalEntities=${[]} .rootConfig=${{}}></sc-progressbar>`
+        : '';
+    if (!el) return '';
+    return html`<span class="tpl-fit"
+                      style="width:${box.w}px; height:${box.h}px;">${el}</span>`;
   }
 
   /**
@@ -2288,7 +2454,9 @@ class ScCanvasEditor extends LitElement {
         <div class="tool-row">
           <div class="menu-wrap">
             <button class="add-btn" style="width:auto; padding:6px 12px;"
-                    @click=${() => { this._menu = !this._menu; this._placing = null; }}>
+                    @click=${() => { this._menu = !this._menu; this._menuKind = null;
+                                     this._placing = null; this._placingTemplate = null;
+                                     this._placingEntry = null; }}>
               ＋ Add element
             </button>
             ${this._menu ? this._renderAddMenu() : ''}
