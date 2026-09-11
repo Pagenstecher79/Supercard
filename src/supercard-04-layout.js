@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS, DEFAULT_GRID,
+import { getCellItems, resolveSnap, applyDrag, isSquareLocked, isPinned, DEFAULT_CANVAS, DEFAULT_GRID,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, rescaleCanvas,
          sectionColumns,
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
@@ -1269,6 +1269,12 @@ class ScCanvasEditor extends LitElement {
       .el { position: absolute; isolation: isolate; box-sizing: border-box; cursor: grab; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px #000; border-radius: 2px; background: rgba(3,169,244,0.3); border: 1px solid var(--primary-color); overflow: hidden; }
       .el.surface { background: rgba(255,193,7,0.18); border-style: dashed; border-color: #ffc107; }
       .el.sel { background: rgba(3,169,244,0.55); border-width: 2px; z-index: 3; }
+      /* A pinned element says so twice: the cursor, which answers before the
+         press, and the badge, which answers from across the canvas. The border
+         goes solid-grey so a locked surface stops reading as a dashed one. */
+      .el.pinned { cursor: default; border-color: #9e9e9e; border-style: solid; }
+      .el.pinned::before { content: '🔒'; position: absolute; top: 1px; left: 2px;
+                           font-size: 9px; line-height: 1; text-shadow: 0 1px 2px #000; }
       /* Live, the box is a frame around someone else's drawing rather than a
          block of colour: the fill would hide the very thing being previewed,
          so selection is an inset ring instead. Size containment mirrors
@@ -1417,7 +1423,13 @@ class ScCanvasEditor extends LitElement {
   /** Commit the canvas with one element's fields changed. */
   _setEl(idx, patch) {
     const c = structuredClone(this._canvas);
-    Object.assign(c.elements[idx], patch);
+    const el = c.elements[idx];
+    // `undefined` deletes the key, the same as it does in a `__card__` commit.
+    // An element that is simply not locked should carry no `locked` at all,
+    // or every canvas ever unlocked keeps a key saying so.
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) delete el[k]; else el[k] = v;
+    }
     this._commit(c);
   }
 
@@ -1482,10 +1494,15 @@ class ScCanvasEditor extends LitElement {
     else this._lastDown = null;
     const el = this._canvas.elements[idx];
     this._sel = el.id;
+    // Selected but not dragged. A pinned element still has to be reachable -
+    // it is where its settings live, and where the lock is undone - so the
+    // press picks it up as any other and simply starts nothing.
+    if (isPinned(el)) return;
     this._drag = {
       idx, mode, rect,
       startX: e.clientX, startY: e.clientY,
-      origin: { id: el.id, surface: el.surface, x: el.x, y: el.y, w: el.w, h: el.h },
+      origin: { id: el.id, surface: el.surface, locked: el.locked,
+                x: el.x, y: el.y, w: el.w, h: el.h },
     };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   }
@@ -1849,13 +1866,15 @@ class ScCanvasEditor extends LitElement {
               // gauge on the canvas per frame. The plain box is also the
               // clearer thing to drag.
               const live = this._live && !this._drag ? this._liveContent(el) : null;
+              const pinned = isPinned(el);
               return html`
-              <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._sel === el.id ? 'sel' : ''}"
+              <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._sel === el.id ? 'sel' : ''} ${pinned ? 'pinned' : ''}"
                    style="left:${pct(el.x, c.w)}; top:${pct(el.y, c.h)}; width:${pct(el.w, c.w)}; height:${pct(el.h, c.h)};"
-                   data-item-id=${el.id} title=${el.id}
+                   data-item-id=${el.id} title=${pinned ? `${el.id} - locked` : el.id}
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
                 ${live ?? el.id}
-                <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>
+                ${pinned ? '' : html`
+                <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>`}
               </div>`;
             })}
           </div>
@@ -1877,6 +1896,11 @@ class ScCanvasEditor extends LitElement {
                            this._setEl(idx, k === 'size' ? { w: v, h: v } : { [k]: v });
                          }}>`)}
               ` : ''}
+              <button class="icon-btn" title=${isPinned(el)
+                        ? 'Locked - click to let it be dragged again'
+                        : 'Lock in place, so a stray drag cannot move it'}
+                      style=${isPinned(el) ? 'color:var(--warning-color,#ffc107)' : ''}
+                      @click=${() => this._setEl(idx, { locked: isPinned(el) ? undefined : true })}>${isPinned(el) ? '🔒' : '🔓'}</button>
               <button class="icon-btn" title="Backward" @click=${() => this._move(idx, -1)}>↑</button>
               <button class="icon-btn" title="Forward" @click=${() => this._move(idx, 1)}>↓</button>
               <button class="icon-btn" ?disabled=${!canDuplicate(this.slot, el)}

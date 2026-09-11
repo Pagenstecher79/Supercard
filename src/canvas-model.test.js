@@ -19,6 +19,7 @@ import {
   reportedRows,
   isHeightPinned,
   isSquareLocked,
+  isPinned,
   squareElement,
   gridColumnsToPx,
   sectionColumns,
@@ -659,6 +660,21 @@ describe('resolveSnap', () => {
   });
 });
 
+describe('isPinned', () => {
+  it('is true only for locked: true', () => {
+    expect(isPinned({ locked: true })).toBe(true);
+    for (const v of [false, undefined, null, 0, '', 'true', 1, 'yes'])
+      expect(isPinned({ locked: v })).toBe(false);
+    expect(isPinned({})).toBe(false);
+    expect(isPinned(undefined)).toBe(false);
+  });
+
+  it('is not the shape lock', () => {
+    expect(isPinned({ id: 'gauge_0' })).toBe(false);
+    expect(isSquareLocked({ id: 'name', locked: true })).toBe(false);
+  });
+});
+
 describe('applyDrag', () => {
   const canvas = { w: 400, h: 200, grid: 10 };
   const el = { x: 100, y: 50, w: 80, h: 40 };
@@ -675,6 +691,32 @@ describe('applyDrag', () => {
       .toEqual({ x: 320, y: 160, w: 80, h: 40 });
     expect(applyDrag(canvas, el, 'move', { dx: -9999, dy: -9999 }))
       .toEqual({ x: 0, y: 0, w: 80, h: 40 });
+  });
+
+  it('will not move or resize a pinned element, however far the pointer went', () => {
+    const pinned = { ...el, locked: true };
+    for (const mode of ['move', 'resize']) {
+      for (const delta of [{ dx: 13, dy: -7 }, { dx: 9999, dy: 9999 }, { dx: -9999, dy: -9999 }]) {
+        expect(applyDrag(canvas, pinned, mode, delta)).toEqual({ x: 100, y: 50, w: 80, h: 40 });
+      }
+    }
+  });
+
+  it('pins a square-locked element just as firmly', () => {
+    // The two locks are unrelated, and the shape one must not swallow the
+    // other: a gauge's resize branch has its own return, reached first.
+    const gauge = { id: 'gauge_0', x: 100, y: 50, w: 80, h: 80, locked: true };
+    expect(applyDrag(canvas, gauge, 'resize', { dx: 40, dy: 40 }))
+      .toEqual({ x: 100, y: 50, w: 80, h: 80 });
+  });
+
+  it('moves an element that only says locked: false', () => {
+    // Everything that is not exactly true is unpinned, so a leftover key
+    // cannot silently freeze an element someone can still drag.
+    for (const v of [false, undefined, null, 0, '', 'true', 1]) {
+      expect(applyDrag(canvas, { ...el, locked: v }, 'move', { dx: 13, dy: -7 }))
+        .toEqual({ x: 110, y: 40, w: 80, h: 40 });
+    }
   });
 
   it('resizes without moving the origin', () => {
