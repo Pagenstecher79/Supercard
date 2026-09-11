@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { reportedRows, isHeightPinned, canvasFromCard } from "./canvas-model.js";
+import { reportedRows, isHeightPinned, canvasFromGrid } from "./canvas-model.js";
 
 // --- CENTRAL LAYER DICTIONARY ---
 export const SC_LAYERS = {
@@ -458,13 +458,18 @@ class SupercardCore extends LitElement {
   getCardSize() { return 3; }
   static getConfigElement() { return document.createElement('supercard-modular-editor'); }
   /**
-   * A new card starts on the canvas.
+   * A new card starts on the canvas, and starts empty.
    *
    * Reaching it used to take four steps in the model the canvas replaces -
    * switch the layout section on, add a row, add a cell, assign content, then
    * convert - none of which a card added a moment ago has any reason to know
-   * about. `canvasFromCard` places what the card draws, so what lands on the
-   * canvas is the card the stub would have rendered anyway.
+   * about.
+   *
+   * Only the shape is taken from the card's grid box; nothing is placed on it.
+   * The icon, the name and the state are what the card draws by default, but a
+   * default is not a decision: placed for you they are three boxes to move or
+   * delete before the canvas is yours, and the editor already offers all three
+   * under "Add element" for as long as they are not on it.
    *
    * No `layout_shape`: the shape control belongs to the rows model, and a
    * canvas card is a rectangle with a corner radius. That radius is a
@@ -474,7 +479,7 @@ class SupercardCore extends LitElement {
   static getStubConfig() {
     const slot = { layout_active: true, border_radius: 12,
                    border_radius_unit: '%', border_radius_ref: 'min' };
-    return { entity: '', supercard: { ...slot, canvas: canvasFromCard({}, slot) } };
+    return { entity: '', supercard: { ...slot, canvas: { ...canvasFromGrid({}, slot), elements: [] } } };
   }
 
   static get styles() {
