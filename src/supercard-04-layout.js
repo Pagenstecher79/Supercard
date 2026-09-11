@@ -6,7 +6,7 @@ import { getCellItems, resolveSnap, applyDrag, isSquareLocked, isPinned, DEFAULT
          repointPatterns, colouredCells, glassedCells, soleElementTargets,
          canvasFromCard,
          canDuplicate, duplicateElement,
-         NEW_ELEMENT_KINDS, canAddKind, addElement } from "./canvas-model.js";
+         NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
 
@@ -1218,6 +1218,7 @@ class ScCanvasEditor extends LitElement {
       _configOpen: { type: Boolean, state: true },
       _menu: { type: Boolean, state: true },
       _placing: { type: String, state: true },
+      _ghost: { type: Object, state: true },
     };
   }
 
@@ -1229,6 +1230,7 @@ class ScCanvasEditor extends LitElement {
     this._configOpen = true;
     this._menu = false;
     this._placing = null;
+    this._ghost = null;
     // The last press: where it was, whether it moved, and what lay under it.
     // Not reactive - nothing renders from it.
     this._lastDown = null;
@@ -1337,6 +1339,17 @@ class ScCanvasEditor extends LitElement {
       .menu-item[disabled] { opacity: 0.4; cursor: default; }
       .menu-item[disabled]:hover { background: none; }
       .place-layer { position: absolute; inset: 0; z-index: 4; cursor: crosshair; }
+      /* The box the next click makes, drawn where it would land. Faint and
+         dashed so it reads as not-yet-there, and pointer-events:none so the
+         crosshair keeps moving it instead of hovering it - it is a child of
+         the layer that is tracking the pointer. */
+      .ghost { position: absolute; box-sizing: border-box; pointer-events: none;
+               border: 1px dashed var(--primary-color); border-radius: 2px;
+               background: rgba(3,169,244,0.22); opacity: 0.75;
+               display: flex; align-items: center; justify-content: center;
+               font-size: 10px; font-weight: bold; color: #fff;
+               text-shadow: 0 1px 2px #000; overflow: hidden; }
+      .ghost.surface { border-color: #ffc107; background: rgba(255,193,7,0.16); }
     `];
   }
 
@@ -1586,12 +1599,44 @@ class ScCanvasEditor extends LitElement {
   _startPlacing(what) {
     this._menu = false;
     this._placing = what;
+    // No ghost until the pointer says where. Drawing one at the last position
+    // would put a box under a crosshair that has since moved on.
+    this._ghost = null;
   }
 
   _closeMenu() {
     this._menu = false;
     this._placing = null;
+    this._ghost = null;
   }
+
+  /** Where a pointer event is, in canvas units. */
+  _atPointer(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const c = this._canvas;
+    return { x: (e.clientX - rect.left) / rect.width * c.w,
+             y: (e.clientY - rect.top) / rect.height * c.h };
+  }
+
+  /**
+   * Follow the crosshair with the box the next click would make.
+   *
+   * The geometry is `newElementPreview`, which is `addElement`'s own working
+   * - same id, same size rule, same snap and same clamp at the edges - so the
+   * ghost cannot promise a placement the click then does not make. Null where
+   * the element could not be added at all, and then nothing is drawn.
+   */
+  _ghostAt(e) {
+    if (!this._placing) return;
+    this._ghost = newElementPreview(this.slot, this._canvas, this._placing, this._atPointer(e));
+  }
+
+  /**
+   * A method rather than an arrow in the template: every pointermove sets the
+   * ghost and so re-renders, and a fresh closure there would have lit detach
+   * and reattach the listener on every one of those frames.
+   */
+  _dropGhost() { this._ghost = null; }
 
   /** The label the menu gave whatever is waiting to be placed. */
   get _placingLabel() {
@@ -1616,12 +1661,11 @@ class ScCanvasEditor extends LitElement {
     e.stopPropagation();
     const what = this._placing;
     this._placing = null;
+    this._ghost = null;
     if (!what || !this.commitFn) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
     const c = this._canvas;
-    const at = { x: (e.clientX - rect.left) / rect.width * c.w,
-                 y: (e.clientY - rect.top) / rect.height * c.h };
+    const at = this._atPointer(e);
 
     const kind = NEW_ELEMENT_KINDS.find(k => k.kind === what);
     const entry = kind?.module
@@ -1858,7 +1902,14 @@ class ScCanvasEditor extends LitElement {
                @pointerdown=${() => this._deselect()}>
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
             ${this._placing ? html`
-              <div class="place-layer" @pointerdown=${this._place}></div>` : ''}
+              <div class="place-layer" @pointerdown=${this._place}
+                   @pointermove=${this._ghostAt}
+                   @pointerleave=${this._dropGhost}>
+                ${this._ghost ? html`
+                <div class="ghost ${this._ghost.surface ? 'surface' : ''}"
+                     style="left:${pct(this._ghost.x, c.w)}; top:${pct(this._ghost.y, c.h)}; width:${pct(this._ghost.w, c.w)}; height:${pct(this._ghost.h, c.h)};"
+                     >${this._ghost.id}</div>` : ''}
+              </div>` : ''}
             ${els.map((el, idx) => {
               // Never live mid-drag. Every pointermove commits, so the config
               // objects are cloned and the components would be handed a new

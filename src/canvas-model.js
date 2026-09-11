@@ -1029,31 +1029,76 @@ function placeableId(slot, id) {
  */
 export function addElement(slot, canvas, what, entry, at) {
   const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
-  const spec = NEW_ELEMENT_KINDS.find(k => k.kind === what);
+  const who = newIdentity(slot, canvas, what);
+  if (!who) return null;
+  const { id, surface, spec } = who;
+
   /** @type {Record<string, any>} */
   const patch = {};
-  let id = String(what || ''), surface = false;
-
-  if (spec) {
-    if (!canAddKind(slot, what)) return null;
-    if (spec.key) {
-      const list = Array.isArray(slot?.[spec.key]) ? slot[spec.key] : [];
-      id = `${spec.kind}_${list.length}`;
-      patch[spec.key] = [...list, structuredClone(entry ?? {})];
-      // Nothing renders while its module is off, and the switch that used to
-      // turn it on is in the section the canvas replaces.
-      if (spec.active && !slot?.[spec.active]) patch[spec.active] = true;
-    } else {
-      surface = true;
-      let n = 0;
-      while (elements.some(e => e.id === `surface_${n}`)) n++;
-      id = `surface_${n}`;
-    }
-  } else if (!placeableId(slot, id) || elements.some(e => e.id === id)) {
-    return null;
+  if (spec?.key) {
+    const list = Array.isArray(slot?.[spec.key]) ? slot[spec.key] : [];
+    patch[spec.key] = [...list, structuredClone(entry ?? {})];
+    // Nothing renders while its module is off, and the switch that used to
+    // turn it on is in the section the canvas replaces.
+    if (spec.active && !slot?.[spec.active]) patch[spec.active] = true;
   }
 
   const el = { id, ...(surface ? { surface: true } : { inner: 'cc' }),
                ...newBox(canvas, id, surface, at) };
   return { canvas: { ...canvas, elements: [...elements, el] }, patch, id };
+}
+
+/**
+ * Who the next element would be: the id it would take and whether it is a
+ * surface, or null when there is nothing to add.
+ *
+ * Split out of `addElement` so the editor can draw the box a click is about
+ * to create without creating it - see `newElementPreview`. A preview that
+ * worked the id out for itself would be a second answer to the same
+ * question, and the two would drift the first time a kind is added.
+ *
+ * @param {any} slot
+ * @param {any} canvas
+ * @param {string} what a kind, or the id of an existing element
+ * @returns {{ id: string, surface: boolean, spec: any } | null}
+ */
+function newIdentity(slot, canvas, what) {
+  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
+  const spec = NEW_ELEMENT_KINDS.find(k => k.kind === what);
+  const id = String(what || '');
+
+  if (!spec) {
+    if (!placeableId(slot, id) || elements.some(e => e.id === id)) return null;
+    return { id, surface: false, spec: null };
+  }
+  if (!canAddKind(slot, what)) return null;
+  if (spec.key) {
+    const list = Array.isArray(slot?.[spec.key]) ? slot[spec.key] : [];
+    return { id: `${spec.kind}_${list.length}`, surface: false, spec };
+  }
+  let n = 0;
+  while (elements.some(e => e.id === `surface_${n}`)) n++;
+  return { id: `surface_${n}`, surface: true, spec };
+}
+
+/**
+ * The element `addElement` would put at `at`, without adding it: the same id,
+ * the same surface flag and the same box, snapped and clamped exactly as the
+ * real one will be.
+ *
+ * Pure, and null wherever `addElement` would also refuse. The editor draws
+ * this as a ghost under the crosshair, so what is shown before the click is
+ * the thing the click produces rather than an approximation of it.
+ *
+ * @param {any} slot
+ * @param {any} canvas
+ * @param {string} what a kind, or the id of an existing element
+ * @param {{x: number, y: number}} [at] point the box is centred on
+ * @returns {{ id: string, surface: boolean, x: number, y: number, w: number, h: number } | null}
+ */
+export function newElementPreview(slot, canvas, what, at) {
+  const who = newIdentity(slot, canvas, what);
+  if (!who) return null;
+  return { id: who.id, surface: who.surface,
+           ...newBox(canvas, who.id, who.surface, at) };
 }
