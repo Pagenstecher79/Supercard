@@ -1,4 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { dialFromStartAngle, startAngleFromDial } from "./gauge-angle.js";
 
 const SC = window.SupercardUtils;
 
@@ -20,7 +21,18 @@ function newEntry() { return { entity: '', gauge_attribute: '' }; }
 const STYLE_FIELDS = [
   { id: '_section_shape',      label: '── Shape & Position',    type: 'section' },
   { id: 'gauge_type',          label: 'Gauge type',             type: 'select', options: [ { value: 'full', label: 'Full 360°' }, { value: 'semi', label: 'Semi 270°' } ] },
-  { id: 'gauge_start_angle',   label: 'Start position (0-point)', type: 'select', options: [ { value: '-90', label: 'Top (12 o’clock)' }, { value: '90', label: 'Bottom (6 o’clock)' }, { value: '180', label: 'Left (9 o’clock)' }, { value: '0', label: 'Right (3 o’clock)' } ], condition: cfg => cfg.gauge_type === 'full' },
+  // Four positions used to be the whole offer here, on a dial that has 360 of
+  // them. The slider reads clockwise from the top and `gauge-angle.js` turns
+  // that into the angle the renderer draws with - see there for why the stored
+  // unit is not the shown one. A semi gauge has no say in this: its 270 degree
+  // arc is anchored where the gap looks right.
+  //
+  // The fallback is the renderer's own: a gauge nobody has switched is a full
+  // one, the select above shows it as such, and the control must not be missing
+  // on the very gauge that has just been added.
+  { id: 'gauge_start_angle',   label: 'Start position (° clockwise from the top)', type: 'range', min: 0, max: 359, step: 1, placeholder: '0',
+                               fromStored: dialFromStartAngle, toStored: startAngleFromDial,
+                               condition: cfg => (cfg.gauge_type ?? 'full') === 'full' },
   { id: 'gauge_scale',         label: 'Scale',            type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1'  },
 
   { id: 'gauge_position_mode', label: 'Anchor point / position', type: '9-sector' },
@@ -1091,14 +1103,21 @@ class ScGaugeEditor extends LitElement {
           </div>
         `;
         break;
-      case 'range':
+      case 'range': {
+        // A field's stored unit and the one its slider shows are usually the
+        // same, and a field says so by leaving both hooks off. The gauge's zero
+        // point is the exception: dial degrees to a person, SVG degrees to the
+        // renderer.
+        const shown = field.fromStored ? field.fromStored(val) : val;
+        const store = v => updateDirect(field.toStored ? field.toStored(v) : v);
         content = html`
           <div class="col">
-            <label>${field.label} <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${val ?? field.placeholder ?? ''}</span></label>
-            <input type="range" min=${field.min ?? 0} max=${field.max ?? 100} step=${field.step ?? 1} .value=${val ?? field.placeholder ?? 0} @input=${e => updateDirect(parseFloat(e.target.value))}>
+            <label>${field.label} <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${shown ?? field.placeholder ?? ''}</span></label>
+            <input type="range" min=${field.min ?? 0} max=${field.max ?? 100} step=${field.step ?? 1} .value=${shown ?? field.placeholder ?? 0} @input=${e => store(parseFloat(e.target.value))}>
           </div>
         `;
         break;
+      }
 
       case '9-sector':
         const sectors = [
