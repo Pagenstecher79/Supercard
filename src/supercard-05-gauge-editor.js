@@ -494,10 +494,6 @@ class ScGaugeEditor extends LitElement {
     };
     return html`
         <div class="inner-content">
-          <div class="fx-slot">
-            <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
-                               .target=${'elm_gauge_' + idx}></sc-fx-glass-panel>
-          </div>
           <div class="entity-row" style="margin-bottom: 8px;">
             <label>Data source</label>
             <select style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color);" @change=${e => updateEntry('global_id', e.target.value)}>
@@ -568,6 +564,10 @@ class ScGaugeEditor extends LitElement {
           ` : ''}
 
           ${this._renderFieldsGroup(STYLE_FIELDS, entry, idx, gauges)}
+          <div class="fx-slot">
+            <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                               .target=${'elm_gauge_' + idx}></sc-fx-glass-panel>
+          </div>
         </div>`;
   }
 

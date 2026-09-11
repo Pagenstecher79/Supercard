@@ -163,10 +163,6 @@ class ScLabelsEditor extends LitElement {
 
     return html`
                 <div class="label-content">
-                  <div class="fx-slot">
-                    <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
-                                       .target=${'elm_label_' + idx}></sc-fx-glass-panel>
-                  </div>
 
                   <div class="col">
                     <label>Manual text / label</label>
@@ -421,6 +417,10 @@ class ScLabelsEditor extends LitElement {
                     </div>
                   ` : ''}
 
+                  <div class="fx-slot">
+                    <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                                       .target=${'elm_label_' + idx}></sc-fx-glass-panel>
+                  </div>
                 </div>
     `;
   }

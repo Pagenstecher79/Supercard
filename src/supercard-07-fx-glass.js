@@ -145,30 +145,18 @@ function getTargets(slot) {
  * @param {(fields: Record<string, any>) => void} setMany commit several at once
  */
 function glassBody(pat, set, setMany) {
-  const isDirectElement = !!pat.target && pat.target.startsWith('elm_');
-  const showManualControls = !isDirectElement || pat.manual_override;
+  /*
+   * An element's glass fits itself. The overlay is `inset: 0` on the element
+   * made `position: relative`, or a centred `100cqmin` square where the
+   * element is round, so there is nothing for a person to correct - measured
+   * across gauge, bar, label, name, state, icon and surface, every one of them
+   * lands on its element exactly. The sliders below are for `main` and for a
+   * layout cell, where the glass covers a container rather than a thing.
+   */
+  const showManualControls = !pat.target || !pat.target.startsWith('elm_');
   return html`
-  <div class="section-title">📏 Dimensions & Shape</div>
-
-  ${isDirectElement ? html`
-    <div class="auto-magic-box">
-      <div style="display:flex; gap:8px; align-items:center;">
-        <span style="font-size:16px">🪄</span>
-        <div><b>Auto-masking (container queries active):</b> the effect adapts to the smallest container side (cqmin) without distortion.</div>
-      </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid rgba(3,169,244,0.3); padding-top:8px;">
-        <label>Manual correction (show sliders)</label>
-        <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { set('manual_override', e.target.checked); }}></ha-switch>
-      </div>
-    </div>
-  ` : ''}
-
-  <div class="row" style="background: rgba(244,67,54,0.1); padding: 8px; border-radius: 6px; border: 1px dashed rgba(244,67,54,0.3);">
-    <label style="color:#f44336; font-weight:bold;">🛠 Debug mode (show boxes)<br><span style="font-size:10px; font-weight:normal;">Shows the container in green and the glass in dashed pink.</span></label>
-    <ha-switch style="--switch-checked-button-color: #f44336; --switch-checked-track-color: rgba(244,67,54,0.5);" .checked=${pat.debug_mask ?? false} @change=${e => { set('debug_mask', e.target.checked); }}></ha-switch>
-  </div>
-
   ${showManualControls ? html`
+    <div class="section-title">📏 Dimensions & Shape</div>
     <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;">
       <label style="color:var(--primary-color)">Lock shape (1:1 aspect ratio)<br><span style="font-size:10px;color:var(--secondary-text-color)">Forces a perfect square/circle (cqmin).</span></label>
       <ha-switch .checked=${pat.force_square ?? false} @change=${e => { set('force_square', e.target.checked); }}></ha-switch>
@@ -290,8 +278,7 @@ function defaultPattern(target) {
     border_radius: '', border_radius_unit: 'px', force_square: false, zoom: 1, glare: 0,
     bg_rgb: '#ffffff', shadow_style: 'liquid', light_brightness: 0.4, bevel_width: 2, glass_thickness: 5,
     shadow_angle: 90, shadow_distance: 1,
-    manual_override: false, ring_effect: false, use_custom_ring_width: false, ring_width: 5,
-    ring_center_opacity: 0, debug_mask: false
+    ring_effect: false, use_custom_ring_width: false, ring_width: 5, ring_center_opacity: 0
   };
 }
 
@@ -327,7 +314,6 @@ class ScFxGlassPanel extends LitElement {
       input[type="color"] { padding: 0; width: 60%; height: 32px; cursor: pointer; border: 1px solid var(--divider-color); }
       input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
       input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
-      .auto-magic-box { background: rgba(3,169,244,0.1); padding: 8px 10px; border-radius: 6px; font-size: 11px; color: var(--primary-color); display: flex; flex-direction: column; gap: 8px; border: 1px dashed rgba(3,169,244,0.3); }
     `];
   }
 
@@ -393,7 +379,6 @@ class ScFxGlassEditor extends LitElement {
       input[type="color"] { padding: 0; width: 60%; height: 32px; cursor: pointer; border: 1px solid var(--divider-color); }
       input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
       input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
-      .auto-magic-box { background: rgba(3,169,244,0.1); padding: 8px 10px; border-radius: 6px; font-size: 11px; color: var(--primary-color); display: flex; flex-direction: column; gap: 8px; border: 1px dashed rgba(3,169,244,0.3); }
     `];
   }
 
@@ -440,8 +425,6 @@ class ScFxGlassEditor extends LitElement {
             let targetLabel = getLabelForTarget(pat.target);
             if (pat.target === 'none') targetLabel = 'Not assigned';
 
-            const isDirectElement = pat.target && pat.target.startsWith('elm_');
-            const showManualControls = !isDirectElement || pat.manual_override;
 
             return html`
               <div class="pattern-card"
@@ -566,7 +549,7 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
       let padVal = 0, padUnit = 'px';
       let brValue = '', brUnit = 'px';
 
-      if (!isDirectElement || pat.manual_override) {
+      if (!isDirectElement) {
           padVal = pat.padding ?? 0;
           padUnit = pat.padding_unit ?? 'px';
           brValue = pat.border_radius ?? '';
@@ -585,7 +568,7 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
         // and here: a percentage radius has no px for this to guess at, and a
         // pill card's glass used to keep square-ish corners inside a round one.
         autoRadiusFallback = SC.cardRadius(config) ?? 'var(--sc-border-radius, var(--ha-card-border-radius, 12px))';
-      } else if (isDirectElement && !pat.manual_override) {
+      } else if (isDirectElement) {
         if (pat.target.startsWith('elm_progressbar_')) {
           const pbIdx = parseInt(pat.target.split('_')[2]);
           const pbConf = config.progressbars?.[pbIdx];
@@ -616,10 +599,6 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
           autoRadiusFallback = '50%'; computedForceSquare = true;
           isGaugeResponsive = true;
         }
-      } else if (isDirectElement && pat.manual_override) {
-        computedForceSquare = pat.force_square ?? false;
-        if (pat.target.startsWith('elm_gauge_') || pat.target === 'elm_icon') autoRadiusFallback = '50%';
-        isGaugeResponsive = true;
       }
 
       // --- DYNAMIC UNIT TRANSLATOR ---
@@ -686,13 +665,6 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
           width: calc(100% - (${computedInset} * 2)) !important;
           height: calc(100% - (${computedInset} * 2)) !important;
         `;
-      }
-
-      // --- DEBUG MODE ---
-      let debugPseudoCSS = '';
-      if (pat.debug_mask) {
-         parentContainerCSS += ` outline: 2px solid #00ff00 !important; background-color: rgba(0, 255, 0, 0.15) !important;`;
-         debugPseudoCSS = `outline: 2px dashed #ff00ff !important; outline-offset: 2px; background-color: rgba(255, 0, 255, 0.25) !important;`;
       }
 
       // --- 3. Styling values ---
@@ -826,7 +798,6 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
           background: ${backgroundCSS} !important;
           box-shadow: ${mainShadow} !important;
           ${faseCSS}
-          ${debugPseudoCSS}
 
           animation: ${repaintAnim} 0.5s infinite alternate !important;
           transform: translateZ(0) !important;

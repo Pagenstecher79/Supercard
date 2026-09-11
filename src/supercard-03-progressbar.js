@@ -1363,10 +1363,6 @@ class ScProgressbarEditor extends LitElement {
     const updateEntry = (key, val) => { this.commitFn('progressbars', SC.withPatch(bars, idx, key, val)); };
     return html`
         <div class="inner-content">
-          <div class="fx-slot">
-            <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
-                               .target=${'elm_progressbar_' + idx}></sc-fx-glass-panel>
-          </div>
           <div class="entity-row">
             <label>Internal name / manual label</label>
             <input type="text" .value=${entry.label_text || ''} placeholder="Shown on the bar (if active)"
@@ -1432,6 +1428,10 @@ class ScProgressbarEditor extends LitElement {
               </select>
             </div>` : ''}
           ${this._renderFieldsGroup(STYLE_FIELDS, entry, idx, bars)}
+          <div class="fx-slot">
+            <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                               .target=${'elm_progressbar_' + idx}></sc-fx-glass-panel>
+          </div>
         </div>`;
   }
 
