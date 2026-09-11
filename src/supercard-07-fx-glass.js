@@ -126,6 +126,239 @@ function getTargets(slot) {
 }
 
 // --- THE EDITOR ---
+/**
+ * Every control of one glass pattern except the two that only make sense in a
+ * list: which element it is for, and whether it is switched on. Both the list
+ * editor and the per-element switch draw the same body from here, so a slider
+ * added once shows up in both.
+ *
+ * @param {any} pat the pattern being edited
+ * @param {(key: string, value: any) => void} set commit one field
+ * @param {(fields: Record<string, any>) => void} setMany commit several at once
+ */
+function glassBody(pat, set, setMany) {
+  const isDirectElement = !!pat.target && pat.target.startsWith('elm_');
+  const showManualControls = !isDirectElement || pat.manual_override;
+  return html`
+  <div class="section-title">📏 Dimensions & Shape</div>
+
+  ${isDirectElement ? html`
+    <div class="auto-magic-box">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-size:16px">🪄</span>
+        <div><b>Auto-masking (container queries active):</b> the effect adapts to the smallest container side (cqmin) without distortion.</div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid rgba(3,169,244,0.3); padding-top:8px;">
+        <label>Manual correction (show sliders)</label>
+        <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { set('manual_override', e.target.checked); }}></ha-switch>
+      </div>
+    </div>
+  ` : ''}
+
+  <div class="row" style="background: rgba(244,67,54,0.1); padding: 8px; border-radius: 6px; border: 1px dashed rgba(244,67,54,0.3);">
+    <label style="color:#f44336; font-weight:bold;">🛠 Debug mode (show boxes)<br><span style="font-size:10px; font-weight:normal;">Shows the container in green and the glass in dashed pink.</span></label>
+    <ha-switch style="--switch-checked-button-color: #f44336; --switch-checked-track-color: rgba(244,67,54,0.5);" .checked=${pat.debug_mask ?? false} @change=${e => { set('debug_mask', e.target.checked); }}></ha-switch>
+  </div>
+
+  ${showManualControls ? html`
+    <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;">
+      <label style="color:var(--primary-color)">Lock shape (1:1 aspect ratio)<br><span style="font-size:10px;color:var(--secondary-text-color)">Forces a perfect square/circle (cqmin).</span></label>
+      <ha-switch .checked=${pat.force_square ?? false} @change=${e => { set('force_square', e.target.checked); }}></ha-switch>
+    </div>
+    <div class="row">
+      <label>Edge distance (inset / padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
+      <div style="display:flex; align-items:center; width:60%; gap:8px">
+        <input type="range"
+          min=${(pat.padding_unit || 'px') === '%' ? '-100' : '-50'}
+          max=${(pat.padding_unit || 'px') === '%' ? '100' : '50'}
+          step="1"
+          style="flex:1"
+          .value=${pat.padding ?? 0}
+          @input=${e => { set('padding', parseInt(e.target.value)); }}>
+        <span style="font-size:11px; min-width:24px; text-align:right;">${pat.padding ?? 0}</span>
+        <select style="width:60px" @change=${e => { set('padding_unit', e.target.value); }}>
+          <option value="px" ?selected=${pat.padding_unit === 'px' || !pat.padding_unit}>px</option>
+          <option value="%" ?selected=${pat.padding_unit === '%'}>%</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <label>Corner radius (border-radius)</label>
+      <div style="display:flex;width:60%;gap:4px">
+        <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} placeholder="Auto" @input=${e => { set('border_radius', e.target.value); }}>
+        <select style="width:60px" @change=${e => { set('border_radius_unit', e.target.value); }}>
+          <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
+          <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
+        </select>
+      </div>
+    </div>
+  ` : ''}
+
+  <div class="section-title">🍩 Ring / Donut Mask</div>
+  <div class="row">
+    <label style="color:var(--primary-color)">Hide center (hard edge)<br><span style="font-size:10px;color:var(--secondary-text-color)">Blur & color only affect the edge exactly.</span></label>
+    <ha-switch .checked=${pat.ring_effect ?? false} @change=${e => { set('ring_effect', e.target.checked); }}></ha-switch>
+  </div>
+  ${pat.ring_effect ? html`
+    <div class="row" style="padding-top: 4px;">
+      <label>Use custom mask thickness<br><span style="font-size:10px;color:var(--secondary-text-color)">Off = thickness matches the bevel width exactly (${pat.bevel_width ?? pat.bevel_size ?? 2}px)</span></label>
+      <ha-switch .checked=${pat.use_custom_ring_width ?? false} @change=${e => { set('use_custom_ring_width', e.target.checked); }}></ha-switch>
+    </div>
+    ${pat.use_custom_ring_width ? html`
+      <div class="row"><label>Mask thickness (px)</label>
+        <input type="range" min="1" max="50" step="0.5" style="width:60%" .value=${pat.ring_width ?? 5} @input=${e => { set('ring_width', parseFloat(e.target.value)); }}>
+      </div>
+    ` : ''}
+    <div class="row"><label>Effect strength in center (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = blur & color completely hollow</span></label>
+      <input type="range" min="0" max="100" style="width:60%" .value=${pat.ring_center_opacity ?? 0} @input=${e => { set('ring_center_opacity', parseInt(e.target.value)); }}>
+    </div>
+  ` : ''}
+
+  <div class="section-title">🔍 Optics (Magnifier & Curvature)</div>
+  <div class="row"><label>Magnify content (zoom)</label>
+    <input type="range" step="0.01" min="1" max="1.5" style="width:60%" .value=${pat.zoom ?? 1} @input=${e => { set('zoom', parseFloat(e.target.value)); }}>
+  </div>
+  <div class="row"><label>Convex 3D shine (%)</label>
+    <input type="range" min="0" max="100" style="width:60%" .value=${pat.glare ?? 0} @input=${e => { set('glare', parseInt(e.target.value)); }}>
+  </div>
+
+  <div class="section-title">💧 Glass & Blur</div>
+  <div class="row"><label>Blur strength (px)</label>
+    <input type="range" step="0.01" min="0" max="2" style="width:60%" .value=${pat.blur ?? 10} @input=${e => { set('blur', parseFloat(e.target.value)); }}>
+  </div>
+  <div class="row"><label>Background opacity (%)</label>
+    <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 10} @input=${e => { set('opacity', parseInt(e.target.value)); }}>
+  </div>
+  <div class="row"><label>Color (hex picker)</label>
+    <input type="color" .value=${pat.bg_rgb || '#ffffff'} @input=${e => { set('bg_rgb', e.target.value); }}>
+  </div>
+
+  <div class="section-title">🌒 Light Refraction & Bevel (Physics)</div>
+  <div class="row"><label>Glass style</label>
+    <select style="width:60%" @change=${e => { set('shadow_style', e.target.value); }}>
+      <option value="none" ?selected=${pat.shadow_style === 'none'}>Flat (no edges)</option>
+      <option value="frosted" ?selected=${pat.shadow_style === 'frosted'}>Frosted (soft edges)</option>
+      <option value="liquid" ?selected=${pat.shadow_style === 'liquid'}>Liquid (physical refraction)</option>
+    </select>
+  </div>
+
+  ${pat.shadow_style !== 'none' ? html`
+    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px dashed var(--divider-color, #444); display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 8px 0;">
+      <label style="align-self: flex-start; margin-bottom: -4px;">Light source (sun)</label>
+      <sc-shadow-pad
+        .angle=${pat.shadow_angle ?? 90}
+        .distance=${pat.shadow_distance ?? 1}
+        .maxDistance=${5}
+        @pad-change=${e => setMany({ shadow_angle: e.detail.angle, shadow_distance: e.detail.distance })}
+      ></sc-shadow-pad>
+      <div style="display: flex; gap: 16px; font-size: 11px; color: var(--secondary-text-color);">
+        <span>Angle: <b style="color:var(--primary-color)">${pat.shadow_angle ?? 90}°</b></span>
+        <span>Distance offset: <b style="color:var(--primary-color)">${pat.shadow_distance ?? 1}x</b></span>
+      </div>
+    </div>
+
+    <div class="row"><label>Bevel width (px)<br><span style="font-size:10px;color:var(--secondary-text-color)">Extent of the edge inward</span></label>
+      <input type="range" step="0.1" min="0" max="30" style="width:60%" .value=${pat.bevel_width ?? pat.bevel_size ?? 2}
+        @input=${e => { set('bevel_width', parseFloat(e.target.value)); }}>
+    </div>
+
+    <div class="row"><label>Glass thickness (depth)<br><span style="font-size:10px;color:var(--secondary-text-color)">Controls the steepness & refraction</span></label>
+      <input type="range" step="0.5" min="0" max="20" style="width:60%" .value=${pat.glass_thickness ?? 5}
+        @input=${e => { set('glass_thickness', parseFloat(e.target.value)); }}>
+    </div>
+
+    <div class="row"><label>Base brightness (light)</label>
+      <input type="range" step="0.001" min="0" max="1" style="width:60%" .value=${pat.light_brightness ?? 0.4}
+        @input=${e => { set('light_brightness', parseFloat(e.target.value)); }}>
+    </div>
+  ` : ''}
+  `;
+}
+
+/** A fresh pattern for `target`, with the defaults the Add button used to set. */
+function defaultPattern(target) {
+  return {
+    id: Date.now(), enabled: true, target, blur: 10, opacity: 10, padding: 0, padding_unit: 'px',
+    border_radius: '', border_radius_unit: 'px', force_square: false, zoom: 1, glare: 0,
+    bg_rgb: '#ffffff', shadow_style: 'liquid', light_brightness: 0.4, bevel_width: 2, glass_thickness: 5,
+    shadow_angle: 90, shadow_distance: 1,
+    manual_override: false, ring_effect: false, use_custom_ring_width: false, ring_width: 5,
+    ring_center_opacity: 0, debug_mask: false
+  };
+}
+
+/** The patterns a slot carries, with the pre-list single effect folded in. */
+function readPatterns(slot) {
+  const patterns = Array.isArray(slot?.fx_glass_patterns) ? slot.fx_glass_patterns : [];
+  if (patterns.length === 0 && slot?.fx_glass && slot.fx_glass.enabled) {
+    return [{ id: Date.now(), target: 'main', padding_unit: 'px', ...slot.fx_glass }];
+  }
+  return patterns;
+}
+
+/**
+ * The glass switch for one target, with its settings unfolding underneath.
+ *
+ * The pattern list is still the storage - this is a view of the one entry
+ * whose `target` is ours. Switching off keeps the entry, so the settings are
+ * still there when it goes back on; that is the whole reason the pattern is
+ * not simply deleted.
+ */
+class ScFxGlassPanel extends LitElement {
+  static get properties() {
+    return { slot: { type: Object }, hass: { type: Object }, commitFn: { type: Function },
+             target: { type: String }, label: { type: String } };
+  }
+
+  static get styles() {
+    return [SC.editorStyles, css`
+      .row { gap: 8px; }
+      .fx-switch { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .fx-body { margin-top: 8px; border-top: 1px dashed var(--divider-color, #444); padding-top: 8px; }
+      .section-title { margin-top: 12px; }
+      input[type="color"] { padding: 0; width: 60%; height: 32px; cursor: pointer; border: 1px solid var(--divider-color); }
+      input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+      input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
+      .auto-magic-box { background: rgba(3,169,244,0.1); padding: 8px 10px; border-radius: 6px; font-size: 11px; color: var(--primary-color); display: flex; flex-direction: column; gap: 8px; border: 1px dashed rgba(3,169,244,0.3); }
+    `];
+  }
+
+  _patterns() { return readPatterns(this.slot); }
+
+  _commit(list) { if (this.commitFn) this.commitFn('__merge__', { fx_glass_patterns: list }); }
+
+  _toggle(on) {
+    const list = this._patterns();
+    const idx = list.findIndex(p => p.target === this.target);
+    if (idx < 0) { this._commit([...list, { ...defaultPattern(this.target), enabled: on }]); return; }
+    this._commit(SC.withPatch(list, idx, 'enabled', on));
+  }
+
+  render() {
+    if (!this.slot || !this.target) return html``;
+    const list = this._patterns();
+    const idx = list.findIndex(p => p.target === this.target);
+    const pat = idx < 0 ? null : list[idx];
+    const on = !!pat?.enabled;
+    const set = (key, value) => this._commit(SC.withPatch(list, idx, key, value));
+    const setMany = (fields) => {
+      const n = structuredClone(list);
+      Object.assign(n[idx], fields);
+      this._commit(n);
+    };
+
+    return html`
+      <div class="fx-switch">
+        <label>${this.label || '✨ Glass FX'}</label>
+        <ha-switch .checked=${on} @change=${e => this._toggle(e.target.checked)}></ha-switch>
+      </div>
+      ${on && pat ? html`<div class="fx-body">${glassBody(pat, set, setMany)}</div>` : ''}
+    `;
+  }
+}
+
+if (!customElements.get('sc-fx-glass-panel')) customElements.define('sc-fx-glass-panel', ScFxGlassPanel);
+
 class ScFxGlassEditor extends LitElement {
   static get properties() {
     return {
@@ -172,10 +405,7 @@ class ScFxGlassEditor extends LitElement {
   render() {
     if (!this.slot) return html``;
 
-    let patterns = Array.isArray(this.slot.fx_glass_patterns) ? this.slot.fx_glass_patterns : [];
-    if (patterns.length === 0 && this.slot.fx_glass && this.slot.fx_glass.enabled) {
-        patterns = [{ id: Date.now(), target: 'main', padding_unit: 'px', ...this.slot.fx_glass }];
-    }
+    const patterns = readPatterns(this.slot);
 
     const targetGroups = getTargets(this.slot);
     const usedTargets = patterns.map(p => p.target).filter(t => t !== 'none');
@@ -247,143 +477,9 @@ class ScFxGlassEditor extends LitElement {
                       </select>
                     </div>
 
-                    <div class="section-title">📏 Dimensions & Shape</div>
-
-                    ${isDirectElement ? html`
-                      <div class="auto-magic-box">
-                        <div style="display:flex; gap:8px; align-items:center;">
-                          <span style="font-size:16px">🪄</span>
-                          <div><b>Auto-masking (container queries active):</b> the effect adapts to the smallest container side (cqmin) without distortion.</div>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid rgba(3,169,244,0.3); padding-top:8px;">
-                          <label>Manual correction (show sliders)</label>
-                          <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { this._set(patterns, idx, 'manual_override', e.target.checked); }}></ha-switch>
-                        </div>
-                      </div>
-                    ` : ''}
-
-                    <div class="row" style="background: rgba(244,67,54,0.1); padding: 8px; border-radius: 6px; border: 1px dashed rgba(244,67,54,0.3);">
-                      <label style="color:#f44336; font-weight:bold;">🛠 Debug mode (show boxes)<br><span style="font-size:10px; font-weight:normal;">Shows the container in green and the glass in dashed pink.</span></label>
-                      <ha-switch style="--switch-checked-button-color: #f44336; --switch-checked-track-color: rgba(244,67,54,0.5);" .checked=${pat.debug_mask ?? false} @change=${e => { this._set(patterns, idx, 'debug_mask', e.target.checked); }}></ha-switch>
-                    </div>
-
-                    ${showManualControls ? html`
-                      <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;">
-                        <label style="color:var(--primary-color)">Lock shape (1:1 aspect ratio)<br><span style="font-size:10px;color:var(--secondary-text-color)">Forces a perfect square/circle (cqmin).</span></label>
-                        <ha-switch .checked=${pat.force_square ?? false} @change=${e => { this._set(patterns, idx, 'force_square', e.target.checked); }}></ha-switch>
-                      </div>
-                      <div class="row">
-                        <label>Edge distance (inset / padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
-                        <div style="display:flex; align-items:center; width:60%; gap:8px">
-                          <input type="range"
-                            min=${(pat.padding_unit || 'px') === '%' ? '-100' : '-50'}
-                            max=${(pat.padding_unit || 'px') === '%' ? '100' : '50'}
-                            step="1"
-                            style="flex:1"
-                            .value=${pat.padding ?? 0}
-                            @input=${e => { this._set(patterns, idx, 'padding', parseInt(e.target.value)); }}>
-                          <span style="font-size:11px; min-width:24px; text-align:right;">${pat.padding ?? 0}</span>
-                          <select style="width:60px" @change=${e => { this._set(patterns, idx, 'padding_unit', e.target.value); }}>
-                            <option value="px" ?selected=${pat.padding_unit === 'px' || !pat.padding_unit}>px</option>
-                            <option value="%" ?selected=${pat.padding_unit === '%'}>%</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div class="row">
-                        <label>Corner radius (border-radius)</label>
-                        <div style="display:flex;width:60%;gap:4px">
-                          <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} placeholder="Auto" @input=${e => { this._set(patterns, idx, 'border_radius', e.target.value); }}>
-                          <select style="width:60px" @change=${e => { this._set(patterns, idx, 'border_radius_unit', e.target.value); }}>
-                            <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
-                            <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
-                          </select>
-                        </div>
-                      </div>
-                    ` : ''}
-
-                    <div class="section-title">🍩 Ring / Donut Mask</div>
-                    <div class="row">
-                      <label style="color:var(--primary-color)">Hide center (hard edge)<br><span style="font-size:10px;color:var(--secondary-text-color)">Blur & color only affect the edge exactly.</span></label>
-                      <ha-switch .checked=${pat.ring_effect ?? false} @change=${e => { this._set(patterns, idx, 'ring_effect', e.target.checked); }}></ha-switch>
-                    </div>
-                    ${pat.ring_effect ? html`
-                      <div class="row" style="padding-top: 4px;">
-                        <label>Use custom mask thickness<br><span style="font-size:10px;color:var(--secondary-text-color)">Off = thickness matches the bevel width exactly (${pat.bevel_width ?? pat.bevel_size ?? 2}px)</span></label>
-                        <ha-switch .checked=${pat.use_custom_ring_width ?? false} @change=${e => { this._set(patterns, idx, 'use_custom_ring_width', e.target.checked); }}></ha-switch>
-                      </div>
-                      ${pat.use_custom_ring_width ? html`
-                        <div class="row"><label>Mask thickness (px)</label>
-                          <input type="range" min="1" max="50" step="0.5" style="width:60%" .value=${pat.ring_width ?? 5} @input=${e => { this._set(patterns, idx, 'ring_width', parseFloat(e.target.value)); }}>
-                        </div>
-                      ` : ''}
-                      <div class="row"><label>Effect strength in center (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = blur & color completely hollow</span></label>
-                        <input type="range" min="0" max="100" style="width:60%" .value=${pat.ring_center_opacity ?? 0} @input=${e => { this._set(patterns, idx, 'ring_center_opacity', parseInt(e.target.value)); }}>
-                      </div>
-                    ` : ''}
-
-                    <div class="section-title">🔍 Optics (Magnifier & Curvature)</div>
-                    <div class="row"><label>Magnify content (zoom)</label>
-                      <input type="range" step="0.01" min="1" max="1.5" style="width:60%" .value=${pat.zoom ?? 1} @input=${e => { this._set(patterns, idx, 'zoom', parseFloat(e.target.value)); }}>
-                    </div>
-                    <div class="row"><label>Convex 3D shine (%)</label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.glare ?? 0} @input=${e => { this._set(patterns, idx, 'glare', parseInt(e.target.value)); }}>
-                    </div>
-
-                    <div class="section-title">💧 Glass & Blur</div>
-                    <div class="row"><label>Blur strength (px)</label>
-                      <input type="range" step="0.01" min="0" max="2" style="width:60%" .value=${pat.blur ?? 10} @input=${e => { this._set(patterns, idx, 'blur', parseFloat(e.target.value)); }}>
-                    </div>
-                    <div class="row"><label>Background opacity (%)</label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 10} @input=${e => { this._set(patterns, idx, 'opacity', parseInt(e.target.value)); }}>
-                    </div>
-                    <div class="row"><label>Color (hex picker)</label>
-                      <input type="color" .value=${pat.bg_rgb || '#ffffff'} @input=${e => { this._set(patterns, idx, 'bg_rgb', e.target.value); }}>
-                    </div>
-
-                    <div class="section-title">🌒 Light Refraction & Bevel (Physics)</div>
-                    <div class="row"><label>Glass style</label>
-                      <select style="width:60%" @change=${e => { this._set(patterns, idx, 'shadow_style', e.target.value); }}>
-                        <option value="none" ?selected=${pat.shadow_style === 'none'}>Flat (no edges)</option>
-                        <option value="frosted" ?selected=${pat.shadow_style === 'frosted'}>Frosted (soft edges)</option>
-                        <option value="liquid" ?selected=${pat.shadow_style === 'liquid'}>Liquid (physical refraction)</option>
-                      </select>
-                    </div>
-
-                    ${pat.shadow_style !== 'none' ? html`
-                      <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px dashed var(--divider-color, #444); display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 8px 0;">
-                        <label style="align-self: flex-start; margin-bottom: -4px;">Light source (sun)</label>
-                        <sc-shadow-pad
-                          .angle=${pat.shadow_angle ?? 90}
-                          .distance=${pat.shadow_distance ?? 1}
-                          .maxDistance=${5}
-                          @pad-change=${e => {
-                            const n = structuredClone(patterns);
-                            n[idx].shadow_angle = e.detail.angle;
-                            n[idx].shadow_distance = e.detail.distance;
-                            this._commit(n);
-                          }}
-                        ></sc-shadow-pad>
-                        <div style="display: flex; gap: 16px; font-size: 11px; color: var(--secondary-text-color);">
-                          <span>Angle: <b style="color:var(--primary-color)">${pat.shadow_angle ?? 90}°</b></span>
-                          <span>Distance offset: <b style="color:var(--primary-color)">${pat.shadow_distance ?? 1}x</b></span>
-                        </div>
-                      </div>
-
-                      <div class="row"><label>Bevel width (px)<br><span style="font-size:10px;color:var(--secondary-text-color)">Extent of the edge inward</span></label>
-                        <input type="range" step="0.1" min="0" max="30" style="width:60%" .value=${pat.bevel_width ?? pat.bevel_size ?? 2}
-                          @input=${e => { this._set(patterns, idx, 'bevel_width', parseFloat(e.target.value)); }}>
-                      </div>
-
-                      <div class="row"><label>Glass thickness (depth)<br><span style="font-size:10px;color:var(--secondary-text-color)">Controls the steepness & refraction</span></label>
-                        <input type="range" step="0.5" min="0" max="20" style="width:60%" .value=${pat.glass_thickness ?? 5}
-                          @input=${e => { this._set(patterns, idx, 'glass_thickness', parseFloat(e.target.value)); }}>
-                      </div>
-
-                      <div class="row"><label>Base brightness (light)</label>
-                        <input type="range" step="0.001" min="0" max="1" style="width:60%" .value=${pat.light_brightness ?? 0.4}
-                          @input=${e => { this._set(patterns, idx, 'light_brightness', parseFloat(e.target.value)); }}>
-                      </div>
-                    ` : ''}
+                    ${glassBody(pat,
+                      (key, value) => this._set(patterns, idx, key, value),
+                      (fields) => { const n = structuredClone(patterns); Object.assign(n[idx], fields); this._commit(n); })}
                   </div>
                 ` : ''}
               </div>
@@ -394,14 +490,7 @@ class ScFxGlassEditor extends LitElement {
             e.preventDefault(); e.stopPropagation();
             const n = structuredClone(patterns);
             const newId = Date.now();
-            n.push({
-              id: newId, enabled: true, target: 'none', blur: 10, opacity: 10, padding: 0, padding_unit: 'px',
-              border_radius: '', border_radius_unit: 'px', force_square: false, zoom: 1, glare: 0,
-              bg_rgb: '#ffffff', shadow_style: 'liquid', light_brightness: 0.4, bevel_width: 2, glass_thickness: 5,
-              shadow_angle: 90, shadow_distance: 1,
-              manual_override: false, ring_effect: false, use_custom_ring_width: false, ring_width: 5, ring_center_opacity: 0,
-              debug_mask: false
-            });
+            n.push({ ...defaultPattern('none'), id: newId, target: 'none' });
             this._commit(n);
             this._expanded = { ...this._expanded, [newId]: true };
             this.requestUpdate();
