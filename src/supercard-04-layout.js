@@ -1297,7 +1297,15 @@ class ScCanvasEditor extends LitElement {
   static get styles() {
     return [SC.editorStyles, css`
       .row { gap: 8px; }
-      .canvas-wrap { position: relative; background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color,#444); border-radius: 4px; padding: 12px 8px; display: flex; justify-content: center; }
+      .canvas-wrap { position: relative; background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color,#444); border-radius: 4px; padding: 0; display: flex; justify-content: center; }
+      /* The canvas' own breathing room, moved onto a strip that takes pointer
+         events. A selection frame has to be able to start and end *outside*
+         the canvas, or an element lying flush against an edge can never be
+         wholly inside a frame - the press that draws it would already have to
+         be past the edge. The strip is also where a drag that overshoots the
+         canvas keeps being tracked. */
+      .canvas-pad { flex: 1; min-width: 0; padding: 12px 8px; touch-action: none;
+                    display: flex; justify-content: center; }
       /* Floated over the canvas' edge rather than given a column of its own:
          the rail comes and goes with the selection, and a column would take
          its width from the canvas permanently - in Home Assistant's card
@@ -1715,7 +1723,16 @@ class ScCanvasEditor extends LitElement {
    * every click would flash a zero-sized box.
    */
   _onCanvasDown(e) {
-    const rect = e.currentTarget.getBoundingClientRect();
+    // Placing puts its own layer over the canvas; a press on the strip beside
+    // it is not a selection frame, and must not cancel the selection either.
+    if (this._placing) return;
+    const canvas = e.currentTarget.querySelector('.canvas');
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    // Capture, so a frame dragged past the strip keeps being tracked instead
+    // of stopping the moment the pointer leaves the editor. Synthetic events
+    // have no live pointer to capture, which is not a reason to fail.
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no live pointer */ }
     const at = this._bandPoint(e, rect);
     this._band = { rect, live: false, startX: e.clientX, startY: e.clientY,
                    // Held down, the frame adds to what is already selected
@@ -2120,11 +2137,12 @@ class ScCanvasEditor extends LitElement {
         </div>
 
         <div class="canvas-wrap">
-          <div class="canvas" style="aspect-ratio:${c.w} / ${c.h};"
+          <div class="canvas-pad"
                @pointermove=${this._onMove}
                @pointerup=${this._onUp}
                @pointercancel=${this._onUp}
                @pointerdown=${this._onCanvasDown}>
+          <div class="canvas" style="aspect-ratio:${c.w} / ${c.h};">
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
             ${this._placing ? html`
               <div class="place-layer" @pointerdown=${this._place}
@@ -2155,6 +2173,7 @@ class ScCanvasEditor extends LitElement {
                 <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>`}
               </div>`;
             })}
+          </div>
           </div>
           ${selected.length > 1 ? html`
             <div class="rail">
