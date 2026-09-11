@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_CANVAS,
+  DEFAULT_GRID,
   getCellItems,
   rowHeights,
   cellWidths,
@@ -647,9 +648,14 @@ describe('resolveSnap', () => {
   it('prefers an explicit step over the grid', () => {
     expect(resolveSnap({ grid: 20, snap: 5 })).toBe(5);
   });
-  it('falls back to one unit with nothing configured', () => {
-    expect(resolveSnap({})).toBe(1);
-    expect(resolveSnap(undefined)).toBe(1);
+  it('falls back to the default grid with nothing configured', () => {
+    expect(resolveSnap({})).toBe(DEFAULT_GRID);
+    expect(resolveSnap(undefined)).toBe(DEFAULT_GRID);
+  });
+  it('keeps free placement distinct from the default grid', () => {
+    // The two used to resolve to the same step, so "Free" and "Snap to grid"
+    // were one behaviour offered as two.
+    expect(resolveSnap({ snap: 0 })).not.toBe(resolveSnap({}));
   });
 });
 

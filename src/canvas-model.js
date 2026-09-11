@@ -11,6 +11,16 @@
 export const DEFAULT_CANVAS = Object.freeze({ w: 400, h: 200 });
 
 /**
+ * The grid a canvas without an explicit one snaps to, in virtual units.
+ *
+ * Nothing that creates a canvas writes `grid`, so this is the value in force
+ * on nearly every card. It has to be one number: the editor draws the grid
+ * from it, `resolveSnap` snaps to it, and the field shows it - and a canvas
+ * whose lines are a unit apart is a haze that no drag ever lands on.
+ */
+export const DEFAULT_GRID = 10;
+
+/**
  * The items of a cell, in the current shape, with three generations of older
  * field names resolved.
  *
@@ -395,6 +405,10 @@ export function repointPatterns(slot, cellTargets, glassTargets = {}) {
  * step. Free placement still returns a step - 1 unit - because a canvas is a
  * grid of integers underneath and half a unit is not a position anyone means.
  *
+ * An unset `grid` is the default grid, not one unit: a canvas nobody has
+ * configured is the common case, and reading it as free placement made two of
+ * the three states the same thing while the editor still offered both.
+ *
  * @param {{ grid?: number, snap?: number }} canvas
  * @returns {number}
  */
@@ -403,7 +417,7 @@ export function resolveSnap(canvas) {
   if (snap === 0) return 1;
   if (typeof snap === 'number' && snap > 0) return snap;
   const grid = canvas?.grid;
-  return typeof grid === 'number' && grid > 0 ? grid : 1;
+  return typeof grid === 'number' && grid > 0 ? grid : DEFAULT_GRID;
 }
 
 /**
