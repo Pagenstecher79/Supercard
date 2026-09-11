@@ -160,6 +160,31 @@ export function isPinned(el) {
  * @param {any} el
  * @returns {any} the element with square geometry
  */
+/**
+ * Whole numbers for a box.
+ *
+ * Canvas coordinates are meant to be read and typed - the editor puts them in
+ * number fields - and `15.362903225806452` is not a number anyone adjusts.
+ * Both producers of geometry make them: scaling a canvas to a new shape, and
+ * turning percentages of a cell into units of a canvas, which adds floating
+ * point noise of its own on top (`14.000000000000002`). A canvas is 400 units
+ * across, so half a unit is an eighth of a percent - under what a screen can
+ * show, and far under the step the grid snaps to.
+ *
+ * Never smaller than one unit. An element rounded away to nothing would be
+ * invisible and unselectable, and that is not a rounding error anyone can
+ * undo.
+ *
+ * @template {{x: number, y: number, w: number, h: number}} T
+ * @param {T} box
+ * @returns {T}
+ */
+export function roundBox(box) {
+  return { ...box,
+    x: Math.round(box.x), y: Math.round(box.y),
+    w: Math.max(1, Math.round(box.w)), h: Math.max(1, Math.round(box.h)) };
+}
+
 export function squareElement(el) {
   const side = Math.min(el.w, el.h);
   const inner = typeof el.inner === 'string' ? el.inner : 'cc';
@@ -222,13 +247,13 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts 
 
       if (targeted.has(key)) {
         const id = `surface_${surfaceCount++}`;
-        elements.push({
+        elements.push(roundBox({
           id, surface: true,
           x: leftPct / 100 * canvas.w,
           y: topPct / 100 * canvas.h,
           w: cellPct / 100 * canvas.w,
           h: rowPct / 100 * canvas.h,
-        });
+        }));
         cellTargets[key] = `elm_${id}`;
       }
 
@@ -245,7 +270,7 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts 
         // was already drawn as an aligned square of the smaller side. What it
         // buys is that the element the editor hands you afterwards is the
         // gauge, so dragging it bigger makes the gauge bigger.
-        elements.push(isSquareLocked(placed) ? squareElement(placed) : placed);
+        elements.push(roundBox(isSquareLocked(placed) ? squareElement(placed) : placed));
       }
 
       leftPct += cellPct;
@@ -767,8 +792,7 @@ function bandRect(shape, idx, of, maxH) {
 
 /** @param {string} id @param {{x: number, y: number, w: number, h: number}} box */
 function el(id, box) {
-  const r = (/** @type {number} */ v) => Math.round(v);
-  return { id, inner: 'cc', x: r(box.x), y: r(box.y), w: r(box.w), h: r(box.h) };
+  return { id, inner: 'cc', ...roundBox(box) };
 }
 
 /**
@@ -788,7 +812,7 @@ export function rescaleCanvas(canvas, shape) {
   const kx = shape.w / canvas.w, ky = shape.h / canvas.h;
   const elements = (Array.isArray(canvas.elements) ? canvas.elements : []).map(el => {
     const moved = { ...el, x: el.x * kx, y: el.y * ky, w: el.w * kx, h: el.h * ky };
-    return isSquareLocked(moved) ? squareElement(moved) : moved;
+    return roundBox(isSquareLocked(moved) ? squareElement(moved) : moved);
   });
   return { ...canvas, w: shape.w, h: shape.h, elements };
 }
