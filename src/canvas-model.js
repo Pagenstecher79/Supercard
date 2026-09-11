@@ -130,6 +130,24 @@ export function isSquareLocked(el) {
 }
 
 /**
+ * Whether the element has been pinned where it is.
+ *
+ * Nothing to do with `isSquareLocked` above, which is about shape and is the
+ * element's nature rather than anyone's choice: a gauge is square because it
+ * has to be, and this is set by hand on the element that must not move.
+ *
+ * It guards the pointer, which is what slips. Typing a coordinate, squaring a
+ * gauge or reshaping the canvas are all deliberate and go on working - a lock
+ * that also blocked those would mostly be a thing to keep switching off.
+ *
+ * @param {any} el
+ * @returns {boolean}
+ */
+export function isPinned(el) {
+  return el?.locked === true;
+}
+
+/**
  * The largest square inside an element, anchored the way its content already
  * sits inside it.
  *
@@ -428,13 +446,19 @@ export function resolveSnap(canvas) {
  * element actually lands.
  *
  * @param {{ w: number, h: number, grid?: number, snap?: number }} canvas
- * @param {{ x: number, y: number, w: number, h: number, id?: string, surface?: boolean }} start
+ * @param {{ x: number, y: number, w: number, h: number, id?: string, surface?: boolean, locked?: boolean }} start
  *   element as the drag began; `id` is what decides whether it is square-locked
  * @param {'move'|'resize'} mode
  * @param {{ dx: number, dy: number }} delta in virtual units
  * @returns {{ x: number, y: number, w: number, h: number }}
  */
 export function applyDrag(canvas, start, mode, delta) {
+  // The editor does not start a drag on a pinned element, so this is the
+  // second answer to the same question - deliberately. A drag that got through
+  // anyway, from a path added later, would move something whose whole point is
+  // that it does not, and there is no delta worth that.
+  if (isPinned(start)) return { x: start.x, y: start.y, w: start.w, h: start.h };
+
   const step = resolveSnap(canvas);
   const snap = v => Math.round(v / step) * step;
   const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
