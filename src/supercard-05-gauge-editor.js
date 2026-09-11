@@ -266,6 +266,8 @@ class ScGaugeEditor extends LitElement {
   static get styles() {
     return [SC.formStyles, css`
       input[type="text"], input[type="number"], select { transition: border-color 0.2s; }
+      .fx-slot { margin: 8px 0; padding: 8px; border-radius: 6px;
+                 background: rgba(255,255,255,0.03); border: 1px solid var(--divider-color,#555); }
       details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
       .inner-content { padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); margin-top: 4px; padding-top: 12px; }
       ha-entity-picker, ha-selector { display: block; width: 100%; }
@@ -492,6 +494,10 @@ class ScGaugeEditor extends LitElement {
     };
     return html`
         <div class="inner-content">
+          <div class="fx-slot">
+            <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                               .target=${'elm_gauge_' + idx}></sc-fx-glass-panel>
+          </div>
           <div class="entity-row" style="margin-bottom: 8px;">
             <label>Data source</label>
             <select style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color);" @change=${e => updateEntry('global_id', e.target.value)}>

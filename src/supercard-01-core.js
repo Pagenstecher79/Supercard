@@ -1146,6 +1146,10 @@ Object.assign(window.SupercardModules['core'], (() => {
           <details class="inner-section" ?open=${this._expanded.dim} @toggle=${e => this._expanded = {...this._expanded, dim: e.target.open}}>
             <summary>── Card & Dimensions <span style="font-size:10px;">▼</span></summary>
             <div class="inner-content">
+              <div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed var(--divider-color,#444);">
+                <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                                   .target=${'main'} .label=${'✨ Glass FX (entire card)'}></sc-fx-glass-panel>
+              </div>
               ${onCanvas ? html`
                 <div class="col">
                   <label>Corner radius</label>

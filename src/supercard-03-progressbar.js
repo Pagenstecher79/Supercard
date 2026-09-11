@@ -1070,6 +1070,8 @@ class ScProgressbarEditor extends LitElement {
   static get styles() {
     return [SC.editorStyles, css`
       .add-btn { margin-top: 8px; }
+      .fx-slot { margin: 8px 0; padding: 8px; border-radius: 6px;
+                 background: rgba(255,255,255,0.03); border: 1px solid var(--divider-color,#555); }
       .color-row { width: 100%; }
       .entity-row { display: flex; flex-direction: column; gap: 4px; font-size: 13px; margin-bottom: 8px; }
       .sub-section { border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-top: 6px; }
@@ -1361,6 +1363,10 @@ class ScProgressbarEditor extends LitElement {
     const updateEntry = (key, val) => { this.commitFn('progressbars', SC.withPatch(bars, idx, key, val)); };
     return html`
         <div class="inner-content">
+          <div class="fx-slot">
+            <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                               .target=${'elm_progressbar_' + idx}></sc-fx-glass-panel>
+          </div>
           <div class="entity-row">
             <label>Internal name / manual label</label>
             <input type="text" .value=${entry.label_text || ''} placeholder="Shown on the bar (if active)"

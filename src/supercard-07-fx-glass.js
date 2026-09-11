@@ -97,9 +97,17 @@ if (!customElements.get('sc-shadow-pad')) customElements.define('sc-shadow-pad',
 // --- HELPER FUNCTIONS FOR TARGET SELECTION ---
 const { getAvailableElements } = window.SupercardUtils;
 
+/**
+ * Elements that ask for their glass in their own editor, so the list must not
+ * offer them a second time. Everything else - icon, name, state, surfaces,
+ * layout cells - has no editor to put a switch in, which is what the list is
+ * left for.
+ */
+const HAS_OWN_SWITCH = /^elm_(gauge|progressbar|label)_\d+$/;
+
 function getTargets(slot) {
   const groups = {
-    general: { label: 'General', items: [ { id: 'none', label: '— Please select a target —' }, { id: 'main', label: 'Main card (entire background)' } ]},
+    general: { label: 'General', items: [ { id: 'none', label: '— Please select a target —' } ]},
     cells: { label: 'Layout cells (containers)', items: [] },
     elements: { label: 'Direct elements (exact fit)', items: [] }
   };
@@ -118,7 +126,7 @@ function getTargets(slot) {
   Object.entries(els).forEach(([key, label]) => {
     // Same rule as the cells above: an element the canvas does not place has
     // no part to reach. showsElement passes everything on a rows card.
-    if (key !== 'empty' && SC.showsElement(slot, key)) {
+    if (key !== 'empty' && SC.showsElement(slot, key) && !HAS_OWN_SWITCH.test(`elm_${key}`)) {
       groups.elements.items.push({ id: `elm_${key}`, label: `Element: ${label}` });
     }
   });
@@ -420,8 +428,13 @@ class ScFxGlassEditor extends LitElement {
 
     return html`
       <details class="inner-section">
-        <summary>✨ FX: Frosted & Liquid Glass <span style="font-size:10px">▼</span></summary>
+        <summary>✨ FX: Frosted & Liquid Glass (other targets) <span style="font-size:10px">▼</span></summary>
         <div class="inner-content">
+          <div class="hint" style="font-size:11px;color:var(--secondary-text-color);margin-bottom:8px;">
+            Gauges, bars and labels carry their own Glass FX switch in their
+            editor, and the card's is in Card &amp; Dimensions. What is left
+            here is the icon, the name, the state, surfaces and layout cells.
+          </div>
           ${patterns.map((pat, idx) => {
             const isExp = !!this._expanded[pat.id];
             let targetLabel = getLabelForTarget(pat.target);

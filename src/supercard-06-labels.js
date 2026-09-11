@@ -42,6 +42,8 @@ class ScLabelsEditor extends LitElement {
   static get styles() {
     return [SC.editorStyles, css`
       .col { gap: 4px; }
+      .fx-slot { margin: 8px 0; padding: 8px; border-radius: 6px;
+                 background: rgba(255,255,255,0.03); border: 1px solid var(--divider-color,#555); }
       .add-btn { padding: 8px; }
       .toggle-icon { margin-right: 6px; }
       .section-title { margin-top: 4px; margin-bottom: 0; }
@@ -161,6 +163,10 @@ class ScLabelsEditor extends LitElement {
 
     return html`
                 <div class="label-content">
+                  <div class="fx-slot">
+                    <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                                       .target=${'elm_label_' + idx}></sc-fx-glass-panel>
+                  </div>
 
                   <div class="col">
                     <label>Manual text / label</label>
