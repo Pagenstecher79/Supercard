@@ -794,12 +794,46 @@ describe('isHeightPinned', () => {
 });
 
 describe('isSquareLocked', () => {
-  it('locks gauges, and nothing else', () => {
+  const bars = slotBars => ({ progressbars: slotBars });
+
+  it('locks gauges, and nothing else it can answer for alone', () => {
     expect(isSquareLocked({ id: 'gauge_0' })).toBe(true);
     expect(isSquareLocked({ id: 'gauge_11' })).toBe(true);
     expect(isSquareLocked({ id: 'progressbar_0' })).toBe(false);
     expect(isSquareLocked({ id: 'label_0' })).toBe(false);
     expect(isSquareLocked({ id: 'icon' })).toBe(false);
+  });
+
+  it('locks a bar that is drawn as a ring', () => {
+    for (const orientation of ['circular', 'circular_donut', 'circular_speedo', 'circular_half']) {
+      expect(isSquareLocked({ id: 'progressbar_0' }, bars([{ orientation }])),
+             orientation).toBe(true);
+    }
+  });
+
+  it('leaves a straight bar alone', () => {
+    for (const orientation of ['horizontal', 'vertical', undefined]) {
+      expect(isSquareLocked({ id: 'progressbar_0' }, bars([{ orientation }]))).toBe(false);
+    }
+    expect(isSquareLocked({ id: 'progressbar_0' }, bars([{}]))).toBe(false);
+  });
+
+  it('reads the bar at the index its id names', () => {
+    const slot = bars([{ orientation: 'horizontal' }, { orientation: 'circular_donut' }]);
+    expect(isSquareLocked({ id: 'progressbar_0' }, slot)).toBe(false);
+    expect(isSquareLocked({ id: 'progressbar_1' }, slot)).toBe(true);
+    // An id past the end of the list is not a ring, and not a crash either.
+    expect(isSquareLocked({ id: 'progressbar_9' }, slot)).toBe(false);
+  });
+
+  it('survives a slot that is not one', () => {
+    for (const slot of [null, undefined, {}, { progressbars: null }, { progressbars: 'no' }]) {
+      expect(isSquareLocked({ id: 'progressbar_0' }, /** @type {any} */ (slot))).toBe(false);
+    }
+  });
+
+  it('never asks the slot about a gauge', () => {
+    expect(isSquareLocked({ id: 'gauge_0' }, bars([{ orientation: 'horizontal' }]))).toBe(true);
   });
 
   it('never locks a surface, even one sitting over a gauge', () => {
@@ -876,6 +910,23 @@ describe('applyDrag with a square-locked element', () => {
   it('leaves a progressbar free to be any shape', () => {
     const el = { id: 'progressbar_0', x: 0, y: 0, w: 20, h: 20 };
     expect(applyDrag(c, el, 'resize', { dx: 30, dy: 0 })).toEqual({ x: 0, y: 0, w: 50, h: 20 });
+  });
+
+  it('holds a round bar square once the slot says it is one', () => {
+    const el = { id: 'progressbar_0', x: 0, y: 0, w: 20, h: 20 };
+    const round = { progressbars: [{ orientation: 'circular_donut' }] };
+    expect(applyDrag(c, el, 'resize', { dx: 30, dy: 0 }, round))
+      .toEqual({ x: 0, y: 0, w: 50, h: 50 });
+    // The same bar, still straight, is still free.
+    expect(applyDrag(c, el, 'resize', { dx: 30, dy: 0 }, { progressbars: [{ orientation: 'horizontal' }] }))
+      .toEqual({ x: 0, y: 0, w: 50, h: 20 });
+  });
+
+  it('squares a round bar that was drawn wide before the lock existed', () => {
+    const el = { id: 'progressbar_0', x: 0, y: 0, w: 60, h: 20 };
+    const round = { progressbars: [{ orientation: 'circular_speedo' }] };
+    expect(applyDrag(c, el, 'resize', { dx: 0, dy: 0 }, round))
+      .toEqual({ x: 0, y: 0, w: 60, h: 60 });
   });
 });
 
@@ -1309,6 +1360,23 @@ describe('addElement', () => {
     it('is square for a ring', () => {
       const b = box(1);
       expect(b.w).toBe(b.h);
+    });
+
+    // The entry is the only thing that knows this is a ring, and it is not in
+    // the slot yet - `addElement` has not committed. A box taken from the old
+    // slot would be the strip.
+    it('is square for a circular entry even when no aspect asks', () => {
+      const made = addElement(slot(), canvas(), 'progressbar',
+                              { orientation: 'circular_donut' }, { x: 200, y: 200 });
+      const b = made.canvas.elements.at(-1);
+      expect(b.w).toBe(b.h);
+    });
+
+    it('leaves a straight entry the strip it has always been', () => {
+      const made = addElement(slot(), canvas(), 'progressbar',
+                              { orientation: 'horizontal' }, { x: 200, y: 200 });
+      const b = made.canvas.elements.at(-1);
+      expect(b.w).toBeGreaterThan(b.h);
     });
 
     // A canvas the box would not fit on, and a ratio steep enough to round an

@@ -509,7 +509,7 @@ doing so would shrink every canvas card carrying a stale value. Fixing it is a
 separate decision, because it would change the size of cards that have quietly
 ignored the setting for as long as it has existed.
 
-## 6. Gauges are square
+## 6. Round things are square
 
 A gauge is drawn into a square viewBox whatever its type. A "semi" gauge is a
 270° arc in that same box, not half of one, so there is no gauge shape that
@@ -521,13 +521,30 @@ come out oval. What a non-square slot produced instead was a *small* gauge
 with empty space beside it, and no way to tell from the editor why: the
 element you were dragging was not the thing you saw.
 
-So on the canvas a gauge element is locked to a square, and the lock lives in
-the model rather than in the drag handler:
+A circular progressbar is the same picture for the same reason. The ring is an
+SVG with a square viewBox and the segmented variant is sized in `cqmin`, so
+both centre themselves on the shorter side. Worse than a gauge, in fact: the
+track behind them takes its corner radius as a *percentage*, so a wide box
+draws a stadium around a circle.
+
+So on the canvas both are locked to a square, and the lock lives in the model
+rather than in the drag handler:
 
 ```js
-isSquareLocked(el)   // gauge_N, and not a surface
-squareElement(el)    // the largest square inside it, anchored by `inner`
+isSquareLocked(el, slot)   // gauge_N, or a progressbar_N the slot calls circular
+squareElement(el)          // the largest square inside it, anchored by `inner`
 ```
+
+The second argument is why this is not simply a question about an id. A gauge
+is square whatever its config says; a bar is square only while its
+`orientation` starts with `circular`, and that lives in the slot rather than on
+the canvas element. Called without a slot the function answers only for the
+ids it can answer for alone — a bar says no, which is what every caller with no
+slot to give wants, since the alternative is guessing a shape from a name.
+
+`addElement` asks with the slot *as it will be*, `{ ...slot, ...patch }`: the
+entry being added is what says the bar is a ring, and it is not in the slot
+until the caller commits.
 
 `applyDrag` consults the first when it resizes, `migrateLayoutToCanvas` applies
 the second, and the editor renders one **size** field instead of a `w` and an
@@ -640,8 +657,8 @@ The canvas editor now sets **both** halves of that box — *Card width* in
 columns and *Card height* in rows — through `commitFn('__card__', …)`, so they
 are the same `grid_options` the Layout tab writes. Changing either one there
 also reshapes the canvas to match, via `rescaleCanvas`, which scales the
-element coordinates by the same two factors and re-squares the gauges (a
-square scaled by two different numbers stops being one).
+element coordinates by the same two factors and re-squares whatever is locked
+square (a square scaled by two different numbers stops being one).
 
 Both writes go out as a single `commitFn('__batch__', …)`. Two commits in one
 tick would lose the first: `_commit` clones `this.config`, and Home Assistant
@@ -671,7 +688,7 @@ Three facts make this cost almost nothing:
   the card puts them behind its own interaction layer. So a live element
   inside a draggable box cannot swallow the drag: hit-testing at the centre of
   a rendered gauge lands on the editor's own `.el` div.
-- **A gauge element is square**, so the box it is dropped into is the size the
+- **A gauge element, and a circular bar, is square**, so the box it is dropped into is the size the
   gauge wants, and `onCanvas` already exists as a property to say so - see §6.
 - **The id is the index.** `gauge_0` is `gauges[0]`, the same convention
   `onAfterRender` slots by, so the preview needs no lookup table of its own.
@@ -913,7 +930,8 @@ would replace it.
 
 The box a new element gets is a fifth of the canvas' shorter side, not a
 multiple of the snap step: the step is one unit on a freely-placed canvas,
-and a four-unit box is invisible. A gauge is square because it has to be, a
+and a four-unit box is invisible. A gauge and a ring are square because they
+have to be, a
 surface is twice as wide as it is tall because a backdrop is, and everything
 else is a flat strip, which is the shape of a bar and of a line of text -
 unless a template asks for another one, below.

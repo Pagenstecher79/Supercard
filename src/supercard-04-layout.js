@@ -1610,7 +1610,7 @@ class ScCanvasEditor extends LitElement {
     const shape = canvasFromGrid(cardConfig, this.slot, 400, this._maxColumns);
     const c = this._canvas;
     if (c.w === shape.w && c.h === shape.h) return null;
-    return rescaleCanvas(structuredClone(c), shape);
+    return rescaleCanvas(structuredClone(c), shape, this.slot);
   }
 
   /** Reshape the canvas to the card's grid box, carrying the layout with it. */
@@ -1861,7 +1861,7 @@ class ScCanvasEditor extends LitElement {
       this._lastDown.moved = true;
     }
     if (this._drag.group) this._setEls(applyGroupDrag(c, this._drag.group, delta, origin.id));
-    else this._setEl(idx, applyDrag(c, origin, mode, delta));
+    else this._setEl(idx, applyDrag(c, origin, mode, delta, this.slot));
   }
 
   /**
@@ -2463,7 +2463,7 @@ class ScCanvasEditor extends LitElement {
           </div>
           <span class="hint" style="flex:1">${this._placing
             ? html`Click on the canvas to place the ${this._placingLabel}. Escape cancels.`
-            : html`Later in the list draws on top. A gauge stays square and fills its box.`}</span>
+            : html`Later in the list draws on top. A gauge and a round bar stay square and fill their box.`}</span>
           <div class="names">
             <button class=${this._names ? 'on' : ''}
                     title="Put each element's name on its box. Off, a box says its id - which is what the lists, the glass targets and the colour rules call it."
@@ -2562,10 +2562,10 @@ class ScCanvasEditor extends LitElement {
                     }}>${name ? html`<span class="named">${name}</span>` : ''}<span
                         class="id ${name ? '' : 'only'}">${el.id}</span></span>
               ${selected.length === 1 && this._sel === el.id ? html`
-                ${(isSquareLocked(el) ? ['x', 'y', 'size'] : ['x', 'y', 'w', 'h']).map(k => html`
+                ${(isSquareLocked(el, this.slot) ? ['x', 'y', 'size'] : ['x', 'y', 'w', 'h']).map(k => html`
                   <input class="num" type="number" step=${step}
                          .value=${Math.round(k === 'size' ? Math.min(el.w, el.h) : el[k])}
-                         title=${k === 'size' ? 'size - a gauge is always square' : k}
+                         title=${k === 'size' ? 'size - this one is always square' : k}
                          @change=${e => {
                            const v = parseFloat(e.target.value) || 0;
                            this._setEl(idx, k === 'size' ? { w: v, h: v } : { [k]: v });
@@ -2747,7 +2747,7 @@ Object.assign(window.SupercardModules['layout'], (() => {
               // to paint, and migration does not invent elements nobody asked
               // for. A cell that is coloured as well keeps its surface.
               const { elements, cellTargets } = migrateLayoutToCanvas(slot.layout_rows, shape,
-                { targetedCells: surfaced });
+                { targetedCells: surfaced, slot });
               // The patterns have to travel with the canvas, in one commit: a
               // card that got its canvas but not its repointed targets is
               // exactly the card whose background disappeared.
