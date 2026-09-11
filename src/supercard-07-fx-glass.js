@@ -523,10 +523,25 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
       // --- DYNAMIC UNIT TRANSLATOR ---
       const sf = scaleFactor / 100;
 
+      /*
+       * Blur and padding are lengths, and a length only means something next to
+       * the box it is drawn on. A gauge has always read them as a share of
+       * itself; a bar or a surface read them as fixed px, so the same 10px blur
+       * covered half a 20px bar and a tenth of a 200px one - and the canvas is
+       * exactly where that size is not fixed, because the card is drawn at
+       * whatever width the dashboard gives it.
+       *
+       * So every element on a canvas now measures in `cqmin`, one percent of
+       * the shorter side of the box the canvas gave it, the way the gauge
+       * does. Off the canvas nothing changes: there an element's size comes
+       * from its own settings in px, so px is what the blur should match.
+       */
+      const responsiveUnits = isGaugeResponsive || (isDirectElement && SC.onCanvas(config));
+
       const u = (val, unit = 'px') => {
         if (val === 0) return '0px';
         if (unit === '%') return `${val}%`;
-        return isGaugeResponsive ? `calc(${val * sf} * 1cqmin)` : `${val * sf}px`;
+        return responsiveUnits ? `calc(${val * sf} * 1cqmin)` : `${val * sf}px`;
       };
 
       const computedInset = u(padVal, padUnit);
@@ -556,6 +571,13 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
           `;
         }
       } else {
+        // No container of our own here. The canvas already wraps every element
+        // in `.sc-item-slot`, a size container the width of the element's box,
+        // and that is exactly the box these lengths should be a share of.
+        // Putting `container-type: size` on the target instead would be wrong
+        // as well as redundant: `elm_name` points at the text inside the box,
+        // which is sized by its own content - containment collapses it to
+        // nothing.
         positioningCSS = `
           inset: ${computedInset} !important;
           margin: auto !important;
