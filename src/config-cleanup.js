@@ -25,17 +25,18 @@
  * `width` and `height` are deliberately not here: a bar can be a 20px line
  * inside a taller box, which its box cannot say.
  *
- * `manual_override` and `debug_mask` were the glass editor's escape hatches:
- * one showed padding and radius sliders for an element whose glass already
- * fits it exactly, the other outlined both boxes so you could see whether it
- * did. Both go now that the fit is measured rather than eyeballed - see the
- * note at `showManualControls` in fx-glass.
+ * `debug_mask` outlined the element in green and the glass in dashed pink, so
+ * you could see whether the two lined up. They do - measured, in fx-glass's
+ * note at `showManualControls` - so the switch went. Its neighbour under the
+ * same heading, `manual_override`, is deliberately not here: the sliders it
+ * reveals are not only a correction, they are how a glass is made larger than
+ * the element it sits on.
  *
  * @type {Readonly<Record<string, readonly string[]>>}
  */
 export const DEAD_ENTRY_KEYS = Object.freeze({
   progressbars: Object.freeze(['position_mode', 'offset_x', 'offset_y']),
-  fx_glass_patterns: Object.freeze(['manual_override', 'debug_mask']),
+  fx_glass_patterns: Object.freeze(['debug_mask']),
 });
 
 /**

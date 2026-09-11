@@ -98,6 +98,16 @@ if (!customElements.get('sc-shadow-pad')) customElements.define('sc-shadow-pad',
 const { getAvailableElements } = window.SupercardUtils;
 
 /**
+ * Targets glass is not painted on at all.
+ *
+ * `name` and `state` are text nodes that shrink to their glyphs: the box drawn
+ * for one on the canvas is 253x33, the node inside it 29x14, and the glass
+ * follows the node. Blur on the letters themselves is a few pixels nobody can
+ * make out, so the effect was only ever a setting that appeared to do nothing.
+ */
+const NO_GLASS = new Set(['elm_name', 'elm_state']);
+
+/**
  * Elements that ask for their glass in their own editor, so the list must not
  * offer them a second time. Everything else - icon, name, state, surfaces,
  * layout cells - has no editor to put a switch in, which is what the list is
@@ -126,7 +136,8 @@ function getTargets(slot) {
   Object.entries(els).forEach(([key, label]) => {
     // Same rule as the cells above: an element the canvas does not place has
     // no part to reach. showsElement passes everything on a rows card.
-    if (key !== 'empty' && SC.showsElement(slot, key) && !HAS_OWN_SWITCH.test(`elm_${key}`)) {
+    if (key !== 'empty' && SC.showsElement(slot, key)
+        && !HAS_OWN_SWITCH.test(`elm_${key}`) && !NO_GLASS.has(`elm_${key}`)) {
       groups.elements.items.push({ id: `elm_${key}`, label: `Element: ${label}` });
     }
   });
@@ -146,17 +157,31 @@ function getTargets(slot) {
  */
 function glassBody(pat, set, setMany) {
   /*
-   * An element's glass fits itself. The overlay is `inset: 0` on the element
-   * made `position: relative`, or a centred `100cqmin` square where the
-   * element is round, so there is nothing for a person to correct - measured
-   * across gauge, bar, label, name, state, icon and surface, every one of them
-   * lands on its element exactly. The sliders below are for `main` and for a
-   * layout cell, where the glass covers a container rather than a thing.
+   * An element's glass fits itself: `inset: 0` on the element made
+   * `position: relative`, or a centred `100cqmin` square where the element is
+   * round. Measured across gauge, bar, label, icon and surface, every one of
+   * them lands on its element to within half a pixel, so the sliders are off
+   * by default and the switch above is what asks for them.
+   *
+   * They are not only a correction, which is why the switch stays: a negative
+   * edge distance paints the glass wider than the element, and an explicit
+   * radius rounds glass on a square element. `main` and a layout cell show
+   * them outright - there the glass covers a container rather than a thing,
+   * and where its edge falls is a real question.
    */
-  const showManualControls = !pat.target || !pat.target.startsWith('elm_');
+  const isDirectElement = !!pat.target && pat.target.startsWith('elm_');
+  const showManualControls = !isDirectElement || pat.manual_override;
   return html`
+  <div class="section-title">📏 Dimensions & Shape</div>
+
+  ${isDirectElement ? html`
+    <div class="row">
+      <label>Manual adjustments<br><span style="font-size:10px;color:var(--secondary-text-color)">The glass fits the element by itself. Turn this on to depart from that - a negative edge distance makes it larger than the element, and the radius stops following the element's own.</span></label>
+      <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { set('manual_override', e.target.checked); }}></ha-switch>
+    </div>
+  ` : ''}
+
   ${showManualControls ? html`
-    <div class="section-title">📏 Dimensions & Shape</div>
     <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;">
       <label style="color:var(--primary-color)">Lock shape (1:1 aspect ratio)<br><span style="font-size:10px;color:var(--secondary-text-color)">Forces a perfect square/circle (cqmin).</span></label>
       <ha-switch .checked=${pat.force_square ?? false} @change=${e => { set('force_square', e.target.checked); }}></ha-switch>
@@ -278,6 +303,7 @@ function defaultPattern(target) {
     border_radius: '', border_radius_unit: 'px', force_square: false, zoom: 1, glare: 0,
     bg_rgb: '#ffffff', shadow_style: 'liquid', light_brightness: 0.4, bevel_width: 2, glass_thickness: 5,
     shadow_angle: 90, shadow_distance: 1,
+    manual_override: false,
     ring_effect: false, use_custom_ring_width: false, ring_width: 5, ring_center_opacity: 0
   };
 }
@@ -534,7 +560,7 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
     let styleStr = '';
 
     patterns.forEach(pat => {
-      if (!pat.enabled || pat.target === 'none') return;
+      if (!pat.enabled || pat.target === 'none' || NO_GLASS.has(pat.target)) return;
 
       const isMain = pat.target === 'main';
       const isDirectElement = pat.target.startsWith('elm_');

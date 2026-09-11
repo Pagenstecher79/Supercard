@@ -10,13 +10,14 @@ describe('stripDeadKeys', () => {
     expect(out.progressbars[0]).toEqual({ entity: 'sensor.a', width: 80 });
   });
 
-  it('strips the glass editor\'s two escape hatches from a pattern', () => {
+  it('strips the glass debug switch but keeps manual adjustments', () => {
     const slot = { fx_glass_patterns: [
       { target: 'elm_gauge_0', enabled: true, blur: 6, manual_override: true, debug_mask: false },
       { target: 'main', enabled: true, blur: 6 },
     ] };
     const out = stripDeadKeys(slot);
-    expect(out.fx_glass_patterns[0]).toEqual({ target: 'elm_gauge_0', enabled: true, blur: 6 });
+    expect(out.fx_glass_patterns[0]).toEqual(
+      { target: 'elm_gauge_0', enabled: true, blur: 6, manual_override: true });
     expect(out.fx_glass_patterns[1]).toBe(slot.fx_glass_patterns[1]);
   });
 
