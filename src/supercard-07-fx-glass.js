@@ -473,6 +473,21 @@ class ScFxGlassEditor extends LitElement {
     const targetGroups = getTargets(this.slot);
     const usedTargets = patterns.map(p => p.target).filter(t => t !== 'none');
 
+    // A pattern whose element asks for its glass in its own editor is not this
+    // list's to show. The list stopped offering those targets, so a row for one
+    // could only say "Unknown target" over an empty menu - next to a delete
+    // button that would quietly take a gauge's glass with it. A target this
+    // list does not know for any other reason, a surface that has since been
+    // removed, keeps its row: nothing else can reach that pattern, and a row
+    // nobody can find is how the last one of these went unnoticed.
+    //
+    // Each row carries its index in the stored list, because that is what every
+    // edit below commits against, and is numbered by where it sits in this
+    // list, because that is the only list the person reading it can see.
+    const rows = patterns
+      .map((pat, idx) => ({ pat, idx }))
+      .filter(({ pat }) => !HAS_OWN_SWITCH.test(pat.target));
+
     const getLabelForTarget = (targetId) => {
       for (const group of Object.values(targetGroups)) {
         const found = group.items.find(t => t.id === targetId);
@@ -488,9 +503,9 @@ class ScFxGlassEditor extends LitElement {
           <div class="hint" style="font-size:11px;color:var(--secondary-text-color);margin-bottom:8px;">
             Gauges, bars and labels carry their own Glass FX switch in their
             editor, and the card's is in Card &amp; Dimensions. What is left
-            here is the icon, the name, the state, surfaces and layout cells.
+            here is the icon, surfaces and layout cells.
           </div>
-          ${patterns.map((pat, idx) => {
+          ${rows.map(({ pat, idx }, n) => {
             const isExp = !!this._expanded[pat.id];
             let targetLabel = getLabelForTarget(pat.target);
             if (pat.target === 'none') targetLabel = 'Not assigned';
@@ -517,7 +532,7 @@ class ScFxGlassEditor extends LitElement {
                   <div>
                     <span class="drag-handle" @mousedown=${e => { e.stopPropagation(); e.target.closest('.pattern-card').setAttribute('draggable', 'true'); }} @mouseup=${e => { e.stopPropagation(); e.target.closest('.pattern-card').removeAttribute('draggable'); }} @mouseleave=${e => e.target.closest('.pattern-card').removeAttribute('draggable')}>⋮⋮</span>
                     <span class="toggle-icon">${isExp ? '▼' : '▶'}</span>
-                    <span style="color:${pat.enabled ? 'var(--primary-text-color)' : 'var(--secondary-text-color)'}">Glass effect ${idx + 1}</span>
+                    <span style="color:${pat.enabled ? 'var(--primary-text-color)' : 'var(--secondary-text-color)'}">Glass effect ${n + 1}</span>
                     <span style="font-size:10px;color:${pat.target === 'none' ? '#f44' : 'var(--secondary-text-color)'};margin-left:8px;font-weight:normal;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom;">(${targetLabel})</span>
                   </div>
                   <div style="display:flex;align-items:center;gap:8px">
