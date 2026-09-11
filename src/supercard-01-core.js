@@ -475,11 +475,23 @@ class SupercardCore extends LitElement {
    * canvas card is a rectangle with a corner radius. That radius is a
    * percentage of the shorter side here, so it follows the card when Home
    * Assistant's layout gives it a different box.
+   *
+   * Half the height that shape asks for. `canvasFromGrid` reproduces the box
+   * the card occupies, which is the right answer when converting a card that
+   * already draws something - but the default grid box is three columns by
+   * three rows, and empty that is a tall blank rectangle taking a third of
+   * the screen before the first element is placed. The card reports
+   * `rows: "auto"`, so the canvas' ratio *is* its height: halving it is the
+   * whole change. Nothing nags about the mismatch, because `_gridMismatch`
+   * only speaks when a row count has actually been set; setting one, or
+   * pressing Match, reshapes the canvas to the box as before.
    */
   static getStubConfig() {
     const slot = { layout_active: true, border_radius: 12,
                    border_radius_unit: '%', border_radius_ref: 'min' };
-    return { entity: '', supercard: { ...slot, canvas: { ...canvasFromGrid({}, slot), elements: [] } } };
+    const shape = canvasFromGrid({}, slot);
+    return { entity: '', supercard: { ...slot,
+      canvas: { w: shape.w, h: Math.round(shape.h / 2), elements: [] } } };
   }
 
   static get styles() {
