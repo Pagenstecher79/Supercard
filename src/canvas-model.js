@@ -518,6 +518,104 @@ export function applyDrag(canvas, start, mode, delta) {
 }
 
 /**
+ * One drag, several elements.
+ *
+ * The delta is snapped once, against the element under the pointer, and every
+ * element in the selection then moves by exactly that - so a group keeps its
+ * arrangement instead of each box snapping to the grid on its own and the
+ * spacing quietly changing with every drag.
+ *
+ * Clamped as one box too: the group stops when its outermost edge reaches the
+ * canvas, rather than the elements piling up against the wall one at a time.
+ * Snap first and clamp second, the same order `applyDrag` uses, so a group
+ * pushed into a corner sits flush against it.
+ *
+ * A pinned element in the selection stays where it is and does not hold the
+ * others back - that is what the lock says, and an element that cannot move
+ * cannot leave the canvas either.
+ *
+ * @param {{w: number, h: number, grid?: number, snap?: number}} canvas
+ * @param {any[]} starts elements as the drag began; `anchor` is the one pressed
+ * @param {{ dx: number, dy: number }} delta in virtual units
+ * @param {string} anchorId
+ * @returns {Record<string, {x: number, y: number, w: number, h: number}>} by id
+ */
+export function applyGroupDrag(canvas, starts, delta, anchorId) {
+  const step = resolveSnap(canvas);
+  const snap = v => Math.round(v / step) * step;
+  const list = (Array.isArray(starts) ? starts : []).filter(Boolean);
+  const movers = list.filter(el => !isPinned(el));
+
+  /** @type {Record<string, {x: number, y: number, w: number, h: number}>} */
+  const out = {};
+  for (const el of list) out[el.id] = { x: el.x, y: el.y, w: el.w, h: el.h };
+  if (!movers.length) return out;
+
+  const anchor = movers.find(el => el.id === anchorId) || movers[0];
+  let dx = snap(anchor.x + delta.dx) - anchor.x;
+  let dy = snap(anchor.y + delta.dy) - anchor.y;
+
+  const minX = Math.min(...movers.map(el => el.x));
+  const minY = Math.min(...movers.map(el => el.y));
+  const maxX = Math.max(...movers.map(el => el.x + el.w));
+  const maxY = Math.max(...movers.map(el => el.y + el.h));
+  dx = Math.min(Math.max(dx, -minX), canvas.w - maxX);
+  dy = Math.min(Math.max(dy, -minY), canvas.h - maxY);
+
+  for (const el of movers) out[el.id] = { x: el.x + dx, y: el.y + dy, w: el.w, h: el.h };
+  return out;
+}
+
+/**
+ * Even gaps between the named elements, along one axis.
+ *
+ * The gaps are what is made equal, not the centres: the elements on a canvas
+ * are different sizes, and equal centres would leave a wide box crowding its
+ * neighbours while a narrow one floats. The outermost two keep their places -
+ * they are what defines the span - and everything between them is laid out at
+ * equal distances inside it. A negative gap, where the boxes together are
+ * wider than the span, overlaps them evenly rather than refusing.
+ *
+ * Pinned elements are left out of it entirely: they neither move nor count as
+ * one of the two that stay, because a lock that only sometimes holds is worse
+ * than none.
+ *
+ * Null when there is nothing to do - fewer than three elements that may move,
+ * or the arrangement is already even - so the editor can offer the button and
+ * commit nothing for a press that would change nothing.
+ *
+ * @param {any} canvas
+ * @param {string[]} ids
+ * @param {'x'|'y'} axis
+ * @returns {any | null} a new canvas
+ */
+export function distributeElements(canvas, ids, axis) {
+  const size = axis === 'y' ? 'h' : 'w';
+  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
+  const named = new Set(Array.isArray(ids) ? ids : []);
+  const movers = elements.filter(el => named.has(el.id) && !isPinned(el));
+  if (movers.length < 3) return null;
+
+  const order = [...movers].sort((a, b) => a[axis] - b[axis]);
+  const first = order[0], last = order[order.length - 1];
+  const span = (last[axis] + last[size]) - first[axis];
+  const taken = order.reduce((sum, el) => sum + el[size], 0);
+  const gap = (span - taken) / (order.length - 1);
+
+  /** @type {Record<string, number>} */
+  const at = {};
+  let run = first[axis];
+  for (const el of order) {
+    at[el.id] = Math.round(run);
+    run += el[size] + gap;
+  }
+  if (order.every(el => at[el.id] === el[axis])) return null;
+
+  return { ...canvas, elements: elements.map(el =>
+    at[el.id] === undefined || at[el.id] === el[axis] ? el : { ...el, [axis]: at[el.id] }) };
+}
+
+/**
  * Home Assistant's sections grid, in pixels.
  *
  * A card that reports `rows: N` is given exactly this height by
@@ -922,6 +1020,96 @@ export function duplicateElement(slot, canvas, idx) {
     x: Math.max(0, Math.min(el.x + step, canvas.w - el.w)),
     y: Math.max(0, Math.min(el.y + step, canvas.h - el.h)) };
   return { canvas: { ...canvas, elements: [...elements, copy] }, patch, id };
+}
+
+/**
+ * The ids a selection frame dragged over the canvas catches.
+ *
+ * Wholly inside, not merely touched. Almost every canvas has a background
+ * surface spanning the whole of it, and under a touches-it rule every frame
+ * anywhere would sweep that up - so a frame would be useless for exactly the
+ * layouts it is most wanted on. Wholly-inside also means the frame can be
+ * drawn *over* a big element without catching it.
+ *
+ * Pinned elements are skipped: a lock is there so a stray gesture cannot
+ * touch the element, and a frame dragged across the canvas is the stray
+ * gesture it was locked against.
+ *
+ * The frame is given in canvas units and may be dragged in any direction, so
+ * its corners are sorted rather than assumed.
+ *
+ * @param {any} canvas
+ * @param {{x0: number, y0: number, x1: number, y1: number}} frame
+ * @returns {string[]} ids, in the order the elements are stacked
+ */
+export function elementsInRect(canvas, frame) {
+  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
+  const x0 = Math.min(frame.x0, frame.x1), x1 = Math.max(frame.x0, frame.x1);
+  const y0 = Math.min(frame.y0, frame.y1), y1 = Math.max(frame.y0, frame.y1);
+  return elements
+    .filter(el => !isPinned(el)
+                && el.x >= x0 && el.y >= y0
+                && el.x + el.w <= x1 && el.y + el.h <= y1)
+    .map(el => el.id);
+}
+
+/**
+ * The canvas and the slot fields that result from copying several elements.
+ *
+ * One offset for all of them, clamped against the group's bounding box the
+ * way a group drag is: copies that each clamped on their own would come out
+ * in a different arrangement from the originals, which is the one thing a
+ * copy must not do.
+ *
+ * Elements that cannot be duplicated - the card's single icon, name or state
+ * - are passed over rather than refusing the whole copy, and null comes back
+ * only when nothing in the selection could be copied at all.
+ *
+ * Pure: mutates neither argument. See `duplicateElement` for one element,
+ * whose offset and id rules this follows.
+ *
+ * @param {any} slot
+ * @param {any} canvas
+ * @param {string[]} ids
+ * @returns {{ canvas: any, patch: Record<string, any[]>, ids: string[] } | null}
+ */
+export function duplicateElements(slot, canvas, ids) {
+  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
+  const named = new Set(Array.isArray(ids) ? ids : []);
+  const list = elements.filter(el => named.has(el.id) && canDuplicate(slot, el));
+  if (!list.length) return null;
+
+  const step = resolveSnap(canvas);
+  const maxX = Math.max(...list.map(el => el.x + el.w));
+  const maxY = Math.max(...list.map(el => el.y + el.h));
+  const dx = Math.max(0, Math.min(step, canvas.w - maxX));
+  const dy = Math.max(0, Math.min(step, canvas.h - maxY));
+
+  /** @type {Record<string, any[]>} */
+  const patch = {};
+  const taken = new Set(elements.map(el => el.id));
+  const copies = [];
+  for (const el of list) {
+    let id;
+    if (el.surface) {
+      let n = 0;
+      while (taken.has(`surface_${n}`)) n++;
+      id = `surface_${n}`;
+    } else {
+      // Against the slot the copies so far have already grown, or a second
+      // gauge would be given the id the first one just took and append its
+      // entry over the same index.
+      const spec = copySpec({ ...slot, ...patch }, el);
+      if (!spec) continue;
+      id = spec.id(spec.list.length);
+      patch[spec.key] = [...spec.list, structuredClone(spec.list[spec.from])];
+    }
+    taken.add(id);
+    copies.push({ ...el, id, x: el.x + dx, y: el.y + dy });
+  }
+  if (!copies.length) return null;
+  return { canvas: { ...canvas, elements: [...elements, ...copies] }, patch,
+           ids: copies.map(c => c.id) };
 }
 
 /**

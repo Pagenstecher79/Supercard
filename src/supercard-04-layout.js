@@ -1,5 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { getCellItems, resolveSnap, applyDrag, isSquareLocked, isPinned, DEFAULT_CANVAS, DEFAULT_GRID,
+import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElements,
+         elementsInRect, duplicateElements,
+         isSquareLocked, isPinned, DEFAULT_CANVAS, DEFAULT_GRID,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, rescaleCanvas,
          sectionColumns,
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
@@ -1213,6 +1215,8 @@ class ScCanvasEditor extends LitElement {
       cardConfig: { type: Object },
       commitFn: { type: Function },
       _sel: { type: String, state: true },
+      _extra: { type: Array, state: true },
+      _band: { type: Object, state: true },
       _drag: { type: Object, state: true },
       _live: { type: Boolean, state: true },
       _configOpen: { type: Boolean, state: true },
@@ -1225,6 +1229,8 @@ class ScCanvasEditor extends LitElement {
   constructor() {
     super();
     this._sel = null;
+    this._extra = [];
+    this._band = null;
     this._drag = null;
     this._live = true;
     this._configOpen = true;
@@ -1291,7 +1297,19 @@ class ScCanvasEditor extends LitElement {
   static get styles() {
     return [SC.editorStyles, css`
       .row { gap: 8px; }
-      .canvas-wrap { background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color,#444); border-radius: 4px; padding: 12px 8px; display: flex; justify-content: center; }
+      .canvas-wrap { position: relative; background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color,#444); border-radius: 4px; padding: 12px 8px; display: flex; justify-content: center; }
+      /* Floated over the canvas' edge rather than given a column of its own:
+         the rail comes and goes with the selection, and a column would take
+         its width from the canvas permanently - in Home Assistant's card
+         editor, which is barely 400px wide, the preview cannot spare it. It
+         also means the canvas does not move under the pointer while a
+         selection is being shift-clicked together.
+         Above .el.sel's 3, or a selected element would paint over it. */
+      .rail { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+              z-index: 4; display: flex; flex-direction: column; gap: 6px; }
+      .rail button { width: 28px; background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 5px 0; font-size: 15px; line-height: 1.1; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.45); }
+      .rail button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
+      .rail button[disabled] { opacity: 0.4; cursor: default; }
       .canvas { position: relative; width: 100%; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; overflow: hidden; touch-action: none; user-select: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
       .grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px); }
       /* Isolated because the live preview draws real gauges and bars, and
@@ -1328,6 +1346,9 @@ class ScCanvasEditor extends LitElement {
       .el.live.sel { background: none; box-shadow: inset 0 0 0 2px var(--primary-color); }
       .el.live > sc-gauge { width: 100cqmin; height: 100cqmin; max-width: 100%; max-height: 100%; }
       .el.live > sc-progressbar { width: 100%; max-height: 100%; }
+      /* Over the selected elements (.el.sel is 3), because the frame is what
+         the pointer is doing right now and has to stay readable across one. */
+      .band { position: absolute; z-index: 4; pointer-events: none; border: 1px dashed var(--primary-color,#03a9f4); background: rgba(3,169,244,0.12); }
       .handle { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; background: rgba(255,255,255,0.85); border-radius: 100% 0 0 0; cursor: nwse-resize; touch-action: none; }
       .handle::after { content: ''; position: absolute; right: -10px; bottom: -10px; width: 22px; height: 22px; }
       .num { width: 68px; }
@@ -1339,6 +1360,7 @@ class ScCanvasEditor extends LitElement {
          line, which is what makes a long list readable. */
       .el-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; padding: 4px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); }
       .el-row.sel { background: rgba(3,169,244,0.18); }
+      .el-row.co { background: rgba(3,169,244,0.09); }
       .el-name { flex: 1; font-family: monospace; cursor: pointer; }
       .el-row.sel .el-name { flex: 1 0 100%; }
       .icon-btn { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; padding: 2px 4px; font-size: 13px; }
@@ -1477,6 +1499,23 @@ class ScCanvasEditor extends LitElement {
     this._commit(c);
   }
 
+  /**
+   * Commit several elements' boxes at once, by id.
+   *
+   * One commit, not one per element: `_commit` clones `this.config` and Home
+   * Assistant writes it back asynchronously, so a second commit in the same
+   * tick would be built from a config that does not have the first one yet -
+   * dragging four elements would move one.
+   */
+  _setEls(patches) {
+    const c = structuredClone(this._canvas);
+    for (const el of c.elements) {
+      const patch = patches[el.id];
+      if (patch) Object.assign(el, patch);
+    }
+    this._commit(c);
+  }
+
   _setCanvas(key, value) {
     const c = structuredClone(this._canvas);
     c[key] = value;
@@ -1525,7 +1564,89 @@ class ScCanvasEditor extends LitElement {
   }
 
   /** A click on the canvas itself: nothing selected, and the walk starts over. */
-  _deselect() { this._sel = null; this._lastDown = null; }
+  _deselect() { this._sel = null; this._extra = []; this._lastDown = null; }
+
+  /**
+   * Everything selected. `_sel` stays the one the settings and the element
+   * list follow - a second selected element does not make the question "which
+   * one am I configuring" ambiguous, it just adds elements that move together.
+   */
+  get _selection() { return this._sel ? [this._sel, ...this._extra] : []; }
+
+  _isSel(id) { return this._sel === id || this._extra.includes(id); }
+
+  /** The selection with one element added or taken out. */
+  _toggleSel(id) {
+    if (this._sel === id) {
+      // The anchor leaving promotes the next one, so a selection that still
+      // has elements in it never ends up with nothing to show settings for.
+      this._sel = this._extra[0] ?? null;
+      this._extra = this._extra.slice(1);
+    } else if (this._extra.includes(id)) {
+      this._extra = this._extra.filter(x => x !== id);
+    } else if (this._sel) {
+      this._extra = [...this._extra, id];
+    } else {
+      this._sel = id;
+    }
+    // Walking down a stack of overlapping elements is a single-selection idea;
+    // a press that changed the selection is not a step in one.
+    this._lastDown = null;
+  }
+
+  /** Select one element and nothing else. */
+  _selectOnly(id) { this._sel = id; this._extra = []; }
+
+  /** Select exactly these, the first of them the one the settings follow. */
+  _applySelection(ids) { this._sel = ids[0] ?? null; this._extra = ids.slice(1); }
+
+  /**
+   * Copy everything selected, and select the copies.
+   *
+   * One `__merge__`, as `_duplicate` does for one element: the new boxes and
+   * the entries they point at are a single edit, and `_commit` clones
+   * `this.config`, so a second commit in the same tick would be written from
+   * a config that does not have the first one yet.
+   */
+  _duplicateSelection() {
+    const made = duplicateElements(this.slot, this._canvas, this._selection);
+    if (!made || !this.commitFn) return;
+    // The copies, not the originals: a copy is made to be put somewhere, and
+    // what is selected is what the next drag moves.
+    this._applySelection(made.ids);
+    this.commitFn('__merge__', { canvas: made.canvas, ...made.patch });
+  }
+
+  /** How many of the selected elements a copy would actually produce. */
+  get _copyable() {
+    const els = this._canvas.elements;
+    return this._selection.filter(id => {
+      const el = els.find(e => e.id === id);
+      return el && canDuplicate(this.slot, el);
+    }).length;
+  }
+
+  /**
+   * Even gaps along one axis, for the elements that are selected.
+   *
+   * Next to the canvas rather than in the row of buttons under it, because it
+   * acts on what is drawn there and on nothing else, and because it appears
+   * and disappears with the selection - a button that comes and goes in a
+   * fixed row moves every other button with it.
+   */
+  _distribute(axis) {
+    const out = distributeElements(this._canvas, this._selection, axis);
+    if (out) this._commit(out);
+  }
+
+  /** How many of the selected elements a distribute could actually move. */
+  get _distributable() {
+    const els = this._canvas.elements;
+    return this._selection.filter(id => {
+      const el = els.find(e => e.id === id);
+      return el && !isPinned(el);
+    }).length;
+  }
 
   _onDown(e, idx, mode) {
     e.stopPropagation();
@@ -1537,21 +1658,38 @@ class ScCanvasEditor extends LitElement {
     if (mode === 'move') idx = this._pressTarget(e, rect, idx);
     else this._lastDown = null;
     const el = this._canvas.elements[idx];
-    this._sel = el.id;
+
+    // Shift, Ctrl or Cmd adds to the selection instead of replacing it, and
+    // starts nothing: a press meant to pick a second element is not a drag,
+    // and a hand that moves a pixel while holding a modifier should not
+    // shove what it was only pointing at.
+    if (mode === 'move' && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+      this._toggleSel(el.id);
+      return;
+    }
+    // Pressing something already in the selection keeps the selection - that
+    // press is how the group is dragged. Anything else selects just itself.
+    if (!this._isSel(el.id)) this._selectOnly(el.id);
+
     // Selected but not dragged. A pinned element still has to be reachable -
     // it is where its settings live, and where the lock is undone - so the
     // press picks it up as any other and simply starts nothing.
     if (isPinned(el)) return;
+    const box = e => ({ id: e.id, surface: e.surface, locked: e.locked,
+                        x: e.x, y: e.y, w: e.w, h: e.h });
+    const group = mode === 'move' && this._selection.length > 1
+      ? this._canvas.elements.filter(e => this._isSel(e.id)).map(box)
+      : null;
     this._drag = {
-      idx, mode, rect,
+      idx, mode, rect, group,
       startX: e.clientX, startY: e.clientY,
-      origin: { id: el.id, surface: el.surface, locked: el.locked,
-                x: el.x, y: el.y, w: el.w, h: el.h },
+      origin: box(el),
     };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   }
 
   _onMove(e) {
+    if (this._band) return this._onBandMove(e);
     if (!this._drag) return;
     const c = this._canvas;
     const { rect, startX, startY, origin, mode, idx } = this._drag;
@@ -1564,10 +1702,59 @@ class ScCanvasEditor extends LitElement {
                         || Math.abs(e.clientY - startY) > SAME_SPOT_PX)) {
       this._lastDown.moved = true;
     }
-    this._setEl(idx, applyDrag(c, origin, mode, delta));
+    if (this._drag.group) this._setEls(applyGroupDrag(c, this._drag.group, delta, origin.id));
+    else this._setEl(idx, applyDrag(c, origin, mode, delta));
+  }
+
+  /**
+   * A press on the canvas background: the start of a selection frame.
+   *
+   * Nothing is selected or cleared yet. That happens on release, so a plain
+   * click still clears the selection the way it always has, and the press
+   * only becomes a frame once the pointer has actually travelled - otherwise
+   * every click would flash a zero-sized box.
+   */
+  _onCanvasDown(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const at = this._bandPoint(e, rect);
+    this._band = { rect, live: false, startX: e.clientX, startY: e.clientY,
+                   // Held down, the frame adds to what is already selected
+                   // instead of replacing it - the same modifiers as a click.
+                   base: (e.shiftKey || e.ctrlKey || e.metaKey) ? this._selection : [],
+                   x0: at.x, y0: at.y, x1: at.x, y1: at.y };
+  }
+
+  /** A pointer position in canvas units, clamped to the canvas. */
+  _bandPoint(e, rect) {
+    const c = this._canvas;
+    return { x: Math.max(0, Math.min(c.w, (e.clientX - rect.left) / rect.width * c.w)),
+             y: Math.max(0, Math.min(c.h, (e.clientY - rect.top) / rect.height * c.h)) };
+  }
+
+  _onBandMove(e) {
+    const b = this._band;
+    const live = b.live || Math.abs(e.clientX - b.startX) > SAME_SPOT_PX
+                        || Math.abs(e.clientY - b.startY) > SAME_SPOT_PX;
+    if (!live) return;
+    const at = this._bandPoint(e, b.rect);
+    this._band = { ...b, live: true, x1: at.x, y1: at.y };
+    // Selected as the frame is drawn, not on release: what it holds has to be
+    // visible while there is still a chance to make it hold something else.
+    const inside = elementsInRect(this._canvas, this._band);
+    this._applySelection([...b.base, ...inside.filter(id => !b.base.includes(id))]);
   }
 
   _onUp() {
+    if (this._band) {
+      const live = this._band.live;
+      this._band = null;
+      // A frame is not a step in a walk down a stack of elements.
+      this._lastDown = null;
+      // A press that never travelled is the plain background click it has
+      // always been.
+      if (!live) this._deselect();
+      return;
+    }
     const mode = this._drag?.mode;
     const d = this._lastDown;
     this._drag = null;
@@ -1575,7 +1762,10 @@ class ScCanvasEditor extends LitElement {
     // pointer, the way easy-floorplan does it: an element another one covers
     // completely can be reached no other way. A press that moved was a drag,
     // and a drag picks nothing new.
+    // Not while several are selected: the walk replaces what is selected, and
+    // that is the opposite of what a second click is doing there.
     if (mode !== 'move' || !d || d.moved || !d.same || d.stack.length < 2) return;
+    if (this._extra.length) return;
     const els = this._canvas.elements;
     const at = d.stack.findIndex(i => els[i]?.id === this._sel);
     const next = els[d.stack[(Math.max(at, 0) + 1) % d.stack.length]];
@@ -1754,6 +1944,7 @@ class ScCanvasEditor extends LitElement {
     // The list below the canvas follows the selection, so an id that no
     // longer exists would leave it empty with nothing left to click.
     if (this._sel === gone?.id) this._sel = null;
+    if (gone) this._extra = this._extra.filter(id => id !== gone.id);
     this._commit(c);
   }
 
@@ -1823,10 +2014,13 @@ class ScCanvasEditor extends LitElement {
     const mismatch = this._gridMismatch;
     const gridPct = (c.grid > 0 ? c.grid : step) / c.w * 100;
     const pct = (v, total) => `${v / total * 100}%`;
-    // The list below the canvas shows the selected element alone, so an id
+    // The list below the canvas shows the selected elements alone, so an id
     // that no longer names one - a gauge deleted in its own editor, say -
     // would leave it empty. Fall back to the whole list.
-    const sel = els.some(e => e.id === this._sel) ? this._sel : null;
+    const alive = id => els.some(e => e.id === id);
+    const sel = alive(this._sel) ? this._sel : null;
+    const selected = this._selection.filter(alive);
+    const movers = this._distributable;
 
     return html`
       <div class="col">
@@ -1930,7 +2124,7 @@ class ScCanvasEditor extends LitElement {
                @pointermove=${this._onMove}
                @pointerup=${this._onUp}
                @pointercancel=${this._onUp}
-               @pointerdown=${() => this._deselect()}>
+               @pointerdown=${this._onCanvasDown}>
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
             ${this._placing ? html`
               <div class="place-layer" @pointerdown=${this._place}
@@ -1941,6 +2135,8 @@ class ScCanvasEditor extends LitElement {
                      style="left:${pct(this._ghost.x, c.w)}; top:${pct(this._ghost.y, c.h)}; width:${pct(this._ghost.w, c.w)}; height:${pct(this._ghost.h, c.h)};"
                      >${this._ghost.id}</div>` : ''}
               </div>` : ''}
+            ${this._band?.live ? html`
+              <div class="band" style="left:${pct(Math.min(this._band.x0, this._band.x1), c.w)}; top:${pct(Math.min(this._band.y0, this._band.y1), c.h)}; width:${pct(Math.abs(this._band.x1 - this._band.x0), c.w)}; height:${pct(Math.abs(this._band.y1 - this._band.y0), c.h)};"></div>` : ''}
             ${els.map((el, idx) => {
               // Never live mid-drag. Every pointermove commits, so the config
               // objects are cloned and the components would be handed a new
@@ -1950,25 +2146,48 @@ class ScCanvasEditor extends LitElement {
               const live = this._live && !this._drag ? this._liveContent(el) : null;
               const pinned = isPinned(el);
               return html`
-              <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._sel === el.id ? 'sel' : ''} ${pinned ? 'pinned' : ''}"
+              <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._isSel(el.id) ? 'sel' : ''} ${pinned ? 'pinned' : ''}"
                    style="left:${pct(el.x, c.w)}; top:${pct(el.y, c.h)}; width:${pct(el.w, c.w)}; height:${pct(el.h, c.h)};"
                    data-item-id=${el.id} title=${pinned ? `${el.id} - locked` : el.id}
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
                 ${live ?? el.id}
-                ${pinned ? '' : html`
+                ${pinned || selected.length > 1 ? '' : html`
                 <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>`}
               </div>`;
             })}
           </div>
+          ${selected.length > 1 ? html`
+            <div class="rail">
+              <button title=${this._copyable
+                        ? `Copy the ${this._copyable} of them that can be copied`
+                        : 'None of these can be copied'}
+                      ?disabled=${!this._copyable}
+                      @click=${() => this._duplicateSelection()}>⧉</button>
+              <button title=${movers < 3
+                        ? 'Three elements that can move are needed to even out the gaps between them'
+                        : 'Even gaps left to right. The outermost two stay where they are.'}
+                      ?disabled=${movers < 3}
+                      @click=${() => this._distribute('x')}>⇔</button>
+              <button title=${movers < 3
+                        ? 'Three elements that can move are needed to even out the gaps between them'
+                        : 'Even gaps top to bottom. The outermost two stay where they are.'}
+                      ?disabled=${movers < 3}
+                      @click=${() => this._distribute('y')}>⇕</button>
+            </div>` : ''}
         </div>
 
         <div class="col" style="gap:4px;">
           ${els.map((el, idx) => [el, idx])
-               .filter(([el]) => !sel || sel === el.id)
+               .filter(([el]) => !selected.length || selected.includes(el.id))
                .map(([el, idx]) => html`
-            <div class="el-row ${this._sel === el.id ? 'sel' : ''}">
-              <span class="el-name" @click=${() => { this._sel = el.id; }}>${el.id}</span>
-              ${this._sel === el.id ? html`
+            <div class="el-row ${selected.length > 1 ? 'co' : (this._sel === el.id ? 'sel' : '')}">
+              <span class="el-name" @click=${e => {
+                      // The same modifiers as on the canvas, so a selection can
+                      // be built from either place.
+                      if (e.shiftKey || e.ctrlKey || e.metaKey) this._toggleSel(el.id);
+                      else this._selectOnly(el.id);
+                    }}>${el.id}</span>
+              ${selected.length === 1 && this._sel === el.id ? html`
                 ${(isSquareLocked(el) ? ['x', 'y', 'size'] : ['x', 'y', 'w', 'h']).map(k => html`
                   <input class="num" type="number" step=${step}
                          .value=${Math.round(k === 'size' ? Math.min(el.w, el.h) : el[k])}
@@ -1994,11 +2213,13 @@ class ScCanvasEditor extends LitElement {
                       @click=${() => this._remove(idx)}>✕</button>
             </div>`)}
         </div>
-        <div class="hint">${sel
-          ? html`Click the canvas background to list every element again.`
-          : html`Click an element on the canvas to work on it here.`}</div>
+        <div class="hint">${selected.length > 1
+          ? html`${selected.length} selected - dragging one moves them all, and the buttons beside the canvas copy them or even out the gaps. An element's own settings are back when it is the only one selected.`
+          : (sel
+            ? html`Click the canvas background to list every element again. Shift-click a second element to move them together.`
+            : html`Click an element on the canvas to work on it here, or drag a frame on the background to take several.`)}</div>
 
-        ${sel ? this._renderElementConfig(sel) : ''}
+        ${sel && selected.length === 1 ? this._renderElementConfig(sel) : ''}
 
       </div>`;
   }
