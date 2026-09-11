@@ -18,6 +18,17 @@ function editorFields() {}
  */
 function newEntry() { return { entity: '', gauge_attribute: '' }; }
 
+/**
+ * Whether the gauge is drawn at a size and a place of its own.
+ *
+ * The renderer lays a responsive gauge out with width and height at 100% and
+ * skips the anchor map entirely, so the size, the anchor and the two offsets
+ * do nothing whenever this is false - on a canvas always, because there the
+ * element's box is both the size and the position. Asking the same helper the
+ * renderer asks is what keeps the two answers from drifting apart.
+ */
+const hasOwnBox = (cfg, slot) => !SC.gaugeIsResponsive(cfg, !!slot?.canvas);
+
 const STYLE_FIELDS = [
   { id: '_section_shape',      label: '── Shape & Position',    type: 'section' },
   { id: 'gauge_type',          label: 'Gauge type',             type: 'select', options: [ { value: 'full', label: 'Full 360°' }, { value: 'semi', label: 'Semi 270°' } ] },
@@ -35,15 +46,19 @@ const STYLE_FIELDS = [
                                condition: cfg => (cfg.gauge_type ?? 'full') === 'full' },
   { id: 'gauge_scale',         label: 'Scale',            type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1'  },
 
-  { id: 'gauge_position_mode', label: 'Anchor point / position', type: '9-sector' },
-  // Both are hidden on a canvas, where the element's box is the size and a
-  // second, contradicting figure here would be a trap rather than a setting.
+  // The anchor and the two offsets below place a gauge inside a box it does not
+  // fill. A canvas element's box is that place - you drag it - so the renderer
+  // ignores all three there, and a control that does nothing is worse than a
+  // missing one: it reads like a second, contradicting answer to a question the
+  // box has already settled.
+  { id: 'gauge_position_mode', label: 'Anchor point / position', type: '9-sector', condition: hasOwnBox },
+  // The switch itself is the exception. It is how a card off the canvas gives
+  // the gauge its own box back, so it has to stay visible once it is on -
+  // hiding it would lock whoever ticked it out of unticking it.
   { id: 'gauge_size_responsive', label: 'Responsive size (auto scaling)', type: 'checkbox', condition: (cfg, slot) => !slot?.canvas },
-  // The same helper the renderer uses, so the control cannot disappear on a
-  // card that is still being drawn at a pixel size.
-  { id: 'gauge_size_px',         label: 'Size (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', condition: (cfg, slot) => !slot?.canvas && !SC.gaugeIsResponsive(cfg) },
-  { id: 'gauge_offset_x',      label: 'Offset X (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
-  { id: 'gauge_offset_y',      label: 'Offset Y (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'    },
+  { id: 'gauge_size_px',         label: 'Size (px)',            type: 'range',    min: 0, max: 600, step: 1, placeholder: '60', condition: hasOwnBox },
+  { id: 'gauge_offset_x',      label: 'Offset X (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', condition: hasOwnBox },
+  { id: 'gauge_offset_y',      label: 'Offset Y (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', condition: hasOwnBox },
 
   { id: '_section_frame',           label: '── Frame Ring',               type: 'section'  },
   { id: 'frame_ring_active',        label: 'Frame active',                 type: 'checkbox' },
