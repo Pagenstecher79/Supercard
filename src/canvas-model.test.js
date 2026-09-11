@@ -30,6 +30,7 @@ import {
   canDuplicate,
   canAddKind,
   addElement,
+  newElementPreview,
   NEW_ELEMENT_KINDS,
   duplicateElement,
 } from './canvas-model.js';
@@ -1188,6 +1189,57 @@ describe('addElement', () => {
         expect(canAddKind(s, k.kind)).toBe(addElement(s, canvas(), k.kind, {}) !== null);
       }
     }
+  });
+});
+
+describe('newElementPreview', () => {
+  const slot = () => ({
+    gauges: [{ entity: 'sensor.a' }],
+    progressbars: [{ entity: 'sensor.b' }, { entity: 'sensor.c' }],
+    labels_list: [{ label_text: 'one' }],
+    gauge_active: true,
+  });
+  const canvas = () => ({ w: 400, h: 400, grid: 25, elements: [
+    { id: 'gauge_0', x: 0, y: 0, w: 100, h: 100 },
+    { id: 'surface_0', surface: true, x: 200, y: 200, w: 100, h: 50 },
+  ]});
+
+  // The whole point of the function: the ghost the editor draws under the
+  // crosshair has to be the element the click then makes. Asserted against
+  // `addElement` itself rather than against numbers, so the day the sizing
+  // rule changes the two still have to agree.
+  it('is the element addElement would add, over every kind and every corner', () => {
+    const s = slot(), c = canvas();
+    const wheres = [undefined, { x: 0, y: 0 }, { x: 400, y: 400 }, { x: 210, y: 190 },
+                    { x: -80, y: 600 }, { x: 200, y: 200 }];
+    const whats = [...NEW_ELEMENT_KINDS.map(k => k.kind),
+                   'icon', 'name', 'state', 'progressbar_1', 'label_0', 'label_0_icon'];
+    for (const what of whats) {
+      for (const at of wheres) {
+        const made = addElement(s, c, what, {}, at);
+        const el = made.canvas.elements.at(-1);
+        expect(newElementPreview(s, c, what, at))
+          .toEqual({ id: made.id, surface: el.surface === true,
+                     x: el.x, y: el.y, w: el.w, h: el.h });
+      }
+    }
+  });
+
+  it('is null wherever addElement refuses, so nothing is promised', () => {
+    for (const s of [slot(), {}, { gauge_active: true }]) {
+      for (const what of ['sausage', '', 'gauge_0', 'gauge_1', 'surface_9', 'label_1',
+                          ...NEW_ELEMENT_KINDS.map(k => k.kind)]) {
+        expect(newElementPreview(s, canvas(), what) === null)
+          .toBe(addElement(s, canvas(), what, {}) === null);
+      }
+    }
+  });
+
+  it('changes nothing it is shown', () => {
+    const s = slot(), c = canvas();
+    for (const k of NEW_ELEMENT_KINDS) newElementPreview(s, c, k.kind, { x: 10, y: 10 });
+    expect(s).toEqual(slot());
+    expect(c).toEqual(canvas());
   });
 });
 
