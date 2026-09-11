@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { stripDeadKeys, DEAD_ENTRY_KEYS } from './config-cleanup.js';
+import { stripDeadConfig, DEAD_ENTRY_KEYS, DEAD_PATTERN_TARGETS } from './config-cleanup.js';
 
-describe('stripDeadKeys', () => {
+describe('stripDeadConfig', () => {
   it('takes the dead keys out of the entry that carries them', () => {
     const slot = { progressbars: [
       { entity: 'sensor.a', position_mode: 'center', offset_x: '10px', offset_y: '0', width: 80 },
     ] };
-    const out = stripDeadKeys(slot);
+    const out = stripDeadConfig(slot);
     expect(out.progressbars[0]).toEqual({ entity: 'sensor.a', width: 80 });
   });
 
@@ -15,23 +15,43 @@ describe('stripDeadKeys', () => {
       { target: 'elm_gauge_0', enabled: true, blur: 6, manual_override: true, debug_mask: false },
       { target: 'main', enabled: true, blur: 6 },
     ] };
-    const out = stripDeadKeys(slot);
+    const out = stripDeadConfig(slot);
     expect(out.fx_glass_patterns[0]).toEqual(
       { target: 'elm_gauge_0', enabled: true, blur: 6, manual_override: true });
     expect(out.fx_glass_patterns[1]).toBe(slot.fx_glass_patterns[1]);
   });
 
+  it('drops a pattern aimed at a target the card will not paint', () => {
+    const kept = { target: 'elm_gauge_0', enabled: true, blur: 6 };
+    const slot = { fx_glass_patterns: [
+      { target: 'elm_name', enabled: true, blur: 6 },
+      kept,
+      { target: 'elm_state', enabled: false, blur: 6 },
+    ] };
+    const out = stripDeadConfig(slot);
+    expect(out.fx_glass_patterns).toEqual([kept]);
+    expect(DEAD_PATTERN_TARGETS).toContain('elm_name');
+  });
+
+  it('strips a dead key and a dead entry in the same pass', () => {
+    const slot = { fx_glass_patterns: [
+      { target: 'elm_name', enabled: true },
+      { target: 'main', enabled: true, debug_mask: true },
+    ] };
+    expect(stripDeadConfig(slot).fx_glass_patterns).toEqual([{ target: 'main', enabled: true }]);
+  });
+
   it('is null when there is nothing to strip', () => {
-    expect(stripDeadKeys({ progressbars: [{ entity: 'sensor.a' }] })).toBeNull();
-    expect(stripDeadKeys({ gauges: [{ position_mode: 'center' }] })).toBeNull();
-    expect(stripDeadKeys({})).toBeNull();
-    expect(stripDeadKeys(null)).toBeNull();
+    expect(stripDeadConfig({ progressbars: [{ entity: 'sensor.a' }] })).toBeNull();
+    expect(stripDeadConfig({ gauges: [{ position_mode: 'center' }] })).toBeNull();
+    expect(stripDeadConfig({})).toBeNull();
+    expect(stripDeadConfig(null)).toBeNull();
   });
 
   it('leaves the slot it was given alone', () => {
     const slot = { progressbars: [{ entity: 'sensor.a', offset_x: '10px' }] };
     const before = structuredClone(slot);
-    stripDeadKeys(slot);
+    stripDeadConfig(slot);
     expect(slot).toEqual(before);
   });
 
@@ -40,7 +60,7 @@ describe('stripDeadKeys', () => {
     const clean = { entity: 'sensor.b' };
     const slot = { canvas: { w: 400, h: 200 }, gauges,
                    progressbars: [clean, { entity: 'sensor.c', offset_y: '4px' }] };
-    const out = stripDeadKeys(slot);
+    const out = stripDeadConfig(slot);
     expect(out.canvas).toBe(slot.canvas);
     expect(out.gauges).toBe(gauges);
     // the entry that lost nothing is the same object, not a copy
@@ -51,14 +71,14 @@ describe('stripDeadKeys', () => {
   it('strips a key even when its value is falsy', () => {
     // `offset_x: 0` is exactly the leftover most likely to be read as "unset"
     // and skipped by a sloppier check.
-    const out = stripDeadKeys({ progressbars: [{ entity: 'sensor.a', offset_x: 0, position_mode: '' }] });
+    const out = stripDeadConfig({ progressbars: [{ entity: 'sensor.a', offset_x: 0, position_mode: '' }] });
     expect(out.progressbars[0]).toEqual({ entity: 'sensor.a' });
   });
 
   it('survives a list that is not one, and entries that are not objects', () => {
-    expect(stripDeadKeys({ progressbars: 'nonsense' })).toBeNull();
-    expect(stripDeadKeys({ progressbars: [null, undefined, 5] })).toBeNull();
-    const out = stripDeadKeys({ progressbars: [null, { offset_x: '1px' }] });
+    expect(stripDeadConfig({ progressbars: 'nonsense' })).toBeNull();
+    expect(stripDeadConfig({ progressbars: [null, undefined, 5] })).toBeNull();
+    const out = stripDeadConfig({ progressbars: [null, { offset_x: '1px' }] });
     expect(out.progressbars).toEqual([null, {}]);
   });
 

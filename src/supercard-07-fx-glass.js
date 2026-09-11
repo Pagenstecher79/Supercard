@@ -1,4 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { DEAD_PATTERN_TARGETS } from "./config-cleanup.js";
 
 const SC = window.SupercardUtils;
 
@@ -98,14 +99,11 @@ if (!customElements.get('sc-shadow-pad')) customElements.define('sc-shadow-pad',
 const { getAvailableElements } = window.SupercardUtils;
 
 /**
- * Targets glass is not painted on at all.
- *
- * `name` and `state` are text nodes that shrink to their glyphs: the box drawn
- * for one on the canvas is 253x33, the node inside it 29x14, and the glass
- * follows the node. Blur on the letters themselves is a few pixels nobody can
- * make out, so the effect was only ever a setting that appeared to do nothing.
+ * Targets glass is not painted on at all - the same list config-cleanup uses
+ * to take a leftover pattern out of a saved card, so the editor cannot offer
+ * what the cleanup would then delete.
  */
-const NO_GLASS = new Set(['elm_name', 'elm_state']);
+const NO_GLASS = new Set(DEAD_PATTERN_TARGETS);
 
 /**
  * Elements that ask for their glass in their own editor, so the list must not

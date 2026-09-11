@@ -1,5 +1,5 @@
 /**
- * Keys that saved cards still carry and nothing reads any more.
+ * Settings that saved cards still carry and nothing reads any more.
  *
  * A field can be taken out of an editor in one line; the value it already
  * wrote into people's dashboards is the part that outlives it. Leaving those
@@ -40,7 +40,33 @@ export const DEAD_ENTRY_KEYS = Object.freeze({
 });
 
 /**
- * The slot with every dead key gone, or null when it carried none.
+ * Glass patterns whose target the card will not paint.
+ *
+ * A dead key leaves an entry that still does something; a pattern aimed at one
+ * of these does nothing at all, and an entry nobody can see is also an entry
+ * nobody can find to delete - the editor stopped offering these targets, so
+ * the list no longer shows them either.
+ *
+ * `elm_name` and `elm_state` are here because both are text nodes that shrink
+ * to their glyphs: the box drawn for one on the canvas is 253x33, the node
+ * inside it 29x14, and the glass followed the node. See fx-glass, which reads
+ * this list to decide what to offer.
+ *
+ * @type {readonly string[]}
+ */
+export const DEAD_PATTERN_TARGETS = Object.freeze(['elm_name', 'elm_state']);
+
+/**
+ * Entries a list still holds that name something the card cannot use.
+ *
+ * @type {Readonly<Record<string, (entry: any) => boolean>>}
+ */
+const DEAD_ENTRIES = Object.freeze({
+  fx_glass_patterns: (entry) => DEAD_PATTERN_TARGETS.includes(entry?.target),
+});
+
+/**
+ * The slot with every dead key and dead entry gone, or null when it had none.
  *
  * Null rather than an unchanged copy, so a caller can tell "nothing to do"
  * from "here is your config back" without comparing two objects - almost
@@ -52,7 +78,7 @@ export const DEAD_ENTRY_KEYS = Object.freeze({
  * @param {any} slot the card's `config.supercard`
  * @returns {any | null}
  */
-export function stripDeadKeys(slot) {
+export function stripDeadConfig(slot) {
   if (!slot || typeof slot !== 'object') return null;
 
   /** @type {Record<string, any[]>} */
@@ -71,6 +97,14 @@ export function stripDeadKeys(slot) {
       return copy;
     });
     if (touched) lists[key] = next;
+  }
+
+  // After the keys, because a list the pass above rebuilt is the one to filter.
+  for (const [key, isDead] of Object.entries(DEAD_ENTRIES)) {
+    const list = lists[key] ?? slot[key];
+    if (!Array.isArray(list)) continue;
+    const next = list.filter(entry => !isDead(entry));
+    if (next.length !== list.length) lists[key] = next;
   }
 
   return Object.keys(lists).length ? { ...slot, ...lists } : null;
