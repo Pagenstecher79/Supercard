@@ -509,7 +509,7 @@ doing so would shrink every canvas card carrying a stale value. Fixing it is a
 separate decision, because it would change the size of cards that have quietly
 ignored the setting for as long as it has existed.
 
-## 6. Gauges are square
+## 6. Round things are square
 
 A gauge is drawn into a square viewBox whatever its type. A "semi" gauge is a
 270° arc in that same box, not half of one, so there is no gauge shape that
@@ -521,13 +521,30 @@ come out oval. What a non-square slot produced instead was a *small* gauge
 with empty space beside it, and no way to tell from the editor why: the
 element you were dragging was not the thing you saw.
 
-So on the canvas a gauge element is locked to a square, and the lock lives in
-the model rather than in the drag handler:
+A circular progressbar is the same picture for the same reason. The ring is an
+SVG with a square viewBox and the segmented variant is sized in `cqmin`, so
+both centre themselves on the shorter side. Worse than a gauge, in fact: the
+track behind them takes its corner radius as a *percentage*, so a wide box
+draws a stadium around a circle.
+
+So on the canvas both are locked to a square, and the lock lives in the model
+rather than in the drag handler:
 
 ```js
-isSquareLocked(el)   // gauge_N, and not a surface
-squareElement(el)    // the largest square inside it, anchored by `inner`
+isSquareLocked(el, slot)   // gauge_N, or a progressbar_N the slot calls circular
+squareElement(el)          // the largest square inside it, anchored by `inner`
 ```
+
+The second argument is why this is not simply a question about an id. A gauge
+is square whatever its config says; a bar is square only while its
+`orientation` starts with `circular`, and that lives in the slot rather than on
+the canvas element. Called without a slot the function answers only for the
+ids it can answer for alone — a bar says no, which is what every caller with no
+slot to give wants, since the alternative is guessing a shape from a name.
+
+`addElement` asks with the slot *as it will be*, `{ ...slot, ...patch }`: the
+entry being added is what says the bar is a ring, and it is not in the slot
+until the caller commits.
 
 `applyDrag` consults the first when it resizes, `migrateLayoutToCanvas` applies
 the second, and the editor renders one **size** field instead of a `w` and an
@@ -640,8 +657,8 @@ The canvas editor now sets **both** halves of that box — *Card width* in
 columns and *Card height* in rows — through `commitFn('__card__', …)`, so they
 are the same `grid_options` the Layout tab writes. Changing either one there
 also reshapes the canvas to match, via `rescaleCanvas`, which scales the
-element coordinates by the same two factors and re-squares the gauges (a
-square scaled by two different numbers stops being one).
+element coordinates by the same two factors and re-squares whatever is locked
+square (a square scaled by two different numbers stops being one).
 
 Both writes go out as a single `commitFn('__batch__', …)`. Two commits in one
 tick would lose the first: `_commit` clones `this.config`, and Home Assistant
@@ -671,7 +688,7 @@ Three facts make this cost almost nothing:
   the card puts them behind its own interaction layer. So a live element
   inside a draggable box cannot swallow the drag: hit-testing at the centre of
   a rendered gauge lands on the editor's own `.el` div.
-- **A gauge element is square**, so the box it is dropped into is the size the
+- **A gauge element, and a circular bar, is square**, so the box it is dropped into is the size the
   gauge wants, and `onCanvas` already exists as a property to say so - see §6.
 - **The id is the index.** `gauge_0` is `gauges[0]`, the same convention
   `onAfterRender` slots by, so the preview needs no lookup table of its own.
@@ -913,9 +930,11 @@ would replace it.
 
 The box a new element gets is a fifth of the canvas' shorter side, not a
 multiple of the snap step: the step is one unit on a freely-placed canvas,
-and a four-unit box is invisible. A gauge is square because it has to be, a
+and a four-unit box is invisible. A gauge and a ring are square because they
+have to be, a
 surface is twice as wide as it is tall because a backdrop is, and everything
-else is a flat strip, which is the shape of a bar and of a line of text.
+else is a flat strip, which is the shape of a bar and of a line of text -
+unless a template asks for another one, below.
 
 With adding on the canvas, the *Gauges*, *Progressbars* and *Labels* sections
 have nothing left that the canvas does not do better, and a card with a
@@ -929,6 +948,113 @@ One consequence is worth naming: those sections carried the module switches
 (`gauge_active`, `progressbar_active`). Adding an element from the canvas
 turns its module on, and taking every element of a kind off the canvas is how
 you turn it off, so the switch is no longer a control anyone has to find.
+
+### Starting from a template
+
+A gauge is the card's deepest element: range, decimals, unit, ticks, sub-ticks,
+label step, pointer, frame ring and a stop list, each of them defaulted to
+something sane and none of them to *this* reading. Someone adding their first
+one gets a correct gauge that looks like nothing they have seen, and the way
+out is forty controls they have not met yet. So the two kinds that have that
+problem - gauge and progressbar - do not place on the first click any more.
+They open a second page of the same menu: **Empty**, which is exactly what Add
+has always made, and then a handful of worked examples.
+
+Seven for the gauge (temperature, humidity, CO<sub>2</sub>, PM2.5, voltage,
+current, power) and three for the bar (horizontal, vertical, circular). The
+bar's three differ in *shape* rather than in what they measure, which is why
+their gradient is blue to green and not green to red: a full battery, tank or
+disk is not an alarm.
+
+A template is not a new mechanism. It is an `entry` - the same object
+`newEntry` returns, with the keys that differ from the renderer's defaults
+already set - so `_place` hands it to `addElement` exactly where it hands a
+fresh one, and nothing downstream can tell the two apart. The catalogue is
+`element-templates.js`: pure, no imports from a module, unit-tested, which is
+where arithmetic and data belong under the naming rule.
+
+**No template names an entity.** The gauge that lands is aimed at nothing and
+says so, and the entity picker is the first thing the user touches. That is
+not only privacy hygiene for the repository - an example that came with
+somebody else's sensor id would be a card that looks broken until you find the
+one field that is wrong. A test asserts it, by walking every value in every
+entry and rejecting any key matching `entity` and any string shaped like an
+entity id.
+
+The seven gauges share one face, because that face is the house style of the
+dashboards these were drawn from: a 270-degree arc inside a closed ring, the
+quantity's name across the middle in `gauge_label_text`, and the reading
+beneath it in the gap the arc leaves at the bottom. With a pointer that sweeps
+the whole dial there is no middle left to put a number in, and the two lines
+one above the other are what makes a gauge legible in a grid of them - the
+name says which one this is, and the figure is read after it rather than
+instead of it.
+
+What the seven do differ in is the pointer, and there are three shapes:
+
+- a **tapered wedge** across the face (temperature, current, power) - it has a
+  direction and a width, and the width is part of how you read it;
+- a **needle on a visible hub** (voltage, CO<sub>2</sub>) - almost no width at
+  all, so it picks out one graduation rather than a region, for the scales
+  whose reading somebody acts on. The hub is the one fixed colour in the
+  catalogue: `#7a7a7a`, because at this radius `--primary-text-color` is a blob
+  the eye reaches before the needle, and mid-grey stays legible on either
+  theme without following either;
+- a **small triangle riding the rim** (humidity, PM2.5) - not an instrument at
+  all. It asks only *where on the band am I*, which is the honest question for
+  a percentage whose colours already say what the number means, and it leaves
+  the middle of the dial to the name. It has no hub, because a marker slides
+  rather than turns.
+
+Every pointer carries a shadow, off the vertical at 40 degrees: a shadow
+straight down reads as a printing mistake, and a pointer without one is
+painted on the dial instead of lying above it.
+
+That spread is the point. Someone who has only ever seen the default has no
+reason to suspect that the pointer has a shape, that the readout has a
+position, or that the shadow exists at all; a row that looks different from
+the one above it is the cheapest way to say so.
+
+Where the readout sits was tuned rather than guessed. At the bottom of a
+270-degree face the reading shares a line with the two arc-end tick labels, so
+the value size, its offset and the tick labels' inward offset were swept
+against a measured test - intersecting the bounding boxes of every `<text>` the
+gauge draws - until all seven came back clear, at the menu's size and at a full
+card's.
+
+Nothing in a template is one theme's colour. The pointer and its hub default
+to a fixed white - a white marker on a white card for anyone on a light theme -
+so every template sets them, and the ticks, labels and readout, to follow
+`--primary-text-color`. The needle hub above is the single exception, and it
+is a colour chosen to need no theme rather than one theme's. Verified by
+rendering all seven against both a dark and a light `--primary-text-color`,
+not by looking at one of them.
+
+The rows preview themselves. Each one renders a real `sc-gauge` or
+`sc-progressbar` at 100x66, with its own config, against a synthetic `hass`
+holding one sample reading - so the picture is the element, not a screenshot
+of a build that has since moved on. `previewFor` supplies that pair and freezes
+the animation, or an opened menu would be seven needles in flight.
+
+Two things had to change for the miniature to be honest.
+
+A bar template sets `base_unit: 'cqmin'`, which makes every font and tick size
+a percentage of the box's shortest edge. Without it a bar is written in pixels
+and a 66px-wide preview of a 400px-wide bar shows a different bar. With it the
+template looks the same at every size, which is also what someone dropping one
+on a canvas wants.
+
+And a template can ask for the *shape* it needs. `addElement` gives a new
+element a flat strip, which is right for a horizontal bar and wrong for a
+vertical one and a ring, so a template may carry an `aspect` that `newBox`
+uses instead - 1/3 for the vertical bar, 1 for the circular one. It cannot
+override the square, which is a lock (§6) rather than a default. The placement
+ghost reads the same number, so what you drop is the size you were shown.
+
+The menu draws the second page in place of the first rather than flying it out
+sideways, because the menu is absolutely positioned with a bounded height and
+a flyout would be clipped by its own scroll container. A `<` **Back** row
+returns.
 
 ### Zoom is a view, and only a view
 

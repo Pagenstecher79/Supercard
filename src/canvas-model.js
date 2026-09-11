@@ -120,13 +120,30 @@ export function cellWidths(row) {
  * element's size *be* the gauge's size, which is the one thing a canvas should
  * mean, and removes the only way to draw a box a gauge cannot fill.
  *
+ * A circular progressbar is the same picture for the same reason: the ring is
+ * an SVG with a square viewBox and the segmented one is sized in `cqmin`, so
+ * both centre themselves on the shorter side and leave the rest empty. Worse
+ * than empty, in fact - the track behind them takes its corner radius as a
+ * percentage, so a wide box draws a stadium around a circle.
+ *
+ * Which orientation a bar has is not on the canvas element, so this needs the
+ * slot to answer for one. Called without it the question is only about the id,
+ * and a bar answers no - that is what every caller that has no slot to give
+ * wants, since the alternative is guessing a shape from a name.
+ *
  * Surfaces are plain boxes for a pattern to paint and are never locked.
  *
  * @param {any} el
+ * @param {any} [slot] the card's own config, for a bar's orientation
  * @returns {boolean}
  */
-export function isSquareLocked(el) {
-  return !el?.surface && typeof el?.id === 'string' && el.id.startsWith('gauge_');
+export function isSquareLocked(el, slot) {
+  if (el?.surface || typeof el?.id !== 'string') return false;
+  if (el.id.startsWith('gauge_')) return true;
+  const m = /^progressbar_(\d+)$/.exec(el.id);
+  if (!m) return false;
+  const bar = slot?.progressbars?.[Number(m[1])];
+  return typeof bar?.orientation === 'string' && bar.orientation.startsWith('circular');
 }
 
 /**
@@ -221,7 +238,7 @@ export function squareElement(el) {
  *
  * @param {any[]} layoutRows
  * @param {{ w: number, h: number }} [canvas]
- * @param {{ targetedCells?: string[] }} [opts]
+ * @param {{ targetedCells?: string[], slot?: any }} [opts]
  * @returns {{ elements: any[], cellTargets: Record<string, string>, warnings: string[] }}
  */
 export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts = {}) {
@@ -270,7 +287,7 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts 
         // was already drawn as an aligned square of the smaller side. What it
         // buys is that the element the editor hands you afterwards is the
         // gauge, so dragging it bigger makes the gauge bigger.
-        elements.push(roundBox(isSquareLocked(placed) ? squareElement(placed) : placed));
+        elements.push(roundBox(isSquareLocked(placed, opts.slot) ? squareElement(placed) : placed));
       }
 
       leftPct += cellPct;
@@ -475,9 +492,10 @@ export function resolveSnap(canvas) {
  *   element as the drag began; `id` is what decides whether it is square-locked
  * @param {'move'|'resize'} mode
  * @param {{ dx: number, dy: number }} delta in virtual units
+ * @param {any} [slot] the card's own config, for a bar's orientation
  * @returns {{ x: number, y: number, w: number, h: number }}
  */
-export function applyDrag(canvas, start, mode, delta) {
+export function applyDrag(canvas, start, mode, delta, slot) {
   // The editor does not start a drag on a pinned element, so this is the
   // second answer to the same question - deliberately. A drag that got through
   // anyway, from a path added later, would move something whose whole point is
@@ -489,7 +507,7 @@ export function applyDrag(canvas, start, mode, delta) {
   const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
   if (mode === 'resize') {
-    if (isSquareLocked(start)) {
+    if (isSquareLocked(start, slot)) {
       // One side length, taken from whichever axis was dragged further, so a
       // corner drag follows the pointer in both. Units are isotropic on the
       // canvas - the box carries the same w/h ratio the coordinates do, so it
@@ -855,10 +873,11 @@ export function canvasFromCard(cardConfig, slot, total = HA_COLUMN_COUNT) {
 
   for (const id of stacked) {
     const b = bandRect(shape, band++, bands);
-    // A gauge is drawn as the largest square that fits its box, so a wide box
-    // would be mostly empty space that still counts as the element.
+    // A gauge, and a circular bar, is drawn as the largest square that fits
+    // its box, so a wide box would be mostly empty space that still counts as
+    // the element.
     const side = Math.min(b.w, b.h);
-    elements.push(el(id, isSquareLocked({ id })
+    elements.push(el(id, isSquareLocked({ id }, slot)
       ? { x: b.x + (b.w - side) / 2, y: b.y, w: side, h: side }
       : b));
   }
@@ -898,19 +917,21 @@ function el(id, box) {
  *
  * Every element is a fraction of `w` and `h`, so scaling both the canvas and
  * the coordinates by the same factors leaves the layout where it was - as a
- * proportion of a card that has itself changed shape. Gauges are re-squared
- * afterwards: the two factors differ whenever the shape changes, and a square
- * scaled by two different numbers stops being one.
+ * proportion of a card that has itself changed shape. Whatever is locked square
+ * - a gauge, a circular bar - is re-squared afterwards: the two factors differ
+ * whenever the shape changes, and a square scaled by two different numbers
+ * stops being one.
  *
  * @param {any} canvas
  * @param {{ w: number, h: number }} shape
+ * @param {any} [slot] the card's own config, for a bar's orientation
  * @returns {any} a new canvas
  */
-export function rescaleCanvas(canvas, shape) {
+export function rescaleCanvas(canvas, shape, slot) {
   const kx = shape.w / canvas.w, ky = shape.h / canvas.h;
   const elements = (Array.isArray(canvas.elements) ? canvas.elements : []).map(el => {
     const moved = { ...el, x: el.x * kx, y: el.y * ky, w: el.w * kx, h: el.h * ky };
-    return roundBox(isSquareLocked(moved) ? squareElement(moved) : moved);
+    return roundBox(isSquareLocked(moved, slot) ? squareElement(moved) : moved);
   });
   return { ...canvas, w: shape.w, h: shape.h, elements };
 }
@@ -1161,20 +1182,35 @@ export function canAddKind(slot, kind) {
  * everything else is a flat strip, which is the shape of a bar and of a line
  * of text.
  *
+ * `aspect` overrides that last case for something that knows its own shape -
+ * a vertical bar, a ring - because the strip is only right for the horizontal
+ * one, and a vertical bar dropped into a strip is a template that arrives
+ * looking broken. It cannot override the square, which is a lock rather than
+ * a default.
+ *
  * @param {{w: number, h: number, grid?: number, snap?: number}} canvas
  * @param {string} id
  * @param {boolean} surface
  * @param {{x: number, y: number}} [at] defaults to the middle of the canvas
+ * @param {number} [aspect] wanted width divided by height
+ * @param {any} [slot] the card's own config, for a bar's orientation
  * @returns {{x: number, y: number, w: number, h: number}}
  */
-function newBox(canvas, id, surface, at) {
+function newBox(canvas, id, surface, at, aspect, slot) {
   const step = resolveSnap(canvas);
   const snap = v => Math.max(step, Math.round(v / step) * step);
   const side = snap(Math.min(canvas.w, canvas.h) / 5);
 
-  const square = isSquareLocked({ id }) || id === 'icon';
+  const square = isSquareLocked({ id }, slot) || id === 'icon';
   let w = side, h = side;
-  if (surface) w = snap(side * 2);
+  if (!square && aspect > 0) {
+    // The long edge is the strip's, so a bar asking for 3 gets exactly the
+    // strip back and the default stays one rule rather than two.
+    const long = snap(side * 1.5);
+    if (aspect >= 1) { w = long; h = snap(long / aspect); }
+    else { h = long; w = snap(long * aspect); }
+  }
+  else if (surface) w = snap(side * 2);
   else if (!square) { w = snap(side * 1.5); h = snap(side * 0.5); }
   w = Math.min(w, canvas.w);
   h = Math.min(h, canvas.h);
@@ -1237,9 +1273,10 @@ function placeableId(slot, id) {
  * @param {string} what a kind, or the id of an existing element
  * @param {any} [entry] the new list entry, for a kind that has a list
  * @param {{x: number, y: number}} [at] point the box is centred on
+ * @param {number} [aspect] the shape the entry wants, see `newBox`
  * @returns {{ canvas: any, patch: Record<string, any>, id: string } | null}
  */
-export function addElement(slot, canvas, what, entry, at) {
+export function addElement(slot, canvas, what, entry, at, aspect) {
   const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
   const who = newIdentity(slot, canvas, what);
   if (!who) return null;
@@ -1255,8 +1292,12 @@ export function addElement(slot, canvas, what, entry, at) {
     if (spec.active && !slot?.[spec.active]) patch[spec.active] = true;
   }
 
+  // The slot as it will be, not as it is: the entry being added is what says
+  // whether this bar is a ring, and it is in `patch` rather than in `slot`
+  // until the caller commits. Asking the old slot would give the new element
+  // the shape of whatever happened to sit at that index before.
   const el = { id, ...(surface ? { surface: true } : { inner: 'cc' }),
-               ...newBox(canvas, id, surface, at) };
+               ...newBox(canvas, id, surface, at, aspect, { ...slot, ...patch }) };
   return { canvas: { ...canvas, elements: [...elements, el] }, patch, id };
 }
 
@@ -1306,11 +1347,14 @@ function newIdentity(slot, canvas, what) {
  * @param {any} canvas
  * @param {string} what a kind, or the id of an existing element
  * @param {{x: number, y: number}} [at] point the box is centred on
+ * @param {number} [aspect] the shape the entry wants, see `newBox`
  * @returns {{ id: string, surface: boolean, x: number, y: number, w: number, h: number } | null}
  */
-export function newElementPreview(slot, canvas, what, at) {
+export function newElementPreview(slot, canvas, what, at, aspect) {
   const who = newIdentity(slot, canvas, what);
   if (!who) return null;
+  // The ghost has no entry yet - the template's `aspect` is what carries a
+  // ring's shape until there is one - so the slot here is the slot as it is.
   return { id: who.id, surface: who.surface,
-           ...newBox(canvas, who.id, who.surface, at) };
+           ...newBox(canvas, who.id, who.surface, at, aspect, slot) };
 }
