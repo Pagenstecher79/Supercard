@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS,
+import { getCellItems, resolveSnap, applyDrag, isSquareLocked, DEFAULT_CANVAS, DEFAULT_GRID,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, rescaleCanvas,
          sectionColumns,
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
@@ -1794,7 +1794,7 @@ class ScCanvasEditor extends LitElement {
         <div class="row">
           <label>Grid / snap</label>
           <div style="display:flex; gap:6px; align-items:center;">
-            <input class="num" type="number" min="0" .value=${c.grid ?? 10}
+            <input class="num" type="number" min="0" .value=${c.grid ?? DEFAULT_GRID}
                    @change=${e => this._setCanvas('grid', Math.max(0, parseInt(e.target.value) || 0))}>
             <select style="width:110px" @change=${e => {
               const v = e.target.value;
