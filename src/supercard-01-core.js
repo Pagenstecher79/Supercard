@@ -575,7 +575,11 @@ class SupercardCore extends LitElement {
         will-change: opacity, transform;
       }
 
-      ha-icon { --mdc-icon-size: calc(24px * var(--sc-scale, 1)); }
+      /* --sc-icon-glyph is the canvas' way in: ::slotted() reaches the icon
+         container but not the ha-icon inside it, and a rule here on the
+         element itself would beat anything inherited. Unset everywhere else,
+         so the content row keeps the size it always had. */
+      ha-icon { --mdc-icon-size: var(--sc-icon-glyph, calc(24px * var(--sc-scale, 1))); }
       .text-container { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
     `;
   }
