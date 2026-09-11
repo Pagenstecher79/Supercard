@@ -156,8 +156,12 @@ const STYLE_FIELDS = [
   { id: 'pointer_shadow_type',    label: 'Pointer shadow',            type: 'select',  options: [ { value: 'none', label: 'None' }, { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
   { id: 'pointer_shadow_color',   label: 'Shadow color',             type: 'color',   condition: cfg => cfg.pointer_shadow_type === 'fixed' },
   { id: 'pointer_shadow_blur',     label: 'Shadow blur',   type: 'range', min: 0,  max: 1, step: 0.01,  placeholder: '0.8', condition: cfg => cfg.pointer_shadow_type !== 'none' },
-  { id: 'pointer_shadow_offset_y', label: 'Shadow offset Y',        type: 'range', min: -5, max: 5, step: 0.1,  placeholder: '0.3', condition: cfg => cfg.pointer_shadow_type !== 'none' },
-  { id: 'pointer_shadow_opacity',  label: 'Shadow opacity',        type: 'range', min: 0,  max: 1, step: 0.05, placeholder: '0.4', condition: cfg => cfg.pointer_shadow_type !== 'none' },
+  // Not 'offset Y': the offset is only vertical while the angle is 90 degrees,
+  // which is merely its default. The renderer still reads the old key for
+  // configs written before the angle had a control.
+  { id: 'pointer_shadow_distance', label: 'Shadow distance',       type: 'range', min: -5, max: 5, step: 0.1,  placeholder: '0.5', condition: cfg => cfg.pointer_shadow_type !== 'none' },
+  { id: 'pointer_shadow_angle',    label: 'Shadow angle',          type: 'range', min: 0, max: 360, step: 5,   placeholder: '90',  condition: cfg => cfg.pointer_shadow_type !== 'none' },
+  { id: 'pointer_shadow_opacity',  label: 'Shadow opacity',        type: 'range', min: 0,  max: 1, step: 0.05, placeholder: '0.35', condition: cfg => cfg.pointer_shadow_type !== 'none' },
   { id: 'animation_duration',     label: 'Animation duration (s)',       type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '0.8', condition: cfg => cfg.animation_easing !== 'spring' },
   { id: 'animation_spring_duration', label: 'Spring animation duration (s)', type: 'range', min: 0.1, max: 10, step: 0.1, placeholder: '1.5', condition: cfg => cfg.animation_easing === 'spring' },
   { id: 'animation_dynamic_speed',label: 'Dynamic pointer acceleration', type: 'checkbox' },

@@ -709,14 +709,31 @@ class ScGauge extends LitElement {
     
     let shadowDef = '';
     let filterAttr = '';
-    let sX = 0, sY = 0; 
+    let sX = 0, sY = 0;
+    // Black at a little over a third, which is what this shadow was painted
+    // with before either of them was a setting.
+    let sCol = 'rgb(0,0,0)', sOpacity = 0.35;
     const pShadowType = this._get('pointer_shadow_type', 'none');
     
     if (pShadowType !== 'none') {
       const sBlur = safeFloat(this._get('pointer_shadow_blur', 0.8), 0.8);
+      // `pointer_shadow_offset_y` is the name this carried while the angle was
+      // always 90 degrees and the distance was therefore always vertical. The
+      // editor writes `pointer_shadow_distance` now; the old key is still read
+      // so a config written before the rename keeps its shadow.
       const sDist = safeFloat(this._get('pointer_shadow_distance', this._get('pointer_shadow_offset_y', 0.5)), 0.5);
       const sAngle = safeFloat(this._get('pointer_shadow_angle', 90), 90); 
       const sRad = sAngle * Math.PI / 180;
+      // 'adaptive' is what it is everywhere else in this file - the theme's own
+      // text colour - which on a dark card turns the shadow into the light halo
+      // that is how a dark surface shows something lifted off it. 'fixed' takes
+      // the colour the editor has been offering all along.
+      sCol = resolveColor(pShadowType === 'adaptive' ? 'adaptive' : 'fixed',
+                          this._get('pointer_shadow_color', [0, 0, 0]));
+      // On the group rather than on each shape: the hub and the pointer overlap,
+      // and a shadow that is darker where one object crosses itself is not a
+      // shadow.
+      sOpacity = safeFloat(this._get('pointer_shadow_opacity', 0.35), 0.35);
       
       sX = sDist * Math.cos(sRad);
       sY = sDist * Math.sin(sRad);
@@ -836,14 +853,14 @@ class ScGauge extends LitElement {
             <g transform="translate(${this.CENTER + safeFloat(this._get('pivot_offset_x',0),0)}, ${this.CENTER + safeFloat(this._get('pivot_offset_y',0),0)})">
               
               ${filterAttr ? svg`
-                <g transform="translate(${sX.toFixed(2)}, ${sY.toFixed(2)})" filter="${filterAttr}">
-                  <circle cx="0" cy="0" r="${safeFloat(this._get('pointer_center_radius',2),2)*scale}" fill="rgba(0,0,0,0.35)"/>
+                <g transform="translate(${sX.toFixed(2)}, ${sY.toFixed(2)})" filter="${filterAttr}" opacity="${sOpacity}">
+                  <circle cx="0" cy="0" r="${safeFloat(this._get('pointer_center_radius',2),2)*scale}" fill="${sCol}"/>
                   
                   ${!this._get('pointer_3d_effect', false) ? svg`
                     <g style="transform-origin:0 0; transform: rotate(${renderAngle}deg); transition: transform ${this._isInitialized ? dur : 0}s ${easingCurve};">
                       ${this._get('pointer_type','needle') === 'triangle'
-                        ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="rgba(0,0,0,0.35)"/>`
-                        : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="rgba(0,0,0,0.35)" stroke-width="${(pW).toFixed(2)}" stroke-linecap="round"/>`
+                        ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="${sCol}"/>`
+                        : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="${sCol}" stroke-width="${(pW).toFixed(2)}" stroke-linecap="round"/>`
                       }
                     </g>
                   ` : ''}
@@ -855,11 +872,11 @@ class ScGauge extends LitElement {
                       fill="${resolveColor(this._get('pointer_dot_color_type','fixed'), this._get('pointer_dot_color',[255,255,255]))}"/>
 
               ${(filterAttr && this._get('pointer_3d_effect', false)) ? svg`
-                <g transform="translate(${sX.toFixed(2)}, ${sY.toFixed(2)})" filter="${filterAttr}">
+                <g transform="translate(${sX.toFixed(2)}, ${sY.toFixed(2)})" filter="${filterAttr}" opacity="${sOpacity}">
                   <g style="transform-origin:0 0; transform: rotate(${renderAngle}deg); transition: transform ${this._isInitialized ? dur : 0}s ${easingCurve};">
                     ${this._get('pointer_type','needle') === 'triangle'
-                      ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="rgba(0,0,0,0.45)"/>`
-                      : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="rgba(0,0,0,0.45)" stroke-width="${(pW).toFixed(2)}" stroke-linecap="round"/>`
+                      ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="${sCol}"/>`
+                      : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="${sCol}" stroke-width="${(pW).toFixed(2)}" stroke-linecap="round"/>`
                     }
                   </g>
                 </g>
