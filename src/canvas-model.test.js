@@ -27,6 +27,10 @@ import {
   canvasFromGrid,
   canvasFromCard,
   rescaleCanvas,
+  applyGroupDrag,
+  elementsInRect,
+  duplicateElements,
+  distributeElements,
   roundBox,
   canDuplicate,
   canAddKind,
@@ -958,6 +962,167 @@ describe('canvasFromGrid', () => {
   });
 });
 
+describe('applyGroupDrag', () => {
+  const c = { w: 400, h: 400, grid: 10, snap: 10 };
+  const els = () => ([
+    { id: 'a', x: 10, y: 10, w: 40, h: 40 },
+    { id: 'b', x: 95, y: 60, w: 40, h: 40 },
+    { id: 'c', x: 200, y: 200, w: 60, h: 30 },
+  ]);
+
+  it('moves everything by the one delta, so the arrangement survives', () => {
+    const out = applyGroupDrag(c, els(), { dx: 33, dy: 27 }, 'a');
+    // snapped against the anchor: 10 + 33 -> 40, so +30 for all three
+    expect(out.a).toEqual({ x: 40, y: 40, w: 40, h: 40 });
+    expect(out.b).toEqual({ x: 125, y: 90, w: 40, h: 40 });
+    expect(out.c).toEqual({ x: 230, y: 230, w: 60, h: 30 });
+  });
+
+  it('snaps against the element under the pointer, not each on its own', () => {
+    // `b` sits at 95, off the grid. Dragged by it, it lands on the grid at
+    // 110 and the others follow by that same 15 - so `a` lands off the grid,
+    // which is the point: the group kept its arrangement.
+    const out = applyGroupDrag(c, els(), { dx: 12, dy: 0 }, 'b');
+    expect(out.b.x).toBe(110);
+    expect(out.a.x).toBe(25);
+  });
+
+  it('stops the group at the canvas edge, not each element at its own wall', () => {
+    const out = applyGroupDrag(c, els(), { dx: 900, dy: 0 }, 'a');
+    expect(out.c.x + out.c.w).toBe(400);
+    // and the one behind it kept its distance rather than piling up
+    expect(out.c.x - out.a.x).toBe(190);
+  });
+
+  it('holds a pinned element still and lets the rest go', () => {
+    const list = els();
+    list[1].locked = true;
+    const out = applyGroupDrag(c, list, { dx: 30, dy: 30 }, 'a');
+    expect(out.b).toMatchObject({ x: 95, y: 60 });
+    expect(out.a).toMatchObject({ x: 40, y: 40 });
+    expect(out.c).toMatchObject({ x: 230, y: 230 });
+  });
+
+  it('does not let a pinned element hold the group back at the wall', () => {
+    const list = [{ id: 'p', x: 380, y: 0, w: 20, h: 20, locked: true },
+                  { id: 'a', x: 10, y: 10, w: 40, h: 40 }];
+    const out = applyGroupDrag(c, list, { dx: 100, dy: 0 }, 'a');
+    expect(out.a.x).toBe(110);
+    expect(out.p.x).toBe(380);
+  });
+
+  it('moves nothing when everything in the selection is pinned', () => {
+    const list = els().map(el => ({ ...el, locked: true }));
+    const out = applyGroupDrag(c, list, { dx: 90, dy: 90 }, 'a');
+    expect(out.a).toMatchObject({ x: 10, y: 10 });
+    expect(out.c).toMatchObject({ x: 200, y: 200 });
+  });
+});
+
+describe('distributeElements', () => {
+  const canvas = (elements) => ({ w: 400, h: 400, grid: 10, snap: 10, elements });
+
+  it('makes the gaps equal and leaves the outermost two where they are', () => {
+    const c = canvas([
+      { id: 'a', x: 0,   y: 0, w: 40, h: 20 },
+      { id: 'b', x: 50,  y: 0, w: 40, h: 20 },
+      { id: 'c', x: 300, y: 0, w: 40, h: 20 },
+    ]);
+    const out = distributeElements(c, ['a', 'b', 'c'], 'x');
+    expect(out.elements.map(e => e.x)).toEqual([0, 150, 300]);
+  });
+
+  it('measures the gaps between edges, so a wide box does not crowd its neighbour', () => {
+    const c = canvas([
+      { id: 'a', x: 0,   y: 0, w: 20,  h: 20 },
+      { id: 'b', x: 40,  y: 0, w: 120, h: 20 },
+      { id: 'c', x: 300, y: 0, w: 20,  h: 20 },
+    ]);
+    const out = distributeElements(c, ['a', 'b', 'c'], 'x');
+    const [a, b, cc] = out.elements;
+    expect(b.x - (a.x + a.w)).toBe(cc.x - (b.x + b.w));
+  });
+
+  it('does the same down the other axis', () => {
+    const c = canvas([
+      { id: 'a', x: 0, y: 0,   w: 20, h: 40 },
+      { id: 'b', x: 0, y: 60,  w: 20, h: 40 },
+      { id: 'c', x: 0, y: 300, w: 20, h: 40 },
+    ]);
+    expect(distributeElements(c, ['a', 'b', 'c'], 'y').elements.map(e => e.y))
+      .toEqual([0, 150, 300]);
+  });
+
+  it('takes them in the order they sit, not the order they were selected', () => {
+    const c = canvas([
+      { id: 'a', x: 300, y: 0, w: 40, h: 20 },
+      { id: 'b', x: 0,   y: 0, w: 40, h: 20 },
+      { id: 'c', x: 50,  y: 0, w: 40, h: 20 },
+    ]);
+    const out = distributeElements(c, ['a', 'b', 'c'], 'x');
+    expect(out.elements.find(e => e.id === 'b').x).toBe(0);
+    expect(out.elements.find(e => e.id === 'c').x).toBe(150);
+    expect(out.elements.find(e => e.id === 'a').x).toBe(300);
+  });
+
+  it('overlaps them evenly when they do not fit, rather than refusing', () => {
+    const c = canvas([
+      { id: 'a', x: 0,  y: 0, w: 60, h: 20 },
+      { id: 'b', x: 10, y: 0, w: 60, h: 20 },
+      { id: 'c', x: 40, y: 0, w: 60, h: 20 },
+    ]);
+    const out = distributeElements(c, ['a', 'b', 'c'], 'x');
+    const [a, b, cc] = out.elements;
+    expect(b.x - (a.x + a.w)).toBe(cc.x - (b.x + b.w));
+    expect(a.x).toBe(0);
+    expect(cc.x).toBe(40);
+  });
+
+  it('is null when there is nothing to do', () => {
+    const even = canvas([
+      { id: 'a', x: 0,   y: 0, w: 40, h: 20 },
+      { id: 'b', x: 150, y: 0, w: 40, h: 20 },
+      { id: 'c', x: 300, y: 0, w: 40, h: 20 },
+    ]);
+    expect(distributeElements(even, ['a', 'b', 'c'], 'x')).toBe(null);
+    expect(distributeElements(even, ['a', 'b'], 'x')).toBe(null);
+    expect(distributeElements(even, [], 'x')).toBe(null);
+  });
+
+  it('leaves a pinned element out of it entirely', () => {
+    const c = canvas([
+      { id: 'a', x: 0,   y: 0, w: 40, h: 20 },
+      { id: 'p', x: 60,  y: 0, w: 40, h: 20, locked: true },
+      { id: 'b', x: 100, y: 0, w: 40, h: 20 },
+      { id: 'c', x: 300, y: 0, w: 40, h: 20 },
+    ]);
+    const out = distributeElements(c, ['a', 'p', 'b', 'c'], 'x');
+    expect(out.elements.find(e => e.id === 'p').x).toBe(60);
+    expect(out.elements.map(e => e.x)).toEqual([0, 60, 150, 300]);
+    // and with the lock leaving too few to distribute, nothing happens at all
+    const two = canvas([
+      { id: 'a', x: 0,  y: 0, w: 40, h: 20 },
+      { id: 'p', x: 60, y: 0, w: 40, h: 20, locked: true },
+      { id: 'b', x: 300, y: 0, w: 40, h: 20 },
+    ]);
+    expect(distributeElements(two, ['a', 'p', 'b'], 'x')).toBe(null);
+  });
+
+  it('touches neither the canvas it was given nor the elements it leaves alone', () => {
+    const before = canvas([
+      { id: 'a', x: 0,   y: 0, w: 40, h: 20 },
+      { id: 'b', x: 50,  y: 0, w: 40, h: 20 },
+      { id: 'c', x: 300, y: 0, w: 40, h: 20 },
+      { id: 'd', x: 7,   y: 9, w: 10, h: 10, inner: 'tl' },
+    ]);
+    const copy = structuredClone(before);
+    const out = distributeElements(before, ['a', 'b', 'c'], 'x');
+    expect(before).toEqual(copy);
+    expect(out.elements[3]).toBe(before.elements[3]);
+    expect(out.w).toBe(400);
+  });
+});
+
 describe('rescaleCanvas', () => {
   it('carries the layout across as the same proportions', () => {
     const canvas = { w: 400, h: 200, elements: [
@@ -1484,5 +1649,130 @@ describe('canvasFromGrid in a wide section', () => {
   it('leaves a card narrower than one section alone', () => {
     expect(canvasFromGrid({ grid_options: { columns: 6, rows: 4 } }, slot, 400, 24))
       .toEqual(canvasFromGrid({ grid_options: { columns: 6, rows: 4 } }, slot));
+  });
+});
+
+describe('elementsInRect', () => {
+  const canvas = {
+    w: 400, h: 400, grid: 10, snap: 10,
+    elements: [
+      { id: 'bg', surface: true, x: 0, y: 0, w: 400, h: 400 },
+      { id: 'a', x: 20, y: 20, w: 40, h: 40 },
+      { id: 'b', x: 100, y: 20, w: 40, h: 40 },
+      { id: 'c', x: 300, y: 300, w: 40, h: 40 },
+      { id: 'locked', x: 30, y: 100, w: 40, h: 40, locked: true },
+    ],
+  };
+
+  it('takes what the frame holds whole', () => {
+    expect(elementsInRect(canvas, { x0: 10, y0: 10, x1: 150, y1: 70 })).toEqual(['a', 'b']);
+  });
+
+  it('leaves what it only touches', () => {
+    // the frame cuts through `b`
+    expect(elementsInRect(canvas, { x0: 10, y0: 10, x1: 120, y1: 70 })).toEqual(['a']);
+  });
+
+  it('does not sweep up the background surface it is drawn over', () => {
+    expect(elementsInRect(canvas, { x0: 0, y0: 0, x1: 200, y1: 200 })).not.toContain('bg');
+  });
+
+  it('takes the background surface when the frame really does hold it', () => {
+    expect(elementsInRect(canvas, { x0: 0, y0: 0, x1: 400, y1: 400 })).toContain('bg');
+  });
+
+  it('skips pinned elements', () => {
+    const out = elementsInRect(canvas, { x0: 0, y0: 0, x1: 400, y1: 400 });
+    expect(out).not.toContain('locked');
+  });
+
+  it('reads a frame dragged up and to the left the same way', () => {
+    expect(elementsInRect(canvas, { x0: 150, y0: 70, x1: 10, y1: 10 })).toEqual(['a', 'b']);
+  });
+
+  it('is empty for a frame that holds nothing', () => {
+    expect(elementsInRect(canvas, { x0: 200, y0: 200, x1: 220, y1: 220 })).toEqual([]);
+  });
+});
+
+describe('duplicateElements', () => {
+  const slot = () => ({
+    gauges: [{ entity: 'sensor.a' }, { entity: 'sensor.b' }],
+    progressbars: [{ entity: 'sensor.c' }],
+  });
+  const canvas = () => ({
+    w: 400, h: 400, grid: 10, snap: 10,
+    elements: [
+      { id: 'surface_0', surface: true, x: 10, y: 10, w: 60, h: 60 },
+      { id: 'gauge_0', x: 100, y: 100, w: 50, h: 50 },
+      { id: 'gauge_1', x: 200, y: 100, w: 50, h: 50 },
+      { id: 'progressbar_0', x: 10, y: 300, w: 200, h: 40 },
+    ],
+  });
+
+  it('copies each of them once, offset by one step', () => {
+    const out = duplicateElements(slot(), canvas(), ['surface_0', 'gauge_0']);
+    expect(out.ids).toEqual(['surface_1', 'gauge_2']);
+    const made = out.canvas.elements.slice(4);
+    expect(made[0]).toMatchObject({ id: 'surface_1', surface: true, x: 20, y: 20, w: 60, h: 60 });
+    expect(made[1]).toMatchObject({ id: 'gauge_2', x: 110, y: 110, w: 50, h: 50 });
+  });
+
+  it('gives two copies of the same kind two ids and two entries', () => {
+    const out = duplicateElements(slot(), canvas(), ['gauge_0', 'gauge_1']);
+    expect(out.ids).toEqual(['gauge_2', 'gauge_3']);
+    expect(out.patch.gauges).toHaveLength(4);
+    // ...and each copy carries its own original's definition
+    expect(out.patch.gauges[2]).toEqual({ entity: 'sensor.a' });
+    expect(out.patch.gauges[3]).toEqual({ entity: 'sensor.b' });
+  });
+
+  it('copies the definition rather than sharing it', () => {
+    const from = slot();
+    const out = duplicateElements(from, canvas(), ['gauge_0']);
+    out.patch.gauges[2].entity = 'sensor.changed';
+    expect(from.gauges[0].entity).toBe('sensor.a');
+  });
+
+  it('offsets the group as one, so the copies keep the arrangement', () => {
+    const c = canvas();
+    // `b` is flush against the right edge, so nothing shifts sideways
+    c.elements = [
+      { id: 'surface_0', surface: true, x: 100, y: 100, w: 40, h: 40 },
+      { id: 'surface_9', surface: true, x: 360, y: 100, w: 40, h: 40 },
+    ];
+    const out = duplicateElements(slot(), c, ['surface_0', 'surface_9']);
+    const made = out.canvas.elements.slice(2);
+    expect(made[0]).toMatchObject({ x: 100, y: 110 });
+    expect(made[1]).toMatchObject({ x: 360, y: 110 });
+    expect(made[1].x - made[0].x).toBe(260);
+  });
+
+  it('passes over what cannot be copied and copies the rest', () => {
+    const c = canvas();
+    c.elements.push({ id: 'icon', x: 0, y: 0, w: 20, h: 20 });
+    const out = duplicateElements(slot(), c, ['icon', 'surface_0']);
+    expect(out.ids).toEqual(['surface_1']);
+  });
+
+  it('is null when nothing in the selection can be copied', () => {
+    const c = canvas();
+    c.elements = [{ id: 'icon', x: 0, y: 0, w: 20, h: 20 }];
+    expect(duplicateElements(slot(), c, ['icon'])).toBeNull();
+    expect(duplicateElements(slot(), canvas(), [])).toBeNull();
+  });
+
+  it('leaves the canvas it was given alone', () => {
+    const c = canvas();
+    const before = structuredClone(c);
+    duplicateElements(slot(), c, ['surface_0', 'gauge_0']);
+    expect(c).toEqual(before);
+  });
+
+  it('keeps the copy of a locked element locked', () => {
+    const c = canvas();
+    c.elements[0].locked = true;
+    const out = duplicateElements(slot(), c, ['surface_0']);
+    expect(out.canvas.elements.at(-1).locked).toBe(true);
   });
 });
