@@ -67,6 +67,12 @@ declare global {
       bars: { id: string; label: string }[];
     };
     /**
+     * What to call an element in front of a person - the entry's own label,
+     * else the entity's alias or friendly name - or '' when the card knows
+     * nothing better than the id.
+     */
+    elementLabel: (slot: any, hass: any, id: string, cardEntity?: string) => string;
+    /**
      * Whether the card actually draws this element. False only on a canvas
      * card that has no box for the id - there, being absent from the canvas
      * is what "removed" means.

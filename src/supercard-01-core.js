@@ -254,6 +254,65 @@ Object.assign(window.SupercardUtils, (() => {
   }
 
   /**
+   * What to call an element in front of a person, or '' when the card knows
+   * nothing better than its id.
+   *
+   * `gauge_0` says where an element is in the config, which is the right name
+   * for a glass target and the wrong one for a list of what is on the canvas:
+   * three gauges on a card are three rooms, and the id says which of them is
+   * which only to whoever put them there.
+   *
+   * The order is the same one every panel in this card already uses to title
+   * an entry - the name the user typed, then the alias they gave the entity,
+   * then Home Assistant's friendly name, then the entity id without its
+   * domain. Nothing here invents a name: an element with no entity and no
+   * label keeps its id, and the caller decides what to draw instead.
+   *
+   * @param {any} slot the card's `config.supercard`
+   * @param {any} hass
+   * @param {string} id an element id, as the canvas and the target lists use it
+   * @param {string} [cardEntity] the card's own entity, which icon/name/state show
+   * @returns {string}
+   */
+  function elementLabel(slot, hass, id, cardEntity) {
+    const states = hass?.states || {};
+    const ofEntity = (entity) => {
+      if (!entity || typeof entity !== 'string') return '';
+      return states[entity]?.attributes?.friendly_name || entity.split('.')[1] || entity;
+    };
+    // An entry's own text first, then whatever the entity it points at is
+    // called - through the alias list, because a card that names its entities
+    // there has said what it wants them called.
+    const ofEntry = (entry, textKey) => {
+      const own = typeof entry?.[textKey] === 'string' ? entry[textKey].trim() : '';
+      if (own) return own;
+      const { entity, alias } = resolveAlias(slot?.global_entities, entry);
+      return alias || ofEntity(entity);
+    };
+
+    const at = (list, i) => (Array.isArray(list) ? list[i] : null);
+    const idx = (prefix) => parseInt(id.slice(prefix.length), 10);
+
+    if (id.startsWith('gauge_')) {
+      // Without a `gauges` array the card is the one gauge it draws, so its
+      // settings are the slot itself - the shape listElements counts.
+      const entry = Array.isArray(slot?.gauges) ? at(slot.gauges, idx('gauge_')) : slot;
+      return entry ? ofEntry(entry, 'gauge_label_text') : '';
+    }
+    if (id.startsWith('progressbar_')) {
+      const entry = at(slot?.progressbars, idx('progressbar_'));
+      return entry ? ofEntry(entry, 'label_text') : '';
+    }
+    if (id.startsWith('label_')) {
+      const entry = at(slot?.labels_list, idx('label_'));
+      return entry ? ofEntry(entry, 'label_text') : '';
+    }
+    // The three that draw the card's own entity rather than one of their own.
+    if (id === 'icon' || id === 'name' || id === 'state') return ofEntity(cardEntity);
+    return '';
+  }
+
+  /**
    * The selector for the box the layout renderer draws an element in.
    *
    * Every element box the renderer draws gets a shadow part named after its
@@ -380,7 +439,7 @@ Object.assign(window.SupercardUtils, (() => {
 
   return /** @type {SupercardUtilsApi} */ ({
     safeFloat, hexToRgb, rgbToHex, toRgb, resolveVar, sampleGradient,
-    getAvailableElements, listElements, showsElement, elementPartSelector,
+    getAvailableElements, listElements, elementLabel, showsElement, elementPartSelector,
     resolveAlias, withPatch, gaugeIsResponsive, onCanvas, cardIsPill, cardRadius,
     editorStyles, formStyles
   });

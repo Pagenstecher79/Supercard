@@ -1205,6 +1205,25 @@ customElements.define('sc-layout-editor', ScLayoutEditor);
  */
 const SAME_SPOT_PX = 4;
 
+/**
+ * The zoom levels the - and + buttons walk through.
+ *
+ * Zoom is a property of the view, never of the card: it scales the pixels the
+ * canvas is drawn at and nothing else. Every pointer position is read against
+ * the canvas' own rect and divided by its width (`_bandPoint`, `_atPointer`,
+ * `_onMove`), so an element's coordinates stay the whole canvas units they
+ * were - which is the point, since the snapping work rests on them being
+ * whole. Nothing here is ever committed.
+ *
+ * 1 is the level at which the canvas fits its frame exactly; the two below it
+ * are for a tall canvas whose whole shape no longer fits the editor.
+ *
+ * @type {readonly number[]}
+ */
+const ZOOM_STEPS = Object.freeze([0.5, 0.75, 1, 1.5, 2, 3, 4]);
+const ZOOM_MIN = ZOOM_STEPS[0];
+const ZOOM_MAX = ZOOM_STEPS[ZOOM_STEPS.length - 1];
+
 class ScCanvasEditor extends LitElement {
   static get properties() {
     return {
@@ -1223,6 +1242,8 @@ class ScCanvasEditor extends LitElement {
       _menu: { type: Boolean, state: true },
       _placing: { type: String, state: true },
       _ghost: { type: Object, state: true },
+      _zoom: { type: Number, state: true },
+      _names: { type: Boolean, state: true },
     };
   }
 
@@ -1237,6 +1258,13 @@ class ScCanvasEditor extends LitElement {
     this._menu = false;
     this._placing = null;
     this._ghost = null;
+    this._zoom = 1;
+    // Off, because the id is what the rest of the editor calls an element -
+    // the list, the glass targets, the colour rules - and a canvas that
+    // silently spoke a different language than they do would be worse than
+    // one that needs a click. Like the zoom, it belongs to the open editor
+    // and is never committed.
+    this._names = false;
     // The last press: where it was, whether it moved, and what lay under it.
     // Not reactive - nothing renders from it.
     this._lastDown = null;
@@ -1306,6 +1334,34 @@ class ScCanvasEditor extends LitElement {
          canvas keeps being tracked. */
       .canvas-pad { flex: 1; min-width: 0; padding: 12px 8px; touch-action: none;
                     display: flex; justify-content: center; }
+      /* The window the canvas is zoomed inside. It keeps the footprint the
+         canvas has at 100% - width of the strip, shape of the canvas - so
+         zooming in makes the drawing bigger and the editor no taller: the
+         part that no longer fits is reached by scrolling, not by pushing
+         everything below the canvas down the page.
+         The canvas centres itself with an auto margin rather than with
+         justify-content or place-content, because content centred by those
+         is clipped on the side it overflows, where there is no scroll to
+         reach it - an auto margin collapses to 0 instead. Both axes need it,
+         which is why the window is a flex container: an auto margin only
+         centres vertically inside one. */
+      .canvas-view { position: relative; width: 100%; overflow: auto;
+                     scrollbar-width: thin; display: flex; }
+      /* flex: none, or a canvas drawn wider than the window would be shrunk
+         back to fit by flex-shrink and there would be nothing to scroll. */
+      .canvas-view > .canvas { margin: auto; flex: none; }
+      .zoom, .names { display: flex; align-items: center; gap: 2px; }
+      .zoom button, .names button { background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 4px 7px; font-size: 13px; line-height: 1.1; cursor: pointer; }
+      .zoom button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
+      .zoom button[disabled], .names button[disabled] { opacity: 0.4; cursor: default; }
+      .zoom .level { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+      /* A press on + or - is over the moment it happens, so those may light up
+         under the pointer in the accent colour. Names stays pressed, and a
+         hover that borrowed the same colour would hide which way it stands -
+         exactly while the pointer is still on the button that was just
+         clicked. So the accent means on here, and hovering only lifts. */
+      .names button:hover:not([disabled]) { background: var(--divider-color, #444); }
+      .names button.on, .names button.on:hover { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
       /* Floated over the canvas' edge rather than given a column of its own:
          the rail comes and goes with the selection, and a column would take
          its width from the canvas permanently - in Home Assistant's card
@@ -1313,12 +1369,15 @@ class ScCanvasEditor extends LitElement {
          also means the canvas does not move under the pointer while a
          selection is being shift-clicked together.
          Above .el.sel's 3, or a selected element would paint over it. */
-      .rail { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      .rail { position: absolute; right: calc(4px + var(--sc-rail-clear, 0px)); top: 50%; transform: translateY(-50%);
               z-index: 4; display: flex; flex-direction: column; gap: 6px; }
       .rail button { width: 28px; background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 5px 0; font-size: 15px; line-height: 1.1; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.45); }
       .rail button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
       .rail button[disabled] { opacity: 0.4; cursor: default; }
-      .canvas { position: relative; width: 100%; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; overflow: hidden; touch-action: none; user-select: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+      /* border-box, so the 1px border is inside the width the zoom sets: as
+         content-box it made the canvas 2px wider than the window it is drawn
+         in, which is two scrollbars at 100% for a border. */
+      .canvas { position: relative; width: 100%; box-sizing: border-box; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; overflow: hidden; touch-action: none; user-select: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
       .grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px); }
       /* Isolated because the live preview draws real gauges and bars, and
          those stack themselves with SC_LAYERS - numbers in the thousands,
@@ -1357,6 +1416,26 @@ class ScCanvasEditor extends LitElement {
       /* Over the selected elements (.el.sel is 3), because the frame is what
          the pointer is doing right now and has to stay readable across one. */
       .band { position: absolute; z-index: 4; pointer-events: none; border: 1px dashed var(--primary-color,#03a9f4); background: rgba(3,169,244,0.12); }
+      /* Names ride above the boxes rather than inside them. A 20-unit gauge is
+         barely wider than one letter, and a caption clipped to a W says less
+         than the id it would have replaced - so a tag is allowed to run past
+         the edge of the element it belongs to, and is stopped only by the edge
+         of the canvas. An element with nothing assigned yet has no name to
+         show and falls back to its id, so every box keeps a tag - a gap in the
+         row would only read as an element that had gone missing. The layer
+         never takes the pointer: every press on it belongs to whatever lies
+         underneath. Being outside the box also keeps the card's own
+         typography, which the live preview injects at the box, away from a
+         label that is the editor's rather than the card's. */
+      .tags { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+      .tag {
+        position: absolute; transform: translateY(-100%); width: max-content;
+        padding: 0 3px; border-radius: 0 4px 0 0;
+        background: rgba(0,0,0,0.72); color: #fff;
+        font-size: 9px; font-weight: normal; line-height: 1.6;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        text-shadow: none;
+      }
       .handle { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; background: rgba(255,255,255,0.85); border-radius: 100% 0 0 0; cursor: nwse-resize; touch-action: none; }
       .handle::after { content: ''; position: absolute; right: -10px; bottom: -10px; width: 22px; height: 22px; }
       .num { width: 68px; }
@@ -1369,7 +1448,14 @@ class ScCanvasEditor extends LitElement {
       .el-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; padding: 4px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); }
       .el-row.sel { background: rgba(3,169,244,0.18); }
       .el-row.co { background: rgba(3,169,244,0.09); }
-      .el-name { flex: 1; font-family: monospace; cursor: pointer; }
+      .el-name { flex: 1; cursor: pointer; }
+      /* The id stays visible next to the name, quietly: it is what every
+         other list in this editor calls the element - a glass pattern, a
+         colour rule, an interaction all name gauge_0 - so a row that showed
+         only the friendly name would leave nothing to match them against. */
+      .el-name .id { font-family: monospace; color: var(--secondary-text-color); font-size: 11px; margin-left: 6px; }
+      /* Alone, the id is the name, and it reads as the row's own text. */
+      .el-name .id.only { color: inherit; font-size: 12px; margin-left: 0; }
       .el-row.sel .el-name { flex: 1 0 100%; }
       .icon-btn { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; padding: 2px 4px; font-size: 13px; }
       .icon-btn:hover { color: var(--primary-color); }
@@ -1385,7 +1471,7 @@ class ScCanvasEditor extends LitElement {
       /* The editor stacks against itself, not against the card SC_LAYERS
          orders: 2 and 3 are the resize handle and the selected element, so
          the placing overlay and the menu sit just above those. */
-      .tool-row { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; }
+      .tool-row { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; flex-wrap: wrap; }
       .menu-wrap { position: relative; }
       .menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; min-width: 200px;
               max-height: 280px; overflow-y: auto; padding: 4px; border-radius: 6px;
@@ -1656,6 +1742,23 @@ class ScCanvasEditor extends LitElement {
     }).length;
   }
 
+  /**
+   * What this element is called, or '' when only its id says anything.
+   *
+   * The card's own entity is Home Assistant's field on the Lovelace config,
+   * not one of ours, which is why it is handed over separately - `icon`,
+   * `name` and `state` draw it rather than an entity of their own.
+   */
+  _label(id) {
+    return SC.elementLabel(this.slot, this.hass, id, this.cardConfig?.entity);
+  }
+
+  /** The tooltip on a box: what it is, what it is called, and whether it is pinned. */
+  _title(el, pinned) {
+    const name = this._label(el.id);
+    return `${name ? `${name} (${el.id})` : el.id}${pinned ? ' - locked' : ''}`;
+  }
+
   _onDown(e, idx, mode) {
     e.stopPropagation();
     const surface = e.currentTarget.closest('.canvas');
@@ -1715,6 +1818,59 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
+   * Draw the canvas at `z` times the size it fits its frame at.
+   *
+   * What is in the middle of the view stays in the middle of it. Left alone,
+   * the scroll position is a number of pixels, so zooming in would keep the
+   * top-left corner and walk away from whatever was being looked at; keeping
+   * the centre is what every canvas editor does and what the hand expects.
+   */
+  _applyZoom(z) {
+    const view = this.shadowRoot?.querySelector('.canvas-view');
+    const mid = view && view.scrollWidth && view.scrollHeight ? {
+      x: (view.scrollLeft + view.clientWidth / 2) / view.scrollWidth,
+      y: (view.scrollTop + view.clientHeight / 2) / view.scrollHeight,
+    } : null;
+    this._zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+    if (!mid) return;
+    this.updateComplete.then(() => {
+      view.scrollLeft = mid.x * view.scrollWidth - view.clientWidth / 2;
+      view.scrollTop = mid.y * view.scrollHeight - view.clientHeight / 2;
+      // The rail floats over the canvas' right edge, which is where a
+      // scrollbar turns up once there is something to scroll. Measured rather
+      // than assumed: an overlay scrollbar, which is the default on macOS,
+      // takes no width at all and would push the buttons off an edge they do
+      // not overlap.
+      const bar = view.offsetWidth - view.clientWidth;
+      this.style.setProperty('--sc-rail-clear', bar ? `${bar + 6}px` : '0px');
+    });
+  }
+
+  /** The next step up (`dir > 0`) or down from wherever the zoom is now. */
+  _stepZoom(dir) {
+    // Against the current value rather than an index into the list, because
+    // the wheel sets values that are not in it.
+    const next = dir > 0
+      ? ZOOM_STEPS.find(z => z > this._zoom + 0.001)
+      : ZOOM_STEPS.filter(z => z < this._zoom - 0.001).pop();
+    if (next) this._applyZoom(next);
+  }
+
+  /**
+   * Ctrl or Cmd and the wheel zooms; the wheel alone scrolls the view.
+   *
+   * The modifier is what a trackpad's pinch arrives as, so pinching zooms
+   * too. Without `preventDefault` the same gesture is the browser's own page
+   * zoom, which would take the whole dialog with it.
+   */
+  _onWheel(e) {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    this._applyZoom(Math.round(this._zoom * factor * 100) / 100);
+  }
+
+  /**
    * A press on the canvas background: the start of a selection frame.
    *
    * Nothing is selected or cleared yet. That happens on release, so a plain
@@ -1726,6 +1882,12 @@ class ScCanvasEditor extends LitElement {
     // Placing puts its own layer over the canvas; a press on the strip beside
     // it is not a selection frame, and must not cancel the selection either.
     if (this._placing) return;
+    const view = e.currentTarget.querySelector('.canvas-view');
+    // A press on the zoomed view's own scrollbar is a scroll. Only the view
+    // itself can be the target there - anywhere else the canvas is - and only
+    // past its client box, which is the scrollbar's own strip.
+    if (view && e.target === view
+        && (e.offsetX >= view.clientWidth || e.offsetY >= view.clientHeight)) return;
     const canvas = e.currentTarget.querySelector('.canvas');
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -2134,6 +2296,20 @@ class ScCanvasEditor extends LitElement {
           <span class="hint" style="flex:1">${this._placing
             ? html`Click on the canvas to place the ${this._placingLabel}. Escape cancels.`
             : html`Later in the list draws on top. A gauge stays square and fills its box.`}</span>
+          <div class="names">
+            <button class=${this._names ? 'on' : ''}
+                    title="Put each element's name on its box. Off, a box says its id - which is what the lists, the glass targets and the colour rules call it."
+                    @click=${() => { this._names = !this._names; }}>Names</button>
+          </div>
+          <div class="zoom">
+            <button title="Zoom out" ?disabled=${this._zoom <= ZOOM_MIN}
+                    @click=${() => this._stepZoom(-1)}>−</button>
+            <span class="hint level">${Math.round(this._zoom * 100)}%</span>
+            <button title="Zoom in" ?disabled=${this._zoom >= ZOOM_MAX}
+                    @click=${() => this._stepZoom(1)}>＋</button>
+            <button title="Back to 100%, the size at which the whole canvas fits"
+                    ?disabled=${this._zoom === 1} @click=${() => this._applyZoom(1)}>⟲</button>
+          </div>
         </div>
 
         <div class="canvas-wrap">
@@ -2141,8 +2317,10 @@ class ScCanvasEditor extends LitElement {
                @pointermove=${this._onMove}
                @pointerup=${this._onUp}
                @pointercancel=${this._onUp}
-               @pointerdown=${this._onCanvasDown}>
-          <div class="canvas" style="aspect-ratio:${c.w} / ${c.h};">
+               @pointerdown=${this._onCanvasDown}
+               @wheel=${this._onWheel}>
+          <div class="canvas-view" style="aspect-ratio:${c.w} / ${c.h};">
+          <div class="canvas" style="aspect-ratio:${c.w} / ${c.h}; width:${this._zoom * 100}%;">
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
             ${this._placing ? html`
               <div class="place-layer" @pointerdown=${this._place}
@@ -2166,13 +2344,19 @@ class ScCanvasEditor extends LitElement {
               return html`
               <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._isSel(el.id) ? 'sel' : ''} ${pinned ? 'pinned' : ''}"
                    style="left:${pct(el.x, c.w)}; top:${pct(el.y, c.h)}; width:${pct(el.w, c.w)}; height:${pct(el.h, c.h)};"
-                   data-item-id=${el.id} title=${pinned ? `${el.id} - locked` : el.id}
+                   data-item-id=${el.id} title=${this._title(el, pinned)}
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
                 ${live ?? el.id}
                 ${pinned || selected.length > 1 ? '' : html`
                 <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>`}
               </div>`;
             })}
+            ${this._names ? html`
+              <div class="tags">
+                ${els.map(el => html`
+                  <div class="tag" style="left:${pct(el.x, c.w)}; top:${pct(el.y + el.h, c.h)}; max-width:${(1 - el.x / c.w) * 100}%;">${this._label(el.id) || el.id}</div>`)}
+              </div>` : ''}
+          </div>
           </div>
           </div>
           ${selected.length > 1 ? html`
@@ -2198,14 +2382,17 @@ class ScCanvasEditor extends LitElement {
         <div class="col" style="gap:4px;">
           ${els.map((el, idx) => [el, idx])
                .filter(([el]) => !selected.length || selected.includes(el.id))
-               .map(([el, idx]) => html`
+               .map(([el, idx]) => {
+                 const name = this._label(el.id);
+                 return html`
             <div class="el-row ${selected.length > 1 ? 'co' : (this._sel === el.id ? 'sel' : '')}">
               <span class="el-name" @click=${e => {
                       // The same modifiers as on the canvas, so a selection can
                       // be built from either place.
                       if (e.shiftKey || e.ctrlKey || e.metaKey) this._toggleSel(el.id);
                       else this._selectOnly(el.id);
-                    }}>${el.id}</span>
+                    }}>${name ? html`<span class="named">${name}</span>` : ''}<span
+                        class="id ${name ? '' : 'only'}">${el.id}</span></span>
               ${selected.length === 1 && this._sel === el.id ? html`
                 ${(isSquareLocked(el) ? ['x', 'y', 'size'] : ['x', 'y', 'w', 'h']).map(k => html`
                   <input class="num" type="number" step=${step}
@@ -2230,7 +2417,8 @@ class ScCanvasEditor extends LitElement {
                       @click=${() => this._duplicate(idx)}>⧉</button>
               <button class="icon-btn" style="color:#f44" title="Remove from the canvas"
                       @click=${() => this._remove(idx)}>✕</button>
-            </div>`)}
+            </div>`;
+               })}
         </div>
         <div class="hint">${selected.length > 1
           ? html`${selected.length} selected - dragging one moves them all, and the buttons beside the canvas copy them or even out the gaps. An element's own settings are back when it is the only one selected.`

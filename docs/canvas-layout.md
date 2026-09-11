@@ -737,6 +737,56 @@ both fall back to the full list: removing the selected element clears the
 selection, and an id that no longer names an element - a gauge deleted in its
 own editor - is ignored rather than leaving an empty panel.
 
+### A row says what the element is, and what it is called
+
+`gauge_0` says where an element sits in the config. That is the right name for
+a glass pattern or a colour rule to use, and the wrong one for a list of what
+is on this card: three gauges are three rooms, and which is which the id does
+not say.
+
+So a row leads with the name the card already knows - the label the user typed
+on the element, else the alias they gave its entity, else Home Assistant's
+friendly name, else the entity id without its domain - and keeps the id beside
+it, quietly, because every other list in the editor still names the element
+that way. `SC.elementLabel` answers it, next to `listElements`, and returns an
+empty string when the card knows nothing better: an element with no entity and
+no label, a surface, keeps the id it always had. `icon`, `name` and `state`
+draw the card's own entity rather than one of their own, which is on the
+Lovelace config rather than in the slot, so the editor hands it over
+separately.
+
+The same name is in the tooltip on the box. *Names* in the toolbar draws it
+there outright, and the switch exists because the box cannot simply change what
+it says: the id is the word the element list, the glass targets and the colour
+rules all use, and a canvas that quietly spoke of *Living room temperature*
+while those spoke of `gauge_0` would cost more than it saved. Off is therefore
+the default, and off is exactly what the canvas has always looked like.
+
+The names ride in a layer of their own above the boxes, not inside them. The
+first attempt put each one in its box, and a 20-unit gauge on a 400-unit canvas
+settled the question: the box is barely wider than one letter, and a name
+clipped to *W* says less than the id it replaced. So a tag is anchored to the
+bottom left of its element, allowed to run past the element's edge, and stopped
+only by the edge of the canvas - `max-width` is the distance from the element
+to the right-hand side, so nothing ever leaves the drawing. Tags can overlap
+each other where elements are packed; that is the price of being readable at
+all, and the switch is there to turn it off.
+
+Being outside the box buys two more things. The layer takes no pointer, so
+every press still belongs to the element underneath - a strip of a drag target
+that was not one would be a trap. And the card's own typography, which the live
+preview injects at the element's box, cannot reach a label that is the editor's
+rather than the card's; inside the box the name would have come out in the
+element's font size and colour, 40px orange across a 70px gauge.
+
+The box itself is untouched: it still says the id, so nothing the switch does
+takes information away. An element the card knows no name for - a surface, a
+gauge with nothing assigned yet - falls back to its id in the tag, so every box
+has one and a gap in the row of tags never has to be read as a missing element.
+
+Like the zoom, it is view state: it belongs to the open editor and is never
+committed.
+
 ### The element's own settings, under the canvas
 
 Picking an element on the canvas and then hunting for it again in the
@@ -879,6 +929,35 @@ One consequence is worth naming: those sections carried the module switches
 (`gauge_active`, `progressbar_active`). Adding an element from the canvas
 turns its module on, and taking every element of a kind off the canvas is how
 you turn it off, so the switch is no longer a control anyone has to find.
+
+### Zoom is a view, and only a view
+
+The canvas can be drawn between 50% and 400% of the size at which it fits the
+editor - buttons either side of a percentage, a reset next to them, and
+Ctrl or Cmd with the wheel, which is also what a trackpad pinch arrives as.
+
+Nothing about it reaches the config. The zoom scales the *rendered width* of
+`.canvas`, and every pointer position in the editor is read as a fraction of
+that element's own rect:
+
+```js
+(e.clientX - rect.left) / rect.width * c.w
+```
+
+So a drag, a resize, a selection frame and the placement ghost keep landing on
+the same unit at any zoom, with no arithmetic of their own to correct - and an
+element's coordinates stay the whole canvas units the snapping work of §1
+rests on. Committing a zoom would be the opposite: a view setting stored in
+everyone's YAML, changing what the card does on a phone.
+
+Zooming in must not push the page around, so the canvas is drawn inside a
+window that keeps the footprint it has at 100% and scrolls. The canvas centres
+itself in that window with an auto margin rather than with `justify-content`
+or `place-content`: content centred by those is clipped on the side it
+overflows, where no scrollbar can reach it, while an auto margin collapses to
+zero as soon as there is an overflow. Both axes need it, which is why the
+window is a flex container - an auto margin only centres vertically inside
+one.
 
 ## 9. Build order
 
