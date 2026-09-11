@@ -1081,13 +1081,17 @@ describe('addElement', () => {
     expect(made.canvas.elements).toHaveLength(3);
   });
 
-  it('is square for a gauge and a flat strip for everything else', () => {
+  it('is square for a gauge and an icon, and a flat strip for everything else', () => {
     const c = canvas();
     const box = what => { const e = addElement(slot(), c, what, {}).canvas.elements.at(-1);
                           return [e.w, e.h]; };
     expect(box('gauge')).toEqual([75, 75]);
+    // The glyph is drawn across the shorter side of the box, so a strip would
+    // be an icon the size of its height with the rest of the box empty.
+    expect(box('icon')).toEqual([75, 75]);
     expect(box('surface')).toEqual([150, 75]);
     expect(box('progressbar')).toEqual([125, 50]);
+    expect(box('name')).toEqual([125, 50]);
   });
 
   it('never returns a box smaller than one step, on any canvas', () => {

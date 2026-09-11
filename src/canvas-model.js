@@ -919,9 +919,11 @@ export function canAddKind(slot, kind) {
  *
  * Sized from the canvas rather than from the snap step, because the step is
  * 1 unit on a free canvas and a four-unit box is invisible. A gauge is
- * square because it has to be, a surface is twice as wide as it is tall
- * because a backdrop is, and everything else is a flat strip, which is the
- * shape of a bar and of a line of text.
+ * square because it has to be and the icon because it draws a round glyph
+ * across the shorter side of its box - a strip would leave the rest of it
+ * empty. A surface is twice as wide as it is tall because a backdrop is, and
+ * everything else is a flat strip, which is the shape of a bar and of a line
+ * of text.
  *
  * @param {{w: number, h: number, grid?: number, snap?: number}} canvas
  * @param {string} id
@@ -934,9 +936,10 @@ function newBox(canvas, id, surface, at) {
   const snap = v => Math.max(step, Math.round(v / step) * step);
   const side = snap(Math.min(canvas.w, canvas.h) / 5);
 
+  const square = isSquareLocked({ id }) || id === 'icon';
   let w = side, h = side;
   if (surface) w = snap(side * 2);
-  else if (!isSquareLocked({ id })) { w = snap(side * 1.5); h = snap(side * 0.5); }
+  else if (!square) { w = snap(side * 1.5); h = snap(side * 0.5); }
   w = Math.min(w, canvas.w);
   h = Math.min(h, canvas.h);
 
