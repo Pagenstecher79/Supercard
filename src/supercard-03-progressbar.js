@@ -876,7 +876,6 @@ if (!customElements.get('sc-progressbar')) customElements.define('sc-progressbar
 // ==========================================
 const isCirc = cfg => String(cfg.orientation).startsWith('circular');
 const isLin = cfg => !String(cfg.orientation).startsWith('circular');
-const notOnCanvas = (cfg, slot) => !slot?.canvas;
 
 const STYLE_FIELDS = [
   { id: '_section_shape',      label: '── Shape & Position',    type: 'section' },
@@ -908,16 +907,6 @@ const STYLE_FIELDS = [
   { id: 'height',              label: 'Height (CSS)',            type: 'text',   placeholder: '20px or 100%' },
   { id: 'border_radius',       label: 'Corner radius',           type: 'range',  min: 0, max: 50, step: 0.1,   placeholder: '4px', condition: cfg => isLin(cfg) },
   { id: 'circular_border_radius', label: 'Background corner radius (%)', type: 'range', min: 0, max: 50, step: 1, placeholder: '50', condition: cfg => isCirc(cfg) },
-  // A canvas element's box is where the bar is - you drag it - so these three
-  // have nothing left to say there. Width and height above do: a bar can be a
-  // 20px line inside a taller box, and the box does not answer that.
-  //
-  // Off the canvas they are hidden rather than gone only because removing a
-  // field also has to deal with the value it leaves behind in saved cards.
-  { id: 'position_mode',       label: 'Anchor point / position', type: '9-sector', condition: notOnCanvas },
-  { id: 'offset_x',            label: 'X offset (px or %)', type: 'text', placeholder: '0px', condition: notOnCanvas },
-  { id: 'offset_y',            label: 'Y offset (px or %)', type: 'text', placeholder: '0px', condition: notOnCanvas },
-
   { id: '_section_colors',     label: '── Colors, Gradient & Animation',   type: 'section' },
   { id: 'animation_duration',  label: 'Animation duration (s)',  type: 'range',  min: 0, max: 10, step: 0.1, placeholder: '0.4' },
   { id: 'bounce_intensity', label: 'Bounce intensity (%)', type: 'range', min: 0, max: 30, dynamic_step: true, placeholder: '50' },

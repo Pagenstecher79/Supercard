@@ -1,5 +1,6 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { reportedRows, isHeightPinned, canvasFromGrid } from "./canvas-model.js";
+import { stripDeadKeys } from "./config-cleanup.js";
 
 // --- CENTRAL LAYER DICTIONARY ---
 export const SC_LAYERS = {
@@ -880,6 +881,11 @@ class SupercardModularEditor extends LitElement {
     } else {
       this._applyCommit(newConfig, key, value);
     }
+
+    // Every commit is a rewrite of the card anyway, so it is the cheapest
+    // moment to drop keys nothing reads any more. See `config-cleanup.js`.
+    const cleaned = stripDeadKeys(newConfig.supercard);
+    if (cleaned) newConfig.supercard = cleaned;
 
     const event = new Event("config-changed", { bubbles: true, composed: true });
     event.detail = { config: newConfig };
