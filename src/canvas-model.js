@@ -488,6 +488,48 @@ export function repointPatterns(slot, cellTargets, glassTargets = {}) {
 }
 
 /**
+ * A `grid` or `snap` number in virtual units, whatever unit it was written in.
+ *
+ * `grid_unit: 'pct'` reads both numbers as a percentage of the canvas *width*
+ * - one axis, because the step is one number and a grid of squares is what a
+ * canvas of squares wants. A percentage survives a reshape: `rescaleCanvas`
+ * carries the elements to the new shape, and a grid written this way goes
+ * with them instead of turning into a haze or a handful of lines.
+ *
+ * The result is whole units, because the coordinates it produces are typed
+ * and read in the editor's number fields - see `roundBox`. Never below one,
+ * for the same reason free placement is not zero.
+ *
+ * @param {{ w?: number, grid_unit?: string }} canvas
+ * @param {number} value
+ * @returns {number}
+ */
+export function gridToUnits(canvas, value) {
+  const n = Number(value);
+  if (!(n > 0)) return 0;
+  if (canvas?.grid_unit !== 'pct') return n;
+  const w = typeof canvas?.w === 'number' && canvas.w > 0 ? canvas.w : DEFAULT_CANVAS.w;
+  return Math.max(1, Math.round(w * n / 100));
+}
+
+/**
+ * The inverse, for the editor's unit switch: a step in units as a percentage.
+ *
+ * Two decimals, so the number in the field stays one a person can read and
+ * the round trip back through `gridToUnits` lands on the step it came from.
+ *
+ * @param {{ w?: number }} canvas
+ * @param {number} units
+ * @returns {number}
+ */
+export function unitsToGrid(canvas, units) {
+  const n = Number(units);
+  if (!(n > 0)) return 0;
+  const w = typeof canvas?.w === 'number' && canvas.w > 0 ? canvas.w : DEFAULT_CANVAS.w;
+  return Math.round(n / w * 10000) / 100;
+}
+
+/**
  * The step placement snaps to, in virtual units.
  *
  * Tri-state, so one field cannot contradict another: `snap` unset means snap
@@ -499,15 +541,19 @@ export function repointPatterns(slot, cellTargets, glassTargets = {}) {
  * configured is the common case, and reading it as free placement made two of
  * the three states the same thing while the editor still offered both.
  *
- * @param {{ grid?: number, snap?: number }} canvas
+ * The default is units even under `grid_unit: 'pct'`: it stands in for a
+ * canvas nobody has configured, so there is no percentage to honour.
+ *
+ * @param {{ w?: number, grid?: number, snap?: number, grid_unit?: string }} canvas
  * @returns {number}
  */
 export function resolveSnap(canvas) {
   const snap = canvas?.snap;
   if (snap === 0) return 1;
-  if (typeof snap === 'number' && snap > 0) return snap;
+  if (typeof snap === 'number' && snap > 0) return gridToUnits(canvas, snap);
   const grid = canvas?.grid;
-  return typeof grid === 'number' && grid > 0 ? grid : DEFAULT_GRID;
+  if (typeof grid === 'number' && grid > 0) return gridToUnits(canvas, grid);
+  return DEFAULT_GRID;
 }
 
 /**
