@@ -1331,6 +1331,7 @@ class ScCanvasEditor extends LitElement {
       _extra: { type: Array, state: true },
       _band: { type: Object, state: true },
       _drag: { type: Object, state: true },
+      _dragCanvas: { type: Object, state: true },
       _live: { type: Boolean, state: true },
       _configOpen: { type: Boolean, state: true },
       _menu: { type: Boolean, state: true },
@@ -1351,6 +1352,8 @@ class ScCanvasEditor extends LitElement {
     this._extra = [];
     this._band = null;
     this._drag = null;
+    // Where a drag in progress has put the canvas, before it is committed.
+    this._dragCanvas = null;
     this._live = true;
     this._configOpen = true;
     this._menu = false;
@@ -1674,11 +1677,33 @@ class ScCanvasEditor extends LitElement {
     `];
   }
 
+  /**
+   * The canvas as it is right now - mid-drag, that is where the pointer has
+   * put it rather than what is saved.
+   */
   get _canvas() {
-    return this.slot?.canvas || { ...DEFAULT_CANVAS, elements: [] };
+    return this._dragCanvas || this.slot?.canvas || { ...DEFAULT_CANVAS, elements: [] };
   }
 
   _commit(canvas) { this._send('__merge__', { canvas }); }
+
+  /**
+   * Where a change to the canvas goes: into the drag, or into the config.
+   *
+   * A drag used to commit on every pointermove. Home Assistant wrote the card
+   * config back for each of them, which handed every gauge and bar on the
+   * canvas a new `config` object at pointer frequency - so the editor had to
+   * drop the live previews to plain boxes for the duration, and one drag left
+   * thirty entries in the undo history for a single gesture.
+   *
+   * A drag is one change, so it is one commit, made when the pointer is let
+   * go. Until then the moved canvas lives here and the getter above hands it
+   * out, which is all the drawing needs.
+   */
+  _put(canvas) {
+    if (this._drag) this._dragCanvas = canvas;
+    else this._commit(canvas);
+  }
 
   /**
    * Commit, remembering what it is being changed from.
@@ -1835,7 +1860,7 @@ class ScCanvasEditor extends LitElement {
     for (const [k, v] of Object.entries(patch)) {
       if (v === undefined) delete el[k]; else el[k] = v;
     }
-    this._commit(c);
+    this._put(c);
   }
 
   /**
@@ -1852,7 +1877,7 @@ class ScCanvasEditor extends LitElement {
       const patch = patches[el.id];
       if (patch) Object.assign(el, patch);
     }
-    this._commit(c);
+    this._put(c);
   }
 
   /**
@@ -2247,6 +2272,10 @@ class ScCanvasEditor extends LitElement {
     const mode = this._drag?.mode;
     const d = this._lastDown;
     this._drag = null;
+    // One gesture, one commit - and one step to undo.
+    const moved = this._dragCanvas;
+    this._dragCanvas = null;
+    if (moved) this._commit(moved);
     // Clicking the same spot again walks one step down the stack under the
     // pointer, the way easy-floorplan does it: an element another one covers
     // completely can be reached no other way. A press that moved was a drag,
@@ -2850,12 +2879,11 @@ class ScCanvasEditor extends LitElement {
             ${this._band?.live ? html`
               <div class="band" style="left:${pct(Math.min(this._band.x0, this._band.x1), c.w)}; top:${pct(Math.min(this._band.y0, this._band.y1), c.h)}; width:${pct(Math.abs(this._band.x1 - this._band.x0), c.w)}; height:${pct(Math.abs(this._band.y1 - this._band.y0), c.h)};"></div>` : ''}
             ${els.map((el, idx) => {
-              // Never live mid-drag. Every pointermove commits, so the config
-              // objects are cloned and the components would be handed a new
-              // `.config` at pointer frequency - a full re-render of every
-              // gauge on the canvas per frame. The plain box is also the
-              // clearer thing to drag.
-              const live = this._live && !this._drag ? this._liveContent(el) : null;
+              // Live through a drag as well: it moves boxes and commits
+              // nothing until the pointer is let go, so no element is handed
+              // a new config in the meantime and nothing re-renders that the
+              // drag did not move.
+              const live = this._live ? this._liveContent(el) : null;
               const pinned = isPinned(el);
               return html`
               <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._isSel(el.id) ? 'sel' : ''} ${pinned ? 'pinned' : ''}"
