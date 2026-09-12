@@ -11,7 +11,7 @@ import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElement
          canDuplicate, duplicateElement, reorderElement, overlappingElements,
          NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
-import { labelFontSize, labelIconSize } from "./label-typography.js";
+import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from "./label-typography.js";
 
 const SC = window.SupercardUtils;
 
@@ -246,8 +246,11 @@ class ScLayoutRenderer extends LitElement {
     const lenName = Math.max(1, tName.length) + 1;
     const lenValue = Math.max(1, tValue.length) + 1;
 
-    const factorN = layoutItem?.font_factor || 0.55;
-    const factorV = layoutItem?.font_factor || 0.55;
+    // A density that only caps a chosen size may be optimistic; one that
+    // decides the size may not - see FIT_DENSITY.
+    const density = layoutItem?.font_fit ? FIT_DENSITY : DENSITY;
+    const factorN = layoutItem?.font_factor || density;
+    const factorV = layoutItem?.font_factor || density;
 
     const shadowCSS = item.text?.shadow ? 'text-shadow: 0 1px 2px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.5);' : '';
     const iconShadow = item.text?.shadow ? 'filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.8));' : '';
@@ -2470,9 +2473,9 @@ class ScCanvasEditor extends LitElement {
         <div class="row" style="padding:0 4px 4px;">
           <label title="Lower it when the text leaves too much room to the sides - narrow characters like 1 or . need less width than an average one">Text density</label>
           <div style="display:flex; align-items:center; width:60%; gap:8px;">
-            <input type="range" min="0.2" max="0.9" step="0.05" style="flex:1" .value=${el.font_factor || 0.55}
+            <input type="range" min="0.2" max="0.9" step="0.05" style="flex:1" .value=${el.font_factor || FIT_DENSITY}
                    @input=${e => this._setEl(idx, { font_factor: parseFloat(e.target.value) })}>
-            <span class="hint" style="width:26px; text-align:right;">${el.font_factor || 0.55}</span>
+            <span class="hint" style="width:26px; text-align:right;">${el.font_factor || FIT_DENSITY}</span>
           </div>
         </div>` : ''}`;
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { labelFontSize, labelIconSize } from './label-typography.js';
+import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from './label-typography.js';
 
 describe('labelFontSize', () => {
   it('is the size asked for, until the box is too small for it', () => {
@@ -28,6 +28,17 @@ describe('labelFontSize', () => {
 
   it('takes the density it is given', () => {
     expect(labelFontSize({ chars: 6, factor: 0.3 })).toContain('(6 * 0.3)');
+  });
+});
+
+describe('the two densities', () => {
+  it('are what the two jobs need: a ceiling may be optimistic, a size may not', () => {
+    expect(DENSITY).toBe(0.55);
+    expect(FIT_DENSITY).toBeGreaterThan(DENSITY);
+  });
+
+  it('is the capping one that a caller gets by default', () => {
+    expect(labelFontSize({ chars: 4 })).toContain(`(4 * ${DENSITY})`);
   });
 });
 
