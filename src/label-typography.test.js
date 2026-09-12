@@ -21,6 +21,11 @@ describe('labelFontSize', () => {
     expect(labelFontSize({ chars: -3 })).toContain('(1 * 0.55)');
   });
 
+  it('leaves an icon on the line its own width and gap', () => {
+    expect(labelFontSize({ chars: 10, factor: 0.5, iconGap: 6 }))
+      .toBe('min(100cqh, calc((100cqi - 6px) / (10 * 0.5 + 1)))');
+  });
+
   it('takes the density it is given', () => {
     expect(labelFontSize({ chars: 6, factor: 0.3 })).toContain('(6 * 0.3)');
   });
