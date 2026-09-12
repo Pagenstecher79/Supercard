@@ -8,7 +8,7 @@ import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElement
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
          repointPatterns, colouredCells, glassedCells, soleElementTargets,
          canvasFromCard,
-         canDuplicate, duplicateElement, reorderElement, overlappingElements,
+         canDuplicate, reorderElement, overlappingElements,
          NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from "./label-typography.js";
@@ -1432,6 +1432,8 @@ class ScCanvasEditor extends LitElement {
       .tools button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
       .tools button[disabled] { opacity: 0.4; cursor: default; }
       .tools .level { min-width: 46px; display: flex; align-items: center; justify-content: center; align-self: stretch; font-variant-numeric: tabular-nums; }
+      .tools button.danger { color: var(--error-color, #f44336); }
+      .tools button.danger:hover:not([disabled]) { background: var(--error-color, #f44336); color: #fff; }
       .tools .spacer { flex: 1; }
 
       /* The stack, front at the top - the way a layer list reads everywhere
@@ -1523,6 +1525,7 @@ class ScCanvasEditor extends LitElement {
          dialog. There the name takes a line of its own so the controls below
          it line up. Every other row is a name and four buttons and fits on one
          line, which is what makes a long list readable. */
+      .el-row .lock { font-size: 11px; opacity: 0.8; }
       .el-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; padding: 4px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); }
       .el-row.sel { background: rgba(3,169,244,0.18); }
       .el-row.co { background: rgba(3,169,244,0.09); }
@@ -1828,6 +1831,58 @@ class ScCanvasEditor extends LitElement {
     // what is selected is what the next drag moves.
     this._applySelection(made.ids);
     this.commitFn('__merge__', { canvas: made.canvas, ...made.patch });
+  }
+
+  /**
+   * Take every selected element off the canvas, in one commit.
+   *
+   * One commit rather than one per element, because the config is cloned on
+   * each and Home Assistant writes it back asynchronously - three deletes in
+   * a tick would keep only the last.
+   */
+  _removeSelection() {
+    const selected = new Set(this._selection);
+    if (!selected.size) return;
+    const c = structuredClone(this._canvas);
+    c.elements = c.elements.filter(el => !selected.has(el.id));
+    if (c.elements.length === this._canvas.elements.length) return;
+    // The list below the canvas follows the selection, so ids that no longer
+    // exist would leave it empty with nothing left to click.
+    this._sel = null;
+    this._extra = [];
+    this._commit(c);
+  }
+
+  /**
+   * Lock or unlock the whole selection.
+   *
+   * One press has to mean one thing for all of them, so a selection that is
+   * not all locked locks, and only a selection that is entirely locked
+   * unlocks. Half a selection changing state per press is the behaviour
+   * nobody can predict.
+   */
+  _lockSelection() {
+    const selected = new Set(this._selection);
+    if (!selected.size) return;
+    const lock = !this._allLocked;
+    const c = structuredClone(this._canvas);
+    for (const el of c.elements) {
+      if (!selected.has(el.id)) continue;
+      // Not locked carries no key at all, or every canvas ever unlocked keeps
+      // one saying so.
+      if (lock) el.locked = true; else delete el.locked;
+    }
+    this._commit(c);
+  }
+
+  /** Whether every selected element is locked, which is what unlocks them. */
+  get _allLocked() {
+    const els = this._canvas.elements;
+    const sel = this._selection;
+    return sel.length > 0 && sel.every(id => {
+      const el = els.find(e => e.id === id);
+      return el && isPinned(el);
+    });
   }
 
   /** How many of the selected elements a copy would actually produce. */
@@ -2334,32 +2389,6 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
-   * Copy the element, its definition and all, and select the copy.
-   *
-   * One `__merge__` rather than two commits: the new box and the entry it
-   * points at are one edit, and `_commit` clones `this.config`, so a second
-   * commit in the same tick would be written from a config that does not have
-   * the first one yet.
-   */
-  _duplicate(idx) {
-    const made = duplicateElement(this.slot, this._canvas, idx);
-    if (!made || !this.commitFn) return;
-    this._sel = made.id;
-    this.commitFn('__merge__', { canvas: made.canvas, ...made.patch });
-  }
-
-  _remove(idx) {
-    const c = structuredClone(this._canvas);
-    const [gone] = c.elements.splice(idx, 1);
-    // The list below the canvas follows the selection, so an id that no
-    // longer exists would leave it empty with nothing left to click.
-    if (this._sel === gone?.id) this._sel = null;
-    if (gone) this._extra = this._extra.filter(id => id !== gone.id);
-    this._commit(c);
-  }
-
-  /** Later in the array draws on top, so this is what "bring forward" means. */
-  /**
    * Move one element in the paint order - a step, or all the way.
    *
    * @param {number} idx
@@ -2693,13 +2722,6 @@ class ScCanvasEditor extends LitElement {
 
         <div class="tools">
           <div class="group">
-            <button title=${selected.length < 2
-                      ? 'Select more than one element to copy them together'
-                      : (this._copyable
-                          ? `Copy the ${this._copyable} of them that can be copied`
-                          : 'None of these can be copied')}
-                    ?disabled=${selected.length < 2 || !this._copyable}
-                    @click=${() => this._duplicateSelection()}>⧉</button>
             <button title=${movers < 3
                       ? 'Three selected elements that can move are needed to even out the gaps between them'
                       : 'Even gaps left to right. The outermost two stay where they are.'}
@@ -2712,6 +2734,29 @@ class ScCanvasEditor extends LitElement {
                     @click=${() => this._distribute('y')}>⇕</button>
           </div>
           <span class="spacer"></span>
+          <div class="group">
+            <button title=${!selected.length
+                      ? 'Select an element to lock it in place'
+                      : (this._allLocked
+                          ? `Let ${selected.length === 1 ? 'it' : 'them'} be dragged again`
+                          : 'Lock in place, so a stray drag cannot move it')}
+                    ?disabled=${!selected.length}
+                    @click=${() => this._lockSelection()}>${this._allLocked ? '🔒' : '🔓'}</button>
+            <button title=${!selected.length
+                      ? 'Select an element to copy it'
+                      : (this._copyable === selected.length
+                          ? `Copy ${selected.length === 1 ? 'it' : `all ${selected.length}`}`
+                          : (this._copyable
+                              ? `Copy the ${this._copyable} of them that can be copied`
+                              : 'The card has only one of these, so there is nothing to copy'))}
+                    ?disabled=${!this._copyable}
+                    @click=${() => this._duplicateSelection()}>⧉</button>
+            <button class="danger" title=${!selected.length
+                      ? 'Select an element to take it off the canvas'
+                      : `Take ${selected.length === 1 ? 'it' : `all ${selected.length}`} off the canvas`}
+                    ?disabled=${!selected.length}
+                    @click=${() => this._removeSelection()}>✕</button>
+          </div>
           <div class="group">
             <button title="Zoom out" ?disabled=${this._zoom <= ZOOM_MIN}
                     @click=${() => this._stepZoom(-1)}>−</button>
@@ -2749,20 +2794,9 @@ class ScCanvasEditor extends LitElement {
                            this._setEl(idx, k === 'size' ? { w: v, h: v } : { [k]: v });
                          }}>`)}
               ` : ''}
-              <button class="icon-btn" title=${isPinned(el)
-                        ? 'Locked - click to let it be dragged again'
-                        : 'Lock in place, so a stray drag cannot move it'}
-                      style=${isPinned(el) ? 'color:var(--warning-color,#ffc107)' : ''}
-                      @click=${() => this._setEl(idx, { locked: isPinned(el) ? undefined : true })}>${isPinned(el) ? '🔒' : '🔓'}</button>
+              ${isPinned(el) ? html`<span class="lock" title="Locked - unlock it with the lock under the canvas">🔒</span>` : ''}
               <button class="icon-btn" title="Backward" @click=${() => this._move(idx, -1)}>↑</button>
               <button class="icon-btn" title="Forward" @click=${() => this._move(idx, 1)}>↓</button>
-              <button class="icon-btn" ?disabled=${!canDuplicate(this.slot, el)}
-                      title=${canDuplicate(this.slot, el)
-                        ? 'Duplicate'
-                        : 'The card has only one of these, so there is nothing to copy'}
-                      @click=${() => this._duplicate(idx)}>⧉</button>
-              <button class="icon-btn" style="color:#f44" title="Remove from the canvas"
-                      @click=${() => this._remove(idx)}>✕</button>
             </div>`;
                })}
         </div>
