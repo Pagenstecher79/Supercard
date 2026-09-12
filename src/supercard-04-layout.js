@@ -1376,30 +1376,27 @@ class ScCanvasEditor extends LitElement {
       /* flex: none, or a canvas drawn wider than the window would be shrunk
          back to fit by flex-shrink and there would be nothing to scroll. */
       .canvas-view > .canvas { margin: auto; flex: none; }
-      .zoom, .names { display: flex; align-items: center; gap: 2px; }
-      .zoom button, .names button { background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 4px 7px; font-size: 13px; line-height: 1.1; cursor: pointer; }
-      .zoom button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
-      .zoom button[disabled], .names button[disabled] { opacity: 0.4; cursor: default; }
-      .zoom .level { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
-      /* A press on + or - is over the moment it happens, so those may light up
-         under the pointer in the accent colour. Names stays pressed, and a
-         hover that borrowed the same colour would hide which way it stands -
-         exactly while the pointer is still on the button that was just
-         clicked. So the accent means on here, and hovering only lifts. */
+      .names { display: flex; align-items: center; gap: 2px; }
+      .names button { background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 4px 7px; font-size: 13px; line-height: 1.1; cursor: pointer; }
+      .names button[disabled] { opacity: 0.4; cursor: default; }
+      /* A press on a zoom button is over the moment it happens, so those may
+         light up under the pointer in the accent colour. Names stays pressed,
+         and a hover that borrowed the same colour would hide which way it
+         stands - exactly while the pointer is still on the button that was
+         just clicked. So the accent means on here, and hovering only lifts. */
       .names button:hover:not([disabled]) { background: var(--divider-color, #444); }
       .names button.on, .names button.on:hover { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
-      /* Floated over the canvas' edge rather than given a column of its own:
-         the rail comes and goes with the selection, and a column would take
-         its width from the canvas permanently - in Home Assistant's card
-         editor, which is barely 400px wide, the preview cannot spare it. It
-         also means the canvas does not move under the pointer while a
-         selection is being shift-clicked together.
-         Above .el.sel's 3, or a selected element would paint over it. */
-      .rail { position: absolute; right: calc(4px + var(--sc-rail-clear, 0px)); top: 50%; transform: translateY(-50%);
-              z-index: 4; display: flex; flex-direction: column; gap: 6px; }
-      .rail button { width: 28px; background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 5px 0; font-size: 15px; line-height: 1.1; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.45); }
-      .rail button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
-      .rail button[disabled] { opacity: 0.4; cursor: default; }
+      /* The tools under the canvas: what is done to a selection on the left,
+         what is done to the view on the right. They are always here and grey
+         out instead of appearing, so the row does not change height and the
+         buttons stay where the hand left them. */
+      .tools { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+      .tools .group { display: flex; gap: 4px; }
+      .tools button { min-width: 30px; background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 4px 7px; font-size: 14px; line-height: 1.1; cursor: pointer; }
+      .tools button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
+      .tools button[disabled] { opacity: 0.4; cursor: default; }
+      .tools .level { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+      .tools .spacer { flex: 1; }
       /* border-box, so the 1px border is inside the width the zoom sets: as
          content-box it made the canvas 2px wider than the window it is drawn
          in, which is two scrollbars at 100% for a border. */
@@ -1903,13 +1900,6 @@ class ScCanvasEditor extends LitElement {
     this.updateComplete.then(() => {
       view.scrollLeft = mid.x * view.scrollWidth - view.clientWidth / 2;
       view.scrollTop = mid.y * view.scrollHeight - view.clientHeight / 2;
-      // The rail floats over the canvas' right edge, which is where a
-      // scrollbar turns up once there is something to scroll. Measured rather
-      // than assumed: an overlay scrollbar, which is the default on macOS,
-      // takes no width at all and would push the buttons off an edge they do
-      // not overlap.
-      const bar = view.offsetWidth - view.clientWidth;
-      this.style.setProperty('--sc-rail-clear', bar ? `${bar + 6}px` : '0px');
     });
   }
 
@@ -2489,15 +2479,6 @@ class ScCanvasEditor extends LitElement {
                     title="Put each element's name on its box. Off, a box says its id - which is what the lists, the glass targets and the colour rules call it."
                     @click=${() => { this._names = !this._names; }}>Names</button>
           </div>
-          <div class="zoom">
-            <button title="Zoom out" ?disabled=${this._zoom <= ZOOM_MIN}
-                    @click=${() => this._stepZoom(-1)}>−</button>
-            <span class="hint level">${Math.round(this._zoom * 100)}%</span>
-            <button title="Zoom in" ?disabled=${this._zoom >= ZOOM_MAX}
-                    @click=${() => this._stepZoom(1)}>＋</button>
-            <button title="Back to 100%, the size at which the whole canvas fits"
-                    ?disabled=${this._zoom === 1} @click=${() => this._applyZoom(1)}>⟲</button>
-          </div>
         </div>
 
         <div class="canvas-wrap">
@@ -2547,24 +2528,38 @@ class ScCanvasEditor extends LitElement {
           </div>
           </div>
           </div>
-          ${selected.length > 1 ? html`
-            <div class="rail">
-              <button title=${this._copyable
-                        ? `Copy the ${this._copyable} of them that can be copied`
-                        : 'None of these can be copied'}
-                      ?disabled=${!this._copyable}
-                      @click=${() => this._duplicateSelection()}>⧉</button>
-              <button title=${movers < 3
-                        ? 'Three elements that can move are needed to even out the gaps between them'
-                        : 'Even gaps left to right. The outermost two stay where they are.'}
-                      ?disabled=${movers < 3}
-                      @click=${() => this._distribute('x')}>⇔</button>
-              <button title=${movers < 3
-                        ? 'Three elements that can move are needed to even out the gaps between them'
-                        : 'Even gaps top to bottom. The outermost two stay where they are.'}
-                      ?disabled=${movers < 3}
-                      @click=${() => this._distribute('y')}>⇕</button>
-            </div>` : ''}
+        </div>
+
+        <div class="tools">
+          <div class="group">
+            <button title=${selected.length < 2
+                      ? 'Select more than one element to copy them together'
+                      : (this._copyable
+                          ? `Copy the ${this._copyable} of them that can be copied`
+                          : 'None of these can be copied')}
+                    ?disabled=${selected.length < 2 || !this._copyable}
+                    @click=${() => this._duplicateSelection()}>⧉</button>
+            <button title=${movers < 3
+                      ? 'Three selected elements that can move are needed to even out the gaps between them'
+                      : 'Even gaps left to right. The outermost two stay where they are.'}
+                    ?disabled=${movers < 3}
+                    @click=${() => this._distribute('x')}>⇔</button>
+            <button title=${movers < 3
+                      ? 'Three selected elements that can move are needed to even out the gaps between them'
+                      : 'Even gaps top to bottom. The outermost two stay where they are.'}
+                    ?disabled=${movers < 3}
+                    @click=${() => this._distribute('y')}>⇕</button>
+          </div>
+          <span class="spacer"></span>
+          <div class="group">
+            <button title="Zoom out" ?disabled=${this._zoom <= ZOOM_MIN}
+                    @click=${() => this._stepZoom(-1)}>−</button>
+            <span class="hint level">${Math.round(this._zoom * 100)}%</span>
+            <button title="Zoom in" ?disabled=${this._zoom >= ZOOM_MAX}
+                    @click=${() => this._stepZoom(1)}>＋</button>
+            <button title="Back to 100%, the size at which the whole canvas fits"
+                    ?disabled=${this._zoom === 1} @click=${() => this._applyZoom(1)}>⟲</button>
+          </div>
         </div>
 
         <div class="col" style="gap:4px;">
@@ -2609,7 +2604,7 @@ class ScCanvasEditor extends LitElement {
                })}
         </div>
         <div class="hint">${selected.length > 1
-          ? html`${selected.length} selected - dragging one moves them all, and the buttons beside the canvas copy them or even out the gaps. An element's own settings are back when it is the only one selected.`
+          ? html`${selected.length} selected - dragging one moves them all, and the buttons under the canvas copy them or even out the gaps. An element's own settings are back when it is the only one selected.`
           : (sel
             ? html`Click the canvas background to list every element again. Shift-click a second element to move them together.`
             : html`Click an element on the canvas to work on it here, or drag a frame on the background to take several.`)}</div>
