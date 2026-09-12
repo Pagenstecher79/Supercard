@@ -255,3 +255,54 @@ export function reliefShadow(light, pat, u = px) {
     l.light ? `rgba(255, 255, 255, ${l.alpha})` : `rgba(0, 0, 0, ${l.alpha})`,
   ].filter(v => v !== null).join(' ')).join(', ');
 }
+
+/**
+ * The mask that hollows a rounded-rectangle glass out into a rim.
+ *
+ * The round mask that does this job on a gauge is a `radial-gradient`, and a
+ * circle punched out of a bar is a hole in the wrong shape: the glass on a
+ * straight bar is the bar's own rounded box, so the hole it keeps has to be
+ * that box a few pixels smaller. Two mask layers say that without a second
+ * element - the whole box, minus the box inside the padding - and the inner
+ * corners come out right on their own, because a padding box's corners are
+ * the outer radius shrunk by the padding, which is what a rim is.
+ *
+ * `xor` is the same operation as `exclude` under the prefixed spelling Safari
+ * still needs.
+ *
+ * @param {string} thickness the rim's width, as a CSS length
+ * @param {number} centerOpacity how much glass is left in the middle, 0 to 1
+ * @returns {string} declarations, `!important` and all
+ */
+export function boxRingMask(thickness, centerOpacity) {
+  const co = Math.min(1, Math.max(0, centerOpacity || 0));
+  // Exclude subtracts the inner layer, so what is left in the middle is what
+  // the inner layer is not.
+  const layers = `linear-gradient(rgba(0,0,0,1) 0 0), linear-gradient(rgba(0,0,0,${1 - co}) 0 0)`;
+  return [
+    `padding: ${thickness} !important`,
+    `-webkit-mask-image: ${layers} !important`,
+    `mask-image: ${layers} !important`,
+    `-webkit-mask-clip: border-box, content-box !important`,
+    `mask-clip: border-box, content-box !important`,
+    `-webkit-mask-repeat: no-repeat !important`,
+    `mask-repeat: no-repeat !important`,
+    `-webkit-mask-composite: xor !important`,
+    `mask-composite: exclude !important`,
+  ].join(';\n          ') + ';';
+}
+
+/**
+ * Whether a glass radius makes the glass a circle rather than a rounded box.
+ *
+ * `50%` on a square is a circle, and a circle is the one shape the ring mask
+ * can cut with a single radial gradient. Everything else - a few pixels, a
+ * fifth of the width - is a box with corners, and its hole has to have them
+ * too.
+ *
+ * @param {string} radius the computed `border-radius` of the glass
+ * @returns {boolean}
+ */
+export function isCircleRadius(radius) {
+  return /^\s*50(\.0+)?%\s*$/.test(String(radius));
+}
