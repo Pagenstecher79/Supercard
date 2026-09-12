@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lightParams, bevelShadow, px, isRoundTarget, isReliefTarget, reliefPattern, reliefShadow, reliefLayers } from './glass-light.js';
+import { lightParams, bevelShadow, px, isRoundTarget, isReliefTarget, reliefPattern, reliefShadow, reliefLayers, boxRingMask, isCircleRadius } from './glass-light.js';
 
 /**
  * The formula exactly as it stood inside fx-glass before it moved here.
@@ -291,5 +291,47 @@ describe('reliefLayers', () => {
     const pat = { segment_relief_depth: 1.5, segment_relief_mode: 'engraved' };
     const shadows = reliefShadow(light, pat).split('rgba').length - 1;
     expect(shadows).toBe(reliefLayers(light, pat).length);
+  });
+});
+
+describe('isCircleRadius', () => {
+  it('is a radius that makes a circle', () => {
+    expect(isCircleRadius('50%')).toBe(true);
+    expect(isCircleRadius(' 50.0% ')).toBe(true);
+  });
+
+  it('is not a box radius, however round', () => {
+    expect(isCircleRadius('4px')).toBe(false);
+    expect(isCircleRadius('20%')).toBe(false);
+    expect(isCircleRadius('999rem')).toBe(false);
+    expect(isCircleRadius('var(--pb-radius, 4px)')).toBe(false);
+    expect(isCircleRadius('calc(5 * 1cqmin)')).toBe(false);
+  });
+});
+
+describe('boxRingMask', () => {
+  it('keeps the rim by subtracting the box inside the padding', () => {
+    const css = boxRingMask('6px', 0);
+    expect(css).toContain('padding: 6px !important');
+    expect(css).toContain('mask-clip: border-box, content-box !important');
+    expect(css).toContain('mask-composite: exclude !important');
+    // Fully opaque inner layer, so nothing of the middle survives.
+    expect(css).toContain('linear-gradient(rgba(0,0,0,1) 0 0), linear-gradient(rgba(0,0,0,1) 0 0)');
+  });
+
+  it('leaves as much glass in the middle as the centre opacity asks for', () => {
+    expect(boxRingMask('4px', 0.25)).toContain('linear-gradient(rgba(0,0,0,0.75) 0 0)');
+    expect(boxRingMask('4px', 1)).toContain('linear-gradient(rgba(0,0,0,0) 0 0)');
+  });
+
+  it('carries the prefixed spelling Safari needs', () => {
+    const css = boxRingMask('4px', 0);
+    expect(css).toContain('-webkit-mask-composite: xor !important');
+    expect(css).toContain('-webkit-mask-clip: border-box, content-box !important');
+  });
+
+  it('has nothing to do with an opacity outside the range', () => {
+    expect(boxRingMask('4px', -1)).toContain('rgba(0,0,0,1) 0 0), linear-gradient(rgba(0,0,0,1)');
+    expect(boxRingMask('4px', 4)).toContain('linear-gradient(rgba(0,0,0,0) 0 0)');
   });
 });

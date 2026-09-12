@@ -1,6 +1,6 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { DEAD_PATTERN_TARGETS } from "./config-cleanup.js";
-import { lightParams, bevelShadow, px, isRoundTarget, isReliefTarget } from "./glass-light.js";
+import { lightParams, bevelShadow, px, isRoundTarget, isReliefTarget, boxRingMask, isCircleRadius } from "./glass-light.js";
 
 const SC = window.SupercardUtils;
 
@@ -827,9 +827,15 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
         const ringSize = useCustom ? (pat.ring_width ?? 5) : (bWidth > 0 ? bWidth : 2);
         const co = (pat.ring_center_opacity ?? 0) / 100;
         const centerColor = co === 0 ? 'transparent' : `rgba(0,0,0,${co})`;
-        maskCSS = `
+        // A circle is the only shape one radial gradient can cut, and it is
+        // the right one only where the glass is itself a circle. On a bar,
+        // a cell or the card the glass is a rounded box, and a round hole in
+        // one looks like a mistake, because it is.
+        maskCSS = isCircleRadius(borderRadius) ? `
           -webkit-mask-image: radial-gradient(circle closest-side, ${centerColor} calc(100% - ${u(ringSize + 1)}), black calc(100% - ${u(ringSize)})) !important;
           mask-image: radial-gradient(circle closest-side, ${centerColor} calc(100% - ${u(ringSize + 1)}), black calc(100% - ${u(ringSize)})) !important;
+        ` : `
+          ${boxRingMask(u(ringSize), co)}
         `;
       }
 
