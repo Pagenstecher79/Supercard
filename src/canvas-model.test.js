@@ -28,6 +28,8 @@ import {
   canvasFromGrid,
   canvasFromCard,
   rescaleCanvas,
+  pinnedToShape,
+  unpinnedCanvas,
   applyGroupDrag,
   elementsInRect,
   duplicateElements,
@@ -1247,11 +1249,27 @@ describe('rescaleCanvas', () => {
     expect(out.elements[0]).toMatchObject({ x: 50, y: 100, w: 100, h: 200 });
   });
 
-  it('re-squares gauges, which two different factors would have flattened', () => {
+  it('scales a gauge like everything else, letterbox and all', () => {
     const canvas = { w: 400, h: 200, elements: [{ id: 'gauge_0', x: 0, y: 0, w: 100, h: 100 }] };
     const out = rescaleCanvas(canvas, { w: 200, h: 400 });
-    expect(out.elements[0].w).toBe(out.elements[0].h);
-    expect(out.elements[0].w).toBe(50);
+    expect(out.elements[0]).toMatchObject({ w: 50, h: 200 });
+  });
+
+  it('comes back to where it started, which squaring made impossible', () => {
+    // Sixteen gauges in a 4x4, the card taken to four rows and back. Squaring
+    // brought them home at 52x52 in a grid with holes in it.
+    const canvas = { w: 400, h: 400, elements: Array.from({ length: 16 }, (_, i) => ({
+      id: `gauge_${i}`, x: (i % 4) * 100, y: Math.floor(i / 4) * 100, w: 100, h: 100 })) };
+    const there = rescaleCanvas(canvas, { w: 400, h: 207 });
+    const back = rescaleCanvas(there, { w: 400, h: 400 });
+    expect(back).toMatchObject({ w: 400, h: 400 });
+    // Whole units are what the trip costs, and all it costs: a canvas is 400
+    // units across, so one of them is a quarter of a percent.
+    back.elements.forEach((el, i) => {
+      for (const k of ['x', 'y', 'w', 'h']) {
+        expect(Math.abs(el[k] - canvas.elements[i][k])).toBeLessThanOrEqual(1);
+      }
+    });
   });
 
   it('leaves everything but the geometry alone', () => {
@@ -1280,16 +1298,69 @@ describe('rescaleCanvas', () => {
     }
   });
 
-  it('keeps a squared element square after rounding', () => {
-    const canvas = { w: 248, h: 200, elements: [{ id: 'gauge_0', x: 3, y: 7, w: 61, h: 61 }] };
-    const out = rescaleCanvas(canvas, { w: 381, h: 400 });
-    expect(out.elements[0].w).toBe(out.elements[0].h);
-  });
 
   it('never rounds an element away to nothing', () => {
     const canvas = { w: 400, h: 400, elements: [{ id: 'label_0', x: 0, y: 0, w: 1, h: 1 }] };
     const out = rescaleCanvas(canvas, { w: 20, h: 20 });
     expect(out.elements[0]).toMatchObject({ w: 1, h: 1 });
+  });
+});
+
+describe('pinnedToShape', () => {
+  const square = () => ({ w: 400, h: 400, elements: [
+    { id: 'gauge_0', x: 0, y: 0, w: 100, h: 100 },
+    { id: 'gauge_1', x: 300, y: 300, w: 100, h: 100 },
+  ] });
+
+  it('reshapes to the card box and remembers what it left', () => {
+    const out = pinnedToShape(square(), { w: 400, h: 207 });
+    expect(out).toMatchObject({ w: 400, h: 207, free: { w: 400, h: 400 } });
+    expect(out.elements[1]).toMatchObject({ x: 300, y: 155 });
+  });
+
+  it('is null when the canvas is that shape already', () => {
+    expect(pinnedToShape(square(), { w: 400, h: 400 })).toBe(null);
+  });
+
+  it('keeps the first remembered shape when reshaped a second time', () => {
+    const once = pinnedToShape(square(), { w: 400, h: 207 });
+    const twice = pinnedToShape(once, { w: 400, h: 310 });
+    expect(twice.free).toEqual({ w: 400, h: 400 });
+  });
+
+  it('does not touch the canvas it was given', () => {
+    const c = square();
+    pinnedToShape(c, { w: 400, h: 207 });
+    expect(c).toEqual(square());
+  });
+});
+
+describe('unpinnedCanvas', () => {
+  it('goes back to the remembered shape and drops the note', () => {
+    const canvas = { w: 400, h: 400, elements: [
+      { id: 'gauge_0', x: 100, y: 200, w: 100, h: 100 },
+      { id: 'label_0', x: 0, y: 0, w: 400, h: 40 },
+    ] };
+    const pinned = pinnedToShape(canvas, { w: 400, h: 207 });
+    const out = unpinnedCanvas(pinned);
+    expect(out).toMatchObject({ w: 400, h: 400 });
+    expect('free' in out).toBe(false);
+    // Whole units are what the round trip costs, and all it costs: a canvas
+    // is 400 units across, so one of them is a quarter of a percent.
+    out.elements.forEach((el, i) => {
+      for (const k of ['x', 'y', 'w', 'h']) {
+        expect(Math.abs(el[k] - canvas.elements[i][k])).toBeLessThanOrEqual(1);
+      }
+    });
+  });
+
+  it('is null when nothing was remembered', () => {
+    expect(unpinnedCanvas({ w: 400, h: 200, elements: [] })).toBe(null);
+  });
+
+  it('drops the note even when the shape is already back', () => {
+    const out = unpinnedCanvas({ w: 400, h: 400, elements: [], free: { w: 400, h: 400 } });
+    expect(out).toEqual({ w: 400, h: 400, elements: [] });
   });
 });
 

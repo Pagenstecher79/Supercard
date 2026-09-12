@@ -2,7 +2,8 @@ import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/co
 import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElements,
          elementsInRect, duplicateElements,
          isSquareLocked, isPinned, DEFAULT_CANVAS, DEFAULT_GRID,
-         gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, rescaleCanvas,
+         gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid,
+         pinnedToShape, unpinnedCanvas,
          sectionColumns,
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
          repointPatterns, colouredCells, glassedCells, soleElementTargets,
@@ -1328,10 +1329,12 @@ class ScCanvasEditor extends LitElement {
    * that has always been a different shape from its card is somebody's
    * decision, and reshaping it for merely opening the editor is the rewrite
    * while nobody is watching that `_matchGrid` exists to avoid - the Match
-   * button still offers that one. And only with a row count: under
-   * `rows: auto` the card takes its height from the canvas, so there is no
-   * shape to match. `_shapedToGrid` is null when the canvas already fits,
-   * which is what stops the commit this causes from causing another.
+   * button still offers that one.
+   *
+   * Both directions: a row count reshapes to it, and clearing one goes back to
+   * the shape the canvas had before any row count was set. `_reshapedFor` is
+   * null when there is nothing to do, which is what stops the commit this
+   * causes from causing another.
    */
   updated(changed) {
     super.updated(changed);
@@ -1341,8 +1344,7 @@ class ScCanvasEditor extends LitElement {
     const grid = this.cardConfig?.grid_options || {};
     const before = was.grid_options || {};
     if (grid.columns === before.columns && grid.rows === before.rows) return;
-    if (typeof grid.rows !== 'number') return;
-    const shaped = this._shapedToGrid();
+    const shaped = this._reshapedFor();
     if (shaped) this._commit(shaped);
   }
 
@@ -1580,12 +1582,14 @@ class ScCanvasEditor extends LitElement {
    * controls and the layout tab are two views of one value instead of two
    * settings that have to be kept in step.
    *
-   * Changing the card's box here also reshapes the canvas to match, when there
-   * is a row count to match: the user is setting the card's size, and a canvas
-   * that then letterboxed inside it would be answering a question they did not
-   * ask. It is not done on render - a card that rewrites its own config for
-   * being displayed can corrupt a dashboard while nobody is watching - so a
-   * change made in the layout tab instead is offered as the Match button.
+   * Changing the card's box here also reshapes the canvas to match: the user
+   * is setting the card's size, and a canvas that then letterboxed inside it
+   * would be answering a question they did not ask. Clearing the row count
+   * again puts the canvas back in the shape it had before, so the trip there
+   * and back leaves nothing behind. It is not done on render - a card that
+   * rewrites its own config for being displayed can corrupt a dashboard while
+   * nobody is watching - so a shape that never matched in the first place is
+   * offered as the Match button instead.
    */
   _setGrid(patch) {
     const grid = { ...(this.cardConfig?.grid_options || {}) };
@@ -1596,26 +1600,29 @@ class ScCanvasEditor extends LitElement {
     const writes = [['__card__', {
       grid_options: Object.keys(grid).length ? grid : undefined
     }]];
-    if (typeof grid.rows === 'number') {
-      const shaped = this._shapedToGrid({ ...this.cardConfig, grid_options: grid });
-      if (shaped) writes.push(['__merge__', { canvas: shaped }]);
-    }
+    const shaped = this._reshapedFor({ ...this.cardConfig, grid_options: grid });
+    if (shaped) writes.push(['__merge__', { canvas: shaped }]);
     this.commitFn('__batch__', writes);
   }
 
   _setRows(rows) { this._setGrid({ rows }); }
 
-  /** The canvas reshaped to the card's grid box, or null if it already is. */
-  _shapedToGrid(cardConfig = this.cardConfig) {
-    const shape = canvasFromGrid(cardConfig, this.slot, 400, this._maxColumns);
-    const c = this._canvas;
-    if (c.w === shape.w && c.h === shape.h) return null;
-    return rescaleCanvas(structuredClone(c), shape, this.slot);
+  /**
+   * The canvas as a card box wants it, or null when it is already that.
+   *
+   * With a row count that is the shape of the box; without one the card has no
+   * height of its own, so there is no shape to match and the canvas goes back
+   * to the one it was drawn at instead.
+   */
+  _reshapedFor(cardConfig = this.cardConfig) {
+    const c = structuredClone(this._canvas);
+    if (typeof cardConfig?.grid_options?.rows !== 'number') return unpinnedCanvas(c);
+    return pinnedToShape(c, canvasFromGrid(cardConfig, this.slot, 400, this._maxColumns));
   }
 
   /** Reshape the canvas to the card's grid box, carrying the layout with it. */
   _matchGrid() {
-    const shaped = this._shapedToGrid();
+    const shaped = this._reshapedFor();
     if (shaped) this._commit(shaped);
   }
 
@@ -1657,9 +1664,15 @@ class ScCanvasEditor extends LitElement {
     this._commit(c);
   }
 
+  /**
+   * Typing the canvas' own width or height forgets the shape a row count was
+   * going to put back. It was a note about where the canvas came from, and
+   * this is the user saying where it is now.
+   */
   _setCanvas(key, value) {
     const c = structuredClone(this._canvas);
     c[key] = value;
+    if (key === 'w' || key === 'h') delete c.free;
     this._commit(c);
   }
 
@@ -2403,7 +2416,7 @@ class ScCanvasEditor extends LitElement {
         <div class="hint" style="margin:-4px 0 4px 0;">
           ${rows === null
             ? html`The card is as wide as its columns and exactly as tall as the canvas shape makes it. Both are the same settings as in the <b>Layout</b> tab.`
-            : html`Both are the same settings as in the <b>Layout</b> tab. Changing one here reshapes the canvas to match, so nothing letterboxes.`}
+            : html`Both are the same settings as in the <b>Layout</b> tab. Changing one here reshapes the canvas to match, so nothing letterboxes; going back to <b>Fill the canvas</b> restores the shape it had before.`}
         </div>
         <div class="row">
           <label>Canvas</label>
