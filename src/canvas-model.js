@@ -214,6 +214,36 @@ export function squareElement(el) {
 }
 
 /**
+ * The canvas after a bar was switched to a different orientation.
+ *
+ * Turning a bar into a ring makes it square-locked, and the canvas squares a
+ * box only when someone edits it - never on render. Choosing the orientation
+ * *is* that edit, so the box follows here rather than waiting for the next
+ * drag, which would leave a ring letterboxed in a wide box until then.
+ *
+ * It squares and never un-squares. The square a ring leaves behind is a size
+ * like any other once it exists, and widening it again on the way back to a
+ * straight bar would undo a box the user never asked to lose.
+ *
+ * @param {any} canvas
+ * @param {number} idx which progressbar changed
+ * @param {string} orientation the orientation it changed to
+ * @returns {any} the same canvas unless there was a box to square
+ */
+export function squareBarOnCanvas(canvas, idx, orientation) {
+  if (!Array.isArray(canvas?.elements)) return canvas;
+  if (!String(orientation).startsWith('circular')) return canvas;
+  const id = `progressbar_${idx}`;
+  let squared = false;
+  const elements = canvas.elements.map(el => {
+    if (el?.id !== id || el.w === el.h) return el;
+    squared = true;
+    return roundBox(squareElement(el));
+  });
+  return squared ? { ...canvas, elements } : canvas;
+}
+
+/**
  * Flatten layout_rows into absolutely placed canvas elements.
  *
  * Rows top to bottom, cells left to right, items in array order - the same

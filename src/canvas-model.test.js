@@ -21,6 +21,7 @@ import {
   isSquareLocked,
   isPinned,
   squareElement,
+  squareBarOnCanvas,
   gridColumnsToPx,
   sectionColumns,
   gridSize,
@@ -873,6 +874,68 @@ describe('squareElement', () => {
     const out = squareElement({ id: 'gauge_0', x: 0, y: 0, w: 200, h: 100, overflow: false, font_size: 12 });
     expect(out.overflow).toBe(false);
     expect(out.font_size).toBe(12);
+  });
+});
+
+describe('squareBarOnCanvas', () => {
+  const canvas = () => ({ w: 400, h: 300, elements: [
+    { id: 'progressbar_0', x: 0,  y: 0,  w: 220, h: 40 },
+    { id: 'progressbar_1', x: 10, y: 50, w: 200, h: 100, inner: 'tl' },
+    { id: 'gauge_0',       x: 0,  y: 0,  w: 80,  h: 80 },
+  ] });
+
+  it('squares the bar that turned into a ring', () => {
+    const out = squareBarOnCanvas(canvas(), 1, 'circular_donut');
+    expect(out.elements[1]).toMatchObject({ x: 10, y: 50, w: 100, h: 100 });
+  });
+
+  it('squares for every circular orientation', () => {
+    for (const o of ['circular_donut', 'circular_speedo', 'circular_half']) {
+      expect(squareBarOnCanvas(canvas(), 1, o).elements[1]).toMatchObject({ w: 100, h: 100 });
+    }
+  });
+
+  it('touches no other element', () => {
+    const out = squareBarOnCanvas(canvas(), 1, 'circular_donut');
+    expect(out.elements[0]).toEqual(canvas().elements[0]);
+    expect(out.elements[2]).toEqual(canvas().elements[2]);
+  });
+
+  it('leaves a straight orientation alone', () => {
+    // Going back to a straight bar keeps the square: it is a size like any
+    // other once it exists, and nobody asked for the old box back.
+    for (const o of ['horizontal', 'vertical', '', undefined]) {
+      const c = canvas();
+      expect(squareBarOnCanvas(c, 1, /** @type {any} */ (o))).toBe(c);
+    }
+  });
+
+  it('hands back the very same canvas when there was nothing to square', () => {
+    // The editor commits only when this changes something, so identity is the
+    // signal and not merely an optimisation.
+    const c = canvas();
+    expect(squareBarOnCanvas(c, 0, 'horizontal')).toBe(c);
+    expect(squareBarOnCanvas(c, 2, 'circular_donut')).toBe(c);
+    const square = { w: 400, h: 300, elements: [{ id: 'progressbar_0', x: 0, y: 0, w: 60, h: 60 }] };
+    expect(squareBarOnCanvas(square, 0, 'circular_donut')).toBe(square);
+  });
+
+  it('does not mutate the canvas it was given', () => {
+    const c = canvas();
+    squareBarOnCanvas(c, 1, 'circular_donut');
+    expect(c.elements[1]).toMatchObject({ w: 200, h: 100 });
+  });
+
+  it('leaves whole numbers behind', () => {
+    const c = { w: 400, h: 300, elements: [{ id: 'progressbar_0', x: 0, y: 0, w: 101, h: 40.4 }] };
+    expect(squareBarOnCanvas(c, 0, 'circular_donut').elements[0])
+      .toMatchObject({ x: 30, y: 0, w: 40, h: 40 });
+  });
+
+  it('survives a canvas that is not one', () => {
+    for (const c of [undefined, null, {}, { elements: null }]) {
+      expect(squareBarOnCanvas(/** @type {any} */ (c), 0, 'circular_donut')).toBe(c);
+    }
   });
 });
 

@@ -1,4 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { squareBarOnCanvas } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
 
@@ -1259,7 +1260,22 @@ class ScProgressbarEditor extends LitElement {
 
   _renderFieldsGroup(fields, cfg, idx, bars) {
     let timeout;
-    const updateDirect    = (key, val) => { this.commitFn('progressbars', SC.withPatch(bars, idx, key, val)); };
+    const updateDirect    = (key, val) => {
+      const next = SC.withPatch(bars, idx, key, val);
+      if (key === 'orientation') {
+        // A ring is square-locked on the canvas, and the canvas squares a box
+        // only when someone edits it. Picking the orientation is that edit, so
+        // the box follows now instead of staying a letterbox until the next
+        // drag. One commit for both: `_commit` clones the config and Home
+        // Assistant writes it back asynchronously, so two in a tick lose one.
+        const canvas = squareBarOnCanvas(this.slot?.canvas, idx, val);
+        if (canvas && canvas !== this.slot.canvas) {
+          this.commitFn('__merge__', { progressbars: next, canvas });
+          return;
+        }
+      }
+      this.commitFn('progressbars', next);
+    };
     const updateDebounced = (key, val) => { clearTimeout(timeout); timeout = setTimeout(() => updateDirect(key, val), 400); };
 
     const groups = [];
