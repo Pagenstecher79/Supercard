@@ -24,6 +24,7 @@ import {
   squareBarOnCanvas,
   gridColumnsToPx,
   sectionColumns,
+  sectionWidthPx,
   gridSize,
   canvasFromGrid,
   canvasFromCard,
@@ -1870,6 +1871,92 @@ describe('sectionColumns', () => {
     const mid = { parentElement: top, getRootNode: () => ({}) };
     const leaf = { parentElement: mid, getRootNode: () => ({}) };
     expect(sectionColumns(leaf)).toBe(36);
+  });
+});
+
+describe('sectionWidthPx', () => {
+  // The same shadow-root chain the sectionColumns tests climb, plus a stand-in
+  // for the dashboard still rendered behind the dialog.
+  const nest = (tags) => {
+    const nodes = tags.map(t => ({ ...t, getRootNode: () => ({ host: null }) }));
+    for (let i = nodes.length - 1; i > 0; i--) nodes[i].getRootNode = () => ({ host: nodes[i - 1] });
+    return nodes[nodes.length - 1];
+  };
+  // A root whose querySelectorAll('*') hands back these elements, shadow roots
+  // and all, the way findByConfig walks a page.
+  const page = (...els) => ({ querySelectorAll: () => els, defaultView: { getComputedStyle: el => el._style || {} } });
+  const section = (config, width, style) => ({
+    tagName: 'HUI-SECTION', config, _style: style,
+    getBoundingClientRect: () => ({ width }),
+  });
+
+  const editor = (sectionConfig) => nest([{ _params: { sectionConfig } }, {}, {}]);
+
+  it('measures the section whose config is the one being edited', () => {
+    const mine = { type: 'grid' }, other = { type: 'grid' };
+    const root = page(section(other, 999), section(mine, 307));
+    expect(sectionWidthPx(editor(mine), root)).toBe(307);
+  });
+
+  // Two sections can hold configurations that compare equal, so the match has
+  // to be the object itself and not one that looks like it.
+  it('matches by identity, not by shape', () => {
+    const mine = { type: 'grid' };
+    const root = page(section({ type: 'grid' }, 999));
+    expect(sectionWidthPx(editor(mine), root)).toBe(0);
+  });
+
+  it('takes the content box, not the border box', () => {
+    const mine = {};
+    const root = page(section(mine, 508, { paddingLeft: '4px', paddingRight: '4px' }));
+    expect(sectionWidthPx(editor(mine), root)).toBe(500);
+  });
+
+  it('answers nothing rather than a number nobody can use', () => {
+    const mine = {};
+    expect(sectionWidthPx(editor(mine), page())).toBe(0);
+    expect(sectionWidthPx(editor(mine), page(section(mine, 0)))).toBe(0);
+    expect(sectionWidthPx(nest([{}, {}]), page(section({}, 480)))).toBe(0);
+    expect(sectionWidthPx(null, page())).toBe(0);
+  });
+
+  it('finds a section nested inside another element\'s shadow root', () => {
+    const mine = {};
+    const inner = section(mine, 307);
+    const host = { tagName: 'HUI-SECTIONS-VIEW', shadowRoot: { querySelectorAll: () => [inner] } };
+    expect(sectionWidthPx(editor(mine), page(host))).toBe(307);
+  });
+});
+
+describe('gridColumnsToPx with a measured section', () => {
+  // The user's own dashboard: three sections side by side, so twelve columns
+  // came out at 307px rather than the 480 the fallback assumes.
+  it('scales the column unit to the width it was given', () => {
+    expect(Math.round(gridColumnsToPx(12, 12, 307))).toBe(307);
+    expect(Math.round(gridColumnsToPx(12, 12, 500))).toBe(500);
+    expect(Math.round(gridColumnsToPx(6, 12, 307))).toBe(150);
+  });
+
+  it('falls back to the reference for a width it cannot use', () => {
+    for (const w of [0, -1, undefined, null, NaN, 'wide']) {
+      expect(Math.round(gridColumnsToPx(12, 12, /** @type {any} */ (w))), String(w)).toBe(480);
+    }
+  });
+
+  // A wide section is wide because it has more columns, not wider ones, so the
+  // measured width still counts as one section's worth.
+  it('keeps a column the same width in a section that spans two', () => {
+    expect(Math.round(gridColumnsToPx(12, 24, 307))).toBe(307);
+    expect(Math.round(gridColumnsToPx(24, 24, 307))).toBe(622);
+  });
+
+  it('carries through to the shape a card matches', () => {
+    const card = { grid_options: { columns: 12, rows: 4 } };
+    // 307 wide against four rows' 248: the ratio the card really has.
+    const measured = canvasFromGrid(card, {}, 400, 12, 307);
+    expect(measured.w / measured.h).toBeCloseTo(307 / 248, 2);
+    const fallback = canvasFromGrid(card, {}, 400, 12);
+    expect(fallback.w / fallback.h).toBeCloseTo(480 / 248, 2);
   });
 });
 
