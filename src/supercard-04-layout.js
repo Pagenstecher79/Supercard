@@ -2752,7 +2752,9 @@ class ScCanvasEditor extends LitElement {
     // A step converted from the other unit is rarely one of the offered ones,
     // and a select with nothing selected shows its first option instead - the
     // step in force has to be in the list for the field to read true.
-    const snapSteps = [...new Set([...(pctGrid ? [0.5, 1, 2.5, 5] : [1, 2, 5, 25]),
+    // Per cent runs up to a half canvas because at that size the step is the
+    // layout: 50 divides the canvas in two, 33.3 in three, 25 in four.
+    const snapSteps = [...new Set([...(pctGrid ? [1, 2, 5, 10, 20, 25, 33.3, 50] : [1, 2, 5, 25]),
                                    ...(typeof c.snap === 'number' && c.snap > 0 ? [c.snap] : [])])]
       .sort((a, b) => a - b);
     const rows = this._rows;
