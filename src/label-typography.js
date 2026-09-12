@@ -19,6 +19,21 @@
 const STACKED = 92;
 
 /**
+ * How wide a character is, as a share of the font size.
+ *
+ * Two defaults, because the number is used for two different jobs. As a
+ * ceiling on a size somebody chose it only has to be roughly right, and 0.55
+ * has been that for as long as labels have had one. As the thing that decides
+ * the size, it is measured against the font actually in use: 0.55 sizes
+ * "Wohnzimmer" 8% wider than the box it is in, and the text it was supposed to
+ * fill the box with ends in an ellipsis instead. 0.62 is what that word needs
+ * in Home Assistant's own font, and the density slider is there for the words
+ * that need something else.
+ */
+export const DENSITY = 0.55;
+export const FIT_DENSITY = 0.62;
+
+/**
  * The `font-size` of one line of a label.
  *
  * @param {object} opts
@@ -31,7 +46,7 @@ const STACKED = 92;
  *   in px, or null when the line carries no icon
  * @returns {string} a CSS `font-size` value
  */
-export function labelFontSize({ chars, factor = 0.55, base = null, lines = 1, iconGap = null }) {
+export function labelFontSize({ chars, factor = DENSITY, base = null, lines = 1, iconGap = null }) {
   // An icon on the line is about one em wide and its gap is a fixed length,
   // so both come off the width the characters have to share. Without this the
   // text is sized for a line it does not have all of, and the ellipsis it
