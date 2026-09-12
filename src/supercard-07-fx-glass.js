@@ -659,7 +659,17 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
         if (pat.target.startsWith('elm_progressbar_')) {
           const pbIdx = parseInt(pat.target.split('_')[2]);
           const pbConf = config.progressbars?.[pbIdx];
-          if (pbConf && pbConf.border_radius !== undefined) {
+          const circular = typeof pbConf?.orientation === 'string' && pbConf.orientation.startsWith('circular');
+          if (circular) {
+            // A circular bar's ring floats inside `.sc-pb-wrap` - the element's
+            // own box, rounded by `circular_border_radius`, which the editor
+            // calls "Background corner radius" because that is what it is. That
+            // plate is the shape somebody sees, so it is the shape the glass
+            // takes. `border_radius` belongs to the straight bar this one is
+            // not drawing and says nothing about this one.
+            const val = String(pbConf.circular_border_radius ?? 50).trim();
+            autoRadiusFallback = /^\d+(\.\d+)?$/.test(val) ? `${val}%` : val;
+          } else if (pbConf && pbConf.border_radius !== undefined) {
             let val = String(pbConf.border_radius).trim();
             autoRadiusFallback = /^\d+(\.\d+)?$/.test(val) ? `${val}px` : val;
           } else autoRadiusFallback = 'var(--pb-radius, 4px)';
