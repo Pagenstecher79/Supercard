@@ -724,12 +724,16 @@ class ScGauge extends LitElement {
       const sDist = safeFloat(this._get('pointer_shadow_distance', this._get('pointer_shadow_offset_y', 0.5)), 0.5);
       const sAngle = safeFloat(this._get('pointer_shadow_angle', 90), 90); 
       const sRad = sAngle * Math.PI / 180;
-      // 'adaptive' is what it is everywhere else in this file - the theme's own
-      // text colour - which on a dark card turns the shadow into the light halo
-      // that is how a dark surface shows something lifted off it. 'fixed' takes
+      // 'adaptive' cannot mean here what it means everywhere else in this file.
+      // The theme's text colour is near-white on a dark card, and the shadow is
+      // offset and barely blurred, so it does not read as the halo a lifted
+      // object casts on a dark surface - it reads as a second, ghostly pointer
+      // beside the real one. A shadow is the absence of light in any theme;
+      // what adapts is its strength, which is the opacity below. 'fixed' takes
       // the colour the editor has been offering all along.
-      sCol = resolveColor(pShadowType === 'adaptive' ? 'adaptive' : 'fixed',
-                          this._get('pointer_shadow_color', [0, 0, 0]));
+      sCol = pShadowType === 'adaptive'
+        ? 'rgb(0,0,0)'
+        : resolveColor('fixed', this._get('pointer_shadow_color', [0, 0, 0]));
       // On the group rather than on each shape: the hub and the pointer overlap,
       // and a shadow that is darker where one object crosses itself is not a
       // shadow.
