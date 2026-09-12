@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { squareBarOnCanvas } from "./canvas-model.js";
 
 const SC = window.SupercardUtils;
@@ -484,19 +484,19 @@ class ScProgressbar extends LitElement {
         circularHtml = html`
           <svg viewBox="0 0 100 100" style="width:100%; height:100%; position:absolute; inset:0; overflow:visible; z-index:${ELM_STATIC}; pointer-events:none; ${circScale !== 1 ? `transform: scale(${circScale}); transform-origin: center;` : ''}">
           <defs>
-              ${this._get('use_gradient', false) && !this._get('gradient_as_solid', false) ? html`
+              ${this._get('use_gradient', false) && !this._get('gradient_as_solid', false) ? svg`
                 <linearGradient id="${this._uniqueId}" x1="0%" y1="100%" x2="100%" y2="0%">
-                  ${resolvedStops.map(s => html`<stop offset="${s.pos}%" stop-color="${s.color}" />`)}
+                  ${resolvedStops.map(s => svg`<stop offset="${s.pos}%" stop-color="${s.color}" />`)}
                 </linearGradient>
               ` : ''}
-              ${showGlow ? html`
+              ${showGlow ? svg`
                 <filter id="glow-${this._uniqueId}" x="-50%" y="-50%" width="200%" height="200%">
                   <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="${exactHexColor}" flood-opacity="0.6"/>
                 </filter>
               ` : ''}
             </defs>
             <circle cx="50" cy="50" r="${r}" fill="none" stroke="${bgColorRaw}" stroke-opacity="${bgOpacity/100}" stroke-width="${sw}" stroke-dasharray="${dashLength} ${gapLength}" stroke-dashoffset="0" stroke-linecap="round" style="z-index: ${ELM_STATIC};" transform="${svgTransform}"></circle>
-            ${progLength > 0 ? html`
+            ${progLength > 0 ? svg`
               <circle cx="50" cy="50" r="${r}" fill="none" stroke="${(this._get('use_gradient', false) && !this._get('gradient_as_solid', false)) ? `url(#${this._uniqueId})` : exactHexColor}" stroke-width="${sw}" stroke-dasharray="${progLength} ${c}" stroke-dashoffset="0" stroke-linecap="round" style="transition: stroke-dasharray var(--pb-anim-dur) var(--pb-bounce-ease), stroke 0.1s linear; z-index: ${ELM_DYNAMIC};" transform="${svgTransform}" filter="${showGlow ? `url(#glow-${this._uniqueId})` : 'none'}"></circle>
             ` : ''}
           </svg>
