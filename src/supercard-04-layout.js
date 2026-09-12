@@ -263,8 +263,11 @@ class ScLayoutRenderer extends LitElement {
      */
     const fit = !!layoutItem?.font_fit;
     const stacked = fit && part === undefined && item.text?.showName !== false && !!tValue ? 2 : 1;
+    // The icon sits on the name's line, so only that line pays for it.
+    const besideName = fit && item.icon?.enabled && item.icon.position !== 'only' && part !== 'value';
     const nameSize = labelFontSize({ chars: lenName, factor: factorN, lines: stacked,
-                                     base: fit ? null : 'var(--sc-fs-n, inherit)' });
+                                     base: fit ? null : 'var(--sc-fs-n, inherit)',
+                                     iconGap: besideName ? (item.icon.gap ?? 4) : null });
     const valueSize = labelFontSize({ chars: lenValue, factor: factorV, lines: stacked,
                                       base: fit ? null : 'var(--sc-fs-v, inherit)' });
 

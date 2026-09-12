@@ -27,10 +27,18 @@ const STACKED = 92;
  *   size - narrow digits need less than the 0.55 an average glyph does
  * @param {string|null} [opts.base] the size asked for, or null to fit the box
  * @param {number} [opts.lines] how many lines share the box's height
+ * @param {number|null} [opts.iconGap] the gap beside an icon on the same line,
+ *   in px, or null when the line carries no icon
  * @returns {string} a CSS `font-size` value
  */
-export function labelFontSize({ chars, factor = 0.55, base = null, lines = 1 }) {
-  const width = `calc(100cqi / (${Math.max(1, chars)} * ${factor}))`;
+export function labelFontSize({ chars, factor = 0.55, base = null, lines = 1, iconGap = null }) {
+  // An icon on the line is about one em wide and its gap is a fixed length,
+  // so both come off the width the characters have to share. Without this the
+  // text is sized for a line it does not have all of, and the ellipsis it
+  // ends in is the one thing filling the box was supposed to avoid.
+  const width = iconGap === null
+    ? `calc(100cqi / (${Math.max(1, chars)} * ${factor}))`
+    : `calc((100cqi - ${iconGap}px) / (${Math.max(1, chars)} * ${factor} + 1))`;
   const height = lines > 1 ? `${Math.round(STACKED / lines)}cqh` : '100cqh';
   return base ? `min(${base}, ${height}, ${width})` : `min(${height}, ${width})`;
 }
