@@ -947,23 +947,69 @@ function el(id, box) {
  *
  * Every element is a fraction of `w` and `h`, so scaling both the canvas and
  * the coordinates by the same factors leaves the layout where it was - as a
- * proportion of a card that has itself changed shape. Whatever is locked square
- * - a gauge, a circular bar - is re-squared afterwards: the two factors differ
- * whenever the shape changes, and a square scaled by two different numbers
- * stops being one.
+ * proportion of a card that has itself changed shape.
+ *
+ * Nothing is re-squared here, and that is the point. A gauge is drawn as
+ * `100cqmin` inside its box, so it is already the largest square that fits,
+ * sitting where `inner` puts it: the box around it can be a letterbox without
+ * anything on screen looking any different. Squaring it here took
+ * `min(w, h)`, which threw the longer side away - and threw it away for good,
+ * because the way back squared again instead of restoring it. A card taken to
+ * four rows and back came home with every gauge half the size it had been and
+ * a hole where the arrangement used to be. Two factors are exactly
+ * invertible; a minimum is not.
+ *
+ * Squaring stays where it belongs, on a user's edit: a drag, a typed size, a
+ * bar turned into a ring.
  *
  * @param {any} canvas
  * @param {{ w: number, h: number }} shape
- * @param {any} [slot] the card's own config, for a bar's orientation
  * @returns {any} a new canvas
  */
-export function rescaleCanvas(canvas, shape, slot) {
+export function rescaleCanvas(canvas, shape) {
   const kx = shape.w / canvas.w, ky = shape.h / canvas.h;
-  const elements = (Array.isArray(canvas.elements) ? canvas.elements : []).map(el => {
-    const moved = { ...el, x: el.x * kx, y: el.y * ky, w: el.w * kx, h: el.h * ky };
-    return roundBox(isSquareLocked(moved, slot) ? squareElement(moved) : moved);
-  });
+  const elements = (Array.isArray(canvas.elements) ? canvas.elements : []).map(el =>
+    roundBox({ ...el, x: el.x * kx, y: el.y * ky, w: el.w * kx, h: el.h * ky }));
   return { ...canvas, w: shape.w, h: shape.h, elements };
+}
+
+/**
+ * The canvas reshaped to a card whose height has just been fixed, remembering
+ * the shape it is leaving.
+ *
+ * Under `rows: auto` the canvas decides how tall the card is, so its shape is
+ * whatever the user drew. A row count takes that decision away, and matching
+ * the new box is what keeps the arrangement filling the card instead of
+ * letterboxing inside it.
+ *
+ * The shape being left is kept in `free` because nothing else knows it: when
+ * the row count goes away again the card has no height of its own to go back
+ * to, and the canvas would simply stay in whatever shape the last row count
+ * left it in. It is written once - a second row count reshapes from wherever
+ * the canvas is now and still comes home to the shape the user drew.
+ *
+ * @param {any} canvas
+ * @param {{ w: number, h: number }} shape
+ * @returns {any|null} null when the canvas is that shape already
+ */
+export function pinnedToShape(canvas, shape) {
+  if (!canvas || (canvas.w === shape.w && canvas.h === shape.h)) return null;
+  const free = canvas.free || { w: canvas.w, h: canvas.h };
+  return { ...rescaleCanvas(canvas, shape), free };
+}
+
+/**
+ * The canvas back in the shape it had before a row count fixed the card's
+ * height, without the note that said so.
+ *
+ * @param {any} canvas
+ * @returns {any|null} null when there is nothing remembered to go back to
+ */
+export function unpinnedCanvas(canvas) {
+  const free = canvas?.free;
+  if (!free) return null;
+  const { free: _remembered, ...rest } = canvas;
+  return (rest.w === free.w && rest.h === free.h) ? rest : rescaleCanvas(rest, free);
 }
 
 /**

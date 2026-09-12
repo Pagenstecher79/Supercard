@@ -675,8 +675,28 @@ The canvas editor now sets **both** halves of that box — *Card width* in
 columns and *Card height* in rows — through `commitFn('__card__', …)`, so they
 are the same `grid_options` the Layout tab writes. Changing either one there
 also reshapes the canvas to match, via `rescaleCanvas`, which scales the
-element coordinates by the same two factors and re-squares whatever is locked
-square (a square scaled by two different numbers stops being one).
+element coordinates by the same two factors.
+
+Nothing is re-squared there, and that is deliberate. A gauge is drawn as
+`100cqmin` inside its box — already the largest square that fits, sitting
+where `inner` puts it — so a letterboxed box looks no different on screen.
+Squaring it during a reshape took `min(w, h)` and threw the longer side away
+for good: a card taken to four rows and back came home with every gauge half
+its size and holes where the arrangement had been. Two factors are exactly
+invertible; a minimum is not. Squaring stays on a user's edit — a drag, a
+typed size, a bar turned into a ring.
+
+Going back the other way needs a memory, because a card on *Fit the canvas*
+has no height of its own to match. `pinnedToShape` therefore writes the shape
+it is leaving into `canvas.free`, once, and `unpinnedCanvas` reshapes to it and
+deletes the key when the row count goes away. A second row count reshapes from
+wherever the canvas is now and still comes home to the shape the user drew.
+Typing the canvas' own width or height forgets it: that note was about where
+the canvas came from, and this is the user saying where it is now.
+
+The trip costs whole units and nothing else — a canvas is 400 units across, so
+one of them is a quarter of a percent, and an element can come back a unit
+away from where it started.
 
 Both writes go out as a single `commitFn('__batch__', …)`. Two commits in one
 tick would lose the first: `_commit` clones `this.config`, and Home Assistant
@@ -690,7 +710,9 @@ version of that which cannot.
 
 With the height on *Fit the canvas* there is no row count to match, and the
 button does not appear: the canvas is the height in that mode, and deriving one
-from the other in both directions is a circle.
+from the other in both directions is a circle. Switching *to* that mode still
+reshapes, to the remembered shape — that is a change the user made, not a
+render.
 
 ## 8. The preview draws the real thing
 
