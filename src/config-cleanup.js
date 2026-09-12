@@ -57,6 +57,57 @@ export const DEAD_ENTRY_KEYS = Object.freeze({
 export const DEAD_PATTERN_TARGETS = Object.freeze(['elm_name', 'elm_state']);
 
 /**
+ * Keys that are dead wherever they sit inside an entry of a list.
+ *
+ * `_isOpen` said whether a colour stop, a custom tick or a sector was
+ * unfolded in the gauge editor - and because it lived on the stop, clicking a
+ * triangle was a config change, saved through Home Assistant into somebody's
+ * dashboard. The editor now keeps that where it belongs, in itself, so the
+ * key is left over. It is listed here rather than beside the shallow ones
+ * because a gauge carries it three levels down: on a stop, on a tick, on a
+ * sector, and on a sector's own stops.
+ *
+ * @type {Readonly<Record<string, readonly string[]>>}
+ */
+export const DEAD_DEEP_KEYS = Object.freeze({
+  gauges: Object.freeze(['_isOpen']),
+});
+
+/**
+ * The value with `keys` gone from it and from everything inside it.
+ *
+ * Returns the value itself when nothing changed, so a caller can tell an
+ * untouched entry from a rebuilt one by identity and leave the config alone.
+ *
+ * @param {any} value
+ * @param {readonly string[]} keys
+ * @returns {any}
+ */
+function withoutKeysDeep(value, keys) {
+  if (Array.isArray(value)) {
+    let touched = false;
+    const next = value.map(item => {
+      const stripped = withoutKeysDeep(item, keys);
+      if (stripped !== item) touched = true;
+      return stripped;
+    });
+    return touched ? next : value;
+  }
+  if (!value || typeof value !== 'object') return value;
+
+  let touched = false;
+  /** @type {Record<string, any>} */
+  const next = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (keys.includes(k)) { touched = true; continue; }
+    const stripped = withoutKeysDeep(v, keys);
+    if (stripped !== v) touched = true;
+    next[k] = stripped;
+  }
+  return touched ? next : value;
+}
+
+/**
  * Entries a list still holds that name something the card cannot use.
  *
  * @type {Readonly<Record<string, (entry: any) => boolean>>}
@@ -97,6 +148,13 @@ export function stripDeadConfig(slot) {
       return copy;
     });
     if (touched) lists[key] = next;
+  }
+
+  for (const [key, dead] of Object.entries(DEAD_DEEP_KEYS)) {
+    const list = lists[key] ?? slot[key];
+    if (!Array.isArray(list)) continue;
+    const next = withoutKeysDeep(list, dead);
+    if (next !== list) lists[key] = next;
   }
 
   // After the keys, because a list the pass above rebuilt is the one to filter.

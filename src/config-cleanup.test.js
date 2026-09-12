@@ -88,3 +88,32 @@ describe('stripDeadConfig', () => {
     expect(DEAD_ENTRY_KEYS.progressbars).toEqual(['position_mode', 'offset_x', 'offset_y']);
   });
 });
+
+describe('the editor fold state saved cards carry', () => {
+  it('leaves a gauge, its stops, ticks and sectors without _isOpen', () => {
+    const slot = { gauges: [{
+      entity: 'x', manual_stops: [{ value: 0, color: '#f00', _isOpen: true }],
+      custom_ticks: [{ value: 5, _isOpen: false }],
+      sectors: [{ start_percent: 75, _isOpen: true, manual_stops: [{ value: 1, _isOpen: false }] }],
+    }] };
+    const out = stripDeadConfig(slot);
+    expect(out.gauges[0].manual_stops[0]).toEqual({ value: 0, color: '#f00' });
+    expect(out.gauges[0].custom_ticks[0]).toEqual({ value: 5 });
+    expect(out.gauges[0].sectors[0].manual_stops[0]).toEqual({ value: 1 });
+    expect('_isOpen' in out.gauges[0].sectors[0]).toBe(false);
+  });
+
+  it('is nothing to do for a gauge that never carried one', () => {
+    expect(stripDeadConfig({ gauges: [{ entity: 'x', manual_stops: [{ value: 0 }] }] })).toBe(null);
+  });
+
+  it('does not touch the gauges it did not have to rebuild', () => {
+    const clean = { entity: 'clean' };
+    const slot = { gauges: [clean, { entity: 'dirty', custom_ticks: [{ _isOpen: true }] }] };
+    expect(stripDeadConfig(slot).gauges[0]).toBe(clean);
+  });
+
+  it('is for the gauge list only', () => {
+    expect(stripDeadConfig({ progressbars: [{ _isOpen: true }] })).toBe(null);
+  });
+});
