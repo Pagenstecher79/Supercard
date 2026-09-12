@@ -664,6 +664,69 @@ export function distributeElements(canvas, ids, axis) {
 }
 
 /**
+ * Where an element sits in the paint order, and how to move it.
+ *
+ * The elements array *is* the stacking: the card draws them in order, so the
+ * last one is on top. That makes a layer panel a view of the same array read
+ * the other way round, and every layer move a move inside it - which is why
+ * there is no z-index anywhere near an element.
+ *
+ * @param {any} canvas
+ * @param {number} from the element's index
+ * @param {number|'front'|'back'} to where it should end up
+ * @returns {any | null} a new canvas, or null when nothing would move
+ */
+export function reorderElement(canvas, from, to) {
+  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
+  if (!Number.isInteger(from) || from < 0 || from >= elements.length) return null;
+
+  const last = elements.length - 1;
+  const target = to === 'front' ? last
+    : to === 'back' ? 0
+    : Math.max(0, Math.min(last, Math.trunc(Number(to))));
+  if (!Number.isFinite(target) || target === from) return null;
+
+  const next = [...elements];
+  const [el] = next.splice(from, 1);
+  next.splice(target, 0, el);
+  return { ...canvas, elements: next };
+}
+
+/**
+ * Whether two placed elements cover any of the same canvas.
+ *
+ * Touching edges are not an overlap: two boxes laid side by side share a line
+ * and nothing else, and calling that a stack would mark half a tidy layout as
+ * one.
+ *
+ * @param {any} a
+ * @param {any} b
+ * @returns {boolean}
+ */
+export function overlaps(a, b) {
+  if (!a || !b) return false;
+  return a.x < b.x + b.w && b.x < a.x + a.w
+      && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+/**
+ * The ids of the elements that lie over or under the named one.
+ *
+ * What a layer panel is for: when two things are in the same place, the list
+ * is where you find out which, and which of them is on top.
+ *
+ * @param {any} canvas
+ * @param {string} id
+ * @returns {string[]}
+ */
+export function overlappingElements(canvas, id) {
+  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
+  const el = elements.find(e => e.id === id);
+  if (!el) return [];
+  return elements.filter(e => e !== el && e.id !== id && overlaps(el, e)).map(e => e.id);
+}
+
+/**
  * Home Assistant's sections grid, in pixels.
  *
  * A card that reports `rows: N` is given exactly this height by

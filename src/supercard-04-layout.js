@@ -8,7 +8,7 @@ import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElement
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
          repointPatterns, colouredCells, glassedCells, soleElementTargets,
          canvasFromCard,
-         canDuplicate, duplicateElement,
+         canDuplicate, duplicateElement, reorderElement, overlappingElements,
          NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 
@@ -1260,6 +1260,7 @@ class ScCanvasEditor extends LitElement {
       _ghost: { type: Object, state: true },
       _zoom: { type: Number, state: true },
       _names: { type: Boolean, state: true },
+      _layers: { type: Boolean, state: true },
     };
   }
 
@@ -1289,6 +1290,9 @@ class ScCanvasEditor extends LitElement {
     // one that needs a click. Like the zoom, it belongs to the open editor
     // and is never committed.
     this._names = false;
+    // The layer panel, folded away until somebody has elements stacked and
+    // goes looking for them. Editor state like the zoom, never committed.
+    this._layers = false;
     // The last press: where it was, whether it moved, and what lay under it.
     // Not reactive - nothing renders from it.
     this._lastDown = null;
@@ -1397,6 +1401,22 @@ class ScCanvasEditor extends LitElement {
       .tools button[disabled] { opacity: 0.4; cursor: default; }
       .tools .level { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
       .tools .spacer { flex: 1; }
+
+      /* The stack, front at the top - the way a layer list reads everywhere
+         else, and the other way round from the elements array, where the last
+         one is the one drawn last. */
+      .layers { border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-top: 6px; background: rgba(255,255,255,0.02); }
+      .layers > summary { padding: 6px 10px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--primary-color,#03a9f4); list-style: none; user-select: none; }
+      .layers > summary::-webkit-details-marker { display: none; }
+      .layer-list { display: flex; flex-direction: column; gap: 2px; padding: 0 6px 6px; }
+      .layer { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); }
+      .layer.sel { background: rgba(3,169,244,0.18); box-shadow: inset 0 0 0 1px var(--primary-color,#03a9f4); }
+      .layer .who { flex: 1; min-width: 0; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .layer .who .id { color: var(--secondary-text-color); font-size: 11px; margin-left: 4px; }
+      .layer .over { color: var(--warning-color,#ffc107); cursor: help; }
+      .layer button { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; font-size: 13px; padding: 1px 3px; border-radius: 3px; }
+      .layer button:hover:not([disabled]) { color: var(--primary-text-color); background: rgba(255,255,255,0.08); }
+      .layer button[disabled] { opacity: 0.3; cursor: default; }
       /* border-box, so the 1px border is inside the width the zoom sets: as
          content-box it made the canvas 2px wider than the window it is drawn
          in, which is two scrollbars at 100% for a border. */
@@ -2304,13 +2324,60 @@ class ScCanvasEditor extends LitElement {
   }
 
   /** Later in the array draws on top, so this is what "bring forward" means. */
-  _move(idx, dir) {
-    const c = structuredClone(this._canvas);
-    const to = idx + dir;
-    if (to < 0 || to >= c.elements.length) return;
-    const [el] = c.elements.splice(idx, 1);
-    c.elements.splice(to, 0, el);
-    this._commit(c);
+  /**
+   * Move one element in the paint order - a step, or all the way.
+   *
+   * @param {number} idx
+   * @param {number|'front'|'back'} to a step is passed as an index
+   */
+  _reorder(idx, to) {
+    const next = reorderElement(this._canvas, idx, to);
+    if (next) this._commit(next);
+  }
+
+  _move(idx, dir) { this._reorder(idx, idx + dir); }
+
+  /**
+   * The stack, front at the top.
+   *
+   * The canvas draws its elements in array order, so the one at the end is
+   * the one on top - which makes this list the same array read backwards. It
+   * exists because a canvas with things lying over each other is exactly the
+   * canvas where clicking the one you mean is hardest: here they are all
+   * named, the ones sharing a place are marked, and each can be sent a step
+   * or all the way in either direction.
+   */
+  _renderLayers(els, selected) {
+    if (!els.length) return '';
+    const last = els.length - 1;
+    const rows = els.map((el, idx) => ({ el, idx })).reverse();
+    return html`
+      <details class="layers" ?open=${this._layers} @toggle=${e => { this._layers = e.target.open; }}>
+        <summary>▤ Layers (${els.length}) - the top of the list is drawn on top</summary>
+        <div class="layer-list">
+          ${rows.map(({ el, idx }) => {
+            const over = overlappingElements(this._canvas, el.id);
+            const name = this._label(el.id);
+            return html`
+              <div class="layer ${selected.includes(el.id) ? 'sel' : ''}">
+                <span class="who" title=${el.id} @click=${e => {
+                        if (e.shiftKey || e.ctrlKey || e.metaKey) this._toggleSel(el.id);
+                        else this._selectOnly(el.id);
+                      }}>${name || el.id}${name ? html`<span class="id">${el.id}</span>` : ''}</span>
+                ${over.length ? html`<span class="over"
+                  title="Shares its place with ${over.join(', ')}">⧉</span>` : ''}
+                <button title="All the way to the front" ?disabled=${idx === last}
+                        @click=${() => this._reorder(idx, 'front')}>⤒</button>
+                <button title="One step forward" ?disabled=${idx === last}
+                        @click=${() => this._reorder(idx, idx + 1)}>↑</button>
+                <button title="One step back" ?disabled=${idx === 0}
+                        @click=${() => this._reorder(idx, idx - 1)}>↓</button>
+                <button title="All the way to the back" ?disabled=${idx === 0}
+                        @click=${() => this._reorder(idx, 'back')}>⤓</button>
+              </div>`;
+          })}
+        </div>
+      </details>`;
   }
 
   /**
@@ -2561,6 +2628,8 @@ class ScCanvasEditor extends LitElement {
                     ?disabled=${this._zoom === 1} @click=${() => this._applyZoom(1)}>⟲</button>
           </div>
         </div>
+
+        ${this._renderLayers(els, selected)}
 
         <div class="col" style="gap:4px;">
           ${els.map((el, idx) => [el, idx])
