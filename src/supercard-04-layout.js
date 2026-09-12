@@ -1424,11 +1424,14 @@ class ScCanvasEditor extends LitElement {
          out instead of appearing, so the row does not change height and the
          buttons stay where the hand left them. */
       .tools { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
-      .tools .group { display: flex; gap: 4px; }
-      .tools button { min-width: 30px; background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 4px 7px; font-size: 14px; line-height: 1.1; cursor: pointer; }
+      /* Centred rather than stretched: the zoom level is a line of text among
+         buttons, and in a stretched box it sits at the top of its own height
+         while the buttons beside it are tall. */
+      .tools .group { display: flex; align-items: center; gap: 4px; }
+      .tools button { min-width: 40px; background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 5px 9px; font-size: 21px; line-height: 1.1; cursor: pointer; }
       .tools button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
       .tools button[disabled] { opacity: 0.4; cursor: default; }
-      .tools .level { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+      .tools .level { min-width: 46px; display: flex; align-items: center; justify-content: center; align-self: stretch; font-variant-numeric: tabular-nums; }
       .tools .spacer { flex: 1; }
 
       /* The stack, front at the top - the way a layer list reads everywhere
