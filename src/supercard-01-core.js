@@ -724,11 +724,25 @@ class SupercardCore extends LitElement {
 
     const stateObj = entityId ? this.hass.states[entityId] : null;
 
-    if (entityId && !stateObj) {
-      return html`<ha-card style="padding: 16px; color: red;">Entity not found: ${entityId}</ha-card>`;
-    }
+    /*
+     * The main entity is optional, and an entity that has gone missing does
+     * not take the card with it.
+     *
+     * The card grew out of one entity, and for a while that was the whole
+     * card - so a name Home Assistant did not know was a card with nothing
+     * to show, and the red box was the honest answer. It has not been the
+     * whole card for a long time: gauges, bars and labels each name their
+     * own entity, and this one is left feeding the icon, name and state
+     * elements plus the fallback for a tap action. A renamed sensor used by
+     * none of those would blank a dashboard's worth of gauges that are all
+     * still reporting, which is a worse answer than showing them.
+     *
+     * So the parts that depend on it say so - the state shows a dash - and
+     * the editor names the entity as missing where it can be fixed.
+     */
+    const missing = !!entityId && !stateObj;
 
-    let stateVal = stateObj ? stateObj.state : '';
+    let stateVal = missing ? '—' : (stateObj ? stateObj.state : '');
     if (stateObj && slot.entity_attribute && stateObj.attributes[slot.entity_attribute] !== undefined) {
       stateVal = stateObj.attributes[slot.entity_attribute];
     }
@@ -1012,7 +1026,14 @@ window.SupercardModules['core'] = window.SupercardModules['core'] || {};
 Object.assign(window.SupercardModules['core'], (() => {
 
   class ScCoreEditor extends LitElement {
-    static get properties() { return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Object }, _expanded: { state: true } }; }
+    /*
+     * `cardEntity` is the top-level `entity` of the Lovelace card config, not
+     * the slot's. The card reads `slot.entity || config.entity`, and YAML
+     * written by hand usually only sets the second - so an editor that only
+     * knew the first would call a card without a main entity fine while the
+     * card was drawing a dash for one it cannot find.
+     */
+    static get properties() { return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Object }, cardEntity: { type: String }, _expanded: { state: true } }; }
     constructor() { super(); this._expanded = {}; }
     static get styles() {
       return [SC_UTILS.formStyles, css`
@@ -1090,13 +1111,27 @@ Object.assign(window.SupercardModules['core'], (() => {
             <div class="inner-content">
 
               <div class="col">
-                <label>Main entity</label>
+                <label>Main entity (optional)</label>
+                <span style="font-size:10px;color:var(--secondary-text-color);margin:-4px 0 4px;">
+                  Feeds the Icon, Name and State elements, and stands in for an
+                  action that names no entity of its own. Gauges, bars and labels
+                  bring their own - leave this empty if the card has no use for it.
+                </span>
                 <ha-selector
                   .hass=${this.hass}
                   .selector=${{ entity: {} }}
                   .value=${this.slot.entity || ''}
                   @value-changed=${e => update('entity', e.detail.value)}>
                 </ha-selector>
+                ${(() => {
+                  const named = this.slot.entity || this.cardEntity;
+                  if (!named || !this.hass || this.hass.states[named]) return '';
+                  return html`
+                    <span style="font-size:11px;color:var(--error-color,#f44336);margin-top:4px;">
+                      ⚠ Home Assistant does not know <code>${named}</code> - renamed or removed.
+                      The card still draws; the Icon, Name and State elements have nothing to show.
+                    </span>`;
+                })()}
               </div>
 
               <div class="col">
@@ -1281,8 +1316,9 @@ Object.assign(window.SupercardModules['core'], (() => {
 
   if (!customElements.get('sc-core-editor')) customElements.define('sc-core-editor', ScCoreEditor);
 
-  function renderCustomBlock(commitFn, hass, slot) {
-    return html`<sc-core-editor .commitFn=${commitFn} .hass=${hass} .slot=${slot}></sc-core-editor>`;
+  function renderCustomBlock(commitFn, hass, slot, cardConfig) {
+    return html`<sc-core-editor .commitFn=${commitFn} .hass=${hass} .slot=${slot}
+                                .cardEntity=${cardConfig?.entity || ''}></sc-core-editor>`;
   }
 
   return /** @type {SupercardModule} */ ({ renderCustomBlock });
