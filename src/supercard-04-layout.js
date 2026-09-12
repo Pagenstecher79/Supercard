@@ -11,6 +11,7 @@ import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElement
          canDuplicate, duplicateElement, reorderElement, overlappingElements,
          NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
+import { labelFontSize, labelIconSize } from "./label-typography.js";
 
 const SC = window.SupercardUtils;
 
@@ -251,10 +252,29 @@ class ScLayoutRenderer extends LitElement {
     const shadowCSS = item.text?.shadow ? 'text-shadow: 0 1px 2px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.5);' : '';
     const iconShadow = item.text?.shadow ? 'filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.8));' : '';
 
-    const nameStyle = `font-size: min(var(--sc-fs-n, inherit), 100cqh, calc(100cqi / (${lenName} * ${factorN}))); font-weight:var(--sc-fw-n, inherit); color:var(--sc-fc-n, inherit); line-height:1.1; margin:0; padding:0; display:block; min-width:0; ${overflowCSS} ${shadowCSS}`;
-    const valueStyle = `font-size: min(var(--sc-fs-v, inherit), 100cqh, calc(100cqi / (${lenValue} * ${factorV}))); font-weight:var(--sc-fw-v, inherit); color:var(--sc-fc-v, inherit); line-height:1.1; margin:0; padding:0; display:block; min-width:0; ${overflowCSS} ${shadowCSS}`;
-    
-    const iconSizeVar = `var(--sc-fs-n, ${item.icon.size || '20px'})`;
+    /*
+     * A box drawn large on the canvas is usually asking for text that fills
+     * it, and until now it got text at the card's own size that only shrank
+     * when the box became too small. `font_fit` is that second reading, asked
+     * for per element: the size the element was given drops out of the min()
+     * and the box decides. Both lines of a label that shows a name over a
+     * value then share the height, or the two of them together are taller
+     * than the box they are in.
+     */
+    const fit = !!layoutItem?.font_fit;
+    const stacked = fit && part === undefined && item.text?.showName !== false && !!tValue ? 2 : 1;
+    const nameSize = labelFontSize({ chars: lenName, factor: factorN, lines: stacked,
+                                     base: fit ? null : 'var(--sc-fs-n, inherit)' });
+    const valueSize = labelFontSize({ chars: lenValue, factor: factorV, lines: stacked,
+                                      base: fit ? null : 'var(--sc-fs-v, inherit)' });
+
+    const nameStyle = `font-size: ${nameSize}; font-weight:var(--sc-fw-n, inherit); color:var(--sc-fc-n, inherit); line-height:1.1; margin:0; padding:0; display:block; min-width:0; ${overflowCSS} ${shadowCSS}`;
+    const valueStyle = `font-size: ${valueSize}; font-weight:var(--sc-fw-v, inherit); color:var(--sc-fc-v, inherit); line-height:1.1; margin:0; padding:0; display:block; min-width:0; ${overflowCSS} ${shadowCSS}`;
+
+    // An icon beside text is text-sized; an icon alone has the whole box.
+    const iconSizeVar = labelIconSize(fit
+      ? { lines: stacked }
+      : { base: `var(--sc-fs-n, ${item.icon.size || '20px'})` });
     const iconTpl = item.icon?.enabled ? html`<ha-icon icon=${item.icon.name} style="--mdc-icon-size:${iconSizeVar}; color:${item.icon.color || 'inherit'}; ${iconShadow} vertical-align:middle; display:inline-flex; align-items:center; flex-shrink:0;"></ha-icon>` : null;
 
     if (part === 'icon') return iconTpl ? html`<div style="display:flex;align-items:center;justify-content:center;min-width:0;${wrapCSS}">${iconTpl}</div>` : html``;
@@ -2390,6 +2410,36 @@ class ScCanvasEditor extends LitElement {
    * editor takes - the property shadows the HTML attribute of that name, the
    * way this editor is itself mounted.
    */
+  /**
+   * The two settings that belong to the label's box rather than to the label.
+   *
+   * A label can sit on the canvas more than once - as a whole, and as its
+   * icon, name and value on their own - and each of those boxes is a size of
+   * its own. So how the text answers that size is a property of the box, and
+   * it is edited here rather than in the label's own editor, which has no
+   * idea which box is being looked at.
+   */
+  _renderLabelBoxTypo(id) {
+    const idx = this._canvas.elements.findIndex(e => e.id === id);
+    if (idx < 0) return '';
+    const el = this._canvas.elements[idx];
+    const fit = !!el.font_fit;
+    return html`
+      <div class="row" style="padding:4px 4px 0;">
+        <label>Fill the box<br><span class="hint">Text and icon take the size of the box they are in, instead of the card's own font size. Drag the box bigger and they grow with it.</span></label>
+        <ha-switch .checked=${fit} @change=${e => this._setEl(idx, { font_fit: e.target.checked || undefined })}></ha-switch>
+      </div>
+      ${fit ? html`
+        <div class="row" style="padding:0 4px 4px;">
+          <label title="Lower it when the text leaves too much room to the sides - narrow characters like 1 or . need less width than an average one">Text density</label>
+          <div style="display:flex; align-items:center; width:60%; gap:8px;">
+            <input type="range" min="0.2" max="0.9" step="0.05" style="flex:1" .value=${el.font_factor || 0.55}
+                   @input=${e => this._setEl(idx, { font_factor: parseFloat(e.target.value) })}>
+            <span class="hint" style="width:26px; text-align:right;">${el.font_factor || 0.55}</span>
+          </div>
+        </div>` : ''}`;
+  }
+
   _renderElementConfig(id) {
     const wrap = (title, body) => html`
       <details class="el-config" ?open=${this._configOpen}
@@ -2412,6 +2462,7 @@ class ScCanvasEditor extends LitElement {
     }
     if ((m = id.match(/^label_(\d+)(?:_(?:icon|name|value))?$/))) {
       return wrap('Label settings', html`
+        ${this._renderLabelBoxTypo(id)}
         <sc-labels-editor .hass=${props.hass} .slot=${props.slot}
                           .commitFn=${props.commitFn} .only=${Number(m[1])}></sc-labels-editor>`);
     }
