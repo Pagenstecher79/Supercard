@@ -25,9 +25,10 @@ declare global {
     editorFields?: () => any[];
     /**
      * Custom LitElement editor block rendered in the main modular editor.
-     * `cardConfig` is the whole Lovelace card config, for the few settings
-     * that are Home Assistant's rather than ours (`grid_options`); commit
-     * those with the `__card__` key.
+     * `cardConfig` is the whole Lovelace card config, for the few keys that
+     * live there rather than in the slot: `grid_options`, which is Home
+     * Assistant's own, and the top-level `entity` that YAML written by hand
+     * sets instead of the slot's. Commit into it with the `__card__` key.
      */
     renderCustomBlock?: (
       commitFn: (key: string, value: any) => void,
