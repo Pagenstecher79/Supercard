@@ -552,6 +552,24 @@ the second, and the editor renders one **size** field instead of a `w` and an
 — it is a plain box for a pattern to paint, and squaring it would repaint a
 different region.
 
+A bar switched to a ring after it is already on the canvas is squared at the
+moment of the switch, by a third function that the progressbar editor calls:
+
+```js
+squareBarOnCanvas(canvas, idx, orientation)   // the same canvas unless there
+                                              // is a box to square
+```
+
+The canvas reshapes a box only on a user's edit and never on render, and
+choosing the orientation *is* that edit — so the box follows immediately
+instead of sitting letterboxed until some later drag happens to fix it. It
+squares and never un-squares: once the square exists it is a size like any
+other, and widening it again on the way back to a straight bar would undo a
+box nobody asked to lose. Handing back the identical canvas when there was
+nothing to square is what tells the editor to commit the orientation alone,
+and where there was, both go in one `__merge__` — they live in the same slot,
+and two commits in a tick lose one.
+
 ### Why `w === h` is the whole test
 
 Canvas units look anisotropic and are not. An element's box is a percentage of
