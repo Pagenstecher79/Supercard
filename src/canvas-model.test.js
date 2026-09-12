@@ -44,7 +44,6 @@ import {
   addElement,
   newElementPreview,
   NEW_ELEMENT_KINDS,
-  duplicateElement,
 } from './canvas-model.js';
 import fixtures from './__fixtures__/real-layouts.json' with { type: 'json' };
 
@@ -1384,81 +1383,6 @@ describe('roundBox', () => {
   });
 });
 
-describe('duplicateElement', () => {
-  const slot = () => ({
-    progressbars: [{ entity: 'sensor.a', color_patterns: [{ pct: 50 }] }],
-    gauges: [{ entity: 'sensor.b' }, { entity: 'sensor.c' }],
-    labels_list: [{ label_text: 'one' }],
-  });
-  const canvas = () => ({ w: 400, h: 400, grid: 10, elements: [
-    { id: 'progressbar_0', x: 20, y: 20, w: 100, h: 40, inner: 'cc' },
-    { id: 'gauge_1', x: 0, y: 0, w: 80, h: 80 },
-    { id: 'label_0_value', x: 10, y: 10, w: 50, h: 20 },
-    { id: 'surface_0', surface: true, x: 5, y: 5, w: 60, h: 30 },
-    { id: 'icon', x: 0, y: 300, w: 40, h: 40 },
-    { id: 'gauge_0', x: 200, y: 200, w: 80, h: 80 },
-  ]});
-
-  it('copies the entry the id points at, under the new index', () => {
-    const made = duplicateElement(slot(), canvas(), 0);
-    expect(made.id).toBe('progressbar_1');
-    expect(made.patch.progressbars).toHaveLength(2);
-    expect(made.patch.progressbars[1]).toEqual(slot().progressbars[0]);
-    // A deep copy: editing the copy must not reach into the original.
-    expect(made.patch.progressbars[1].color_patterns)
-      .not.toBe(made.patch.progressbars[0].color_patterns);
-  });
-
-  it('keeps the box and offsets the copy by one snap step', () => {
-    const made = duplicateElement(slot(), canvas(), 0);
-    const copy = made.canvas.elements.at(-1);
-    expect(copy).toEqual({ id: 'progressbar_1', x: 30, y: 30, w: 100, h: 40, inner: 'cc' });
-  });
-
-  it('keeps the copy on the canvas', () => {
-    const c = canvas();
-    c.elements[0] = { id: 'progressbar_0', x: 300, y: 395, w: 100, h: 40 };
-    const copy = duplicateElement(slot(), c, 0).canvas.elements.at(-1);
-    expect(copy.x).toBe(300);   // already flush right
-    expect(copy.y).toBe(360);   // pulled back inside
-  });
-
-  it('carries a label sub-target across to the copy', () => {
-    const made = duplicateElement(slot(), canvas(), 2);
-    expect(made.id).toBe('label_1_value');
-    expect(made.patch.labels_list).toHaveLength(2);
-  });
-
-  it('gives a surface a free id and touches no list', () => {
-    const made = duplicateElement(slot(), canvas(), 3);
-    expect(made.id).toBe('surface_1');
-    expect(made.patch).toEqual({});
-  });
-
-  it('leaves the original canvas and slot alone', () => {
-    const s = slot(), c = canvas();
-    duplicateElement(s, c, 0);
-    expect(s).toEqual(slot());
-    expect(c).toEqual(canvas());
-  });
-
-  it('refuses what the card has only one of', () => {
-    expect(duplicateElement(slot(), canvas(), 4)).toBe(null);       // icon
-    expect(duplicateElement(slot(), canvas(), 99)).toBe(null);      // gone
-    // a gauge on a slot that never grew a `gauges` array is the card's config
-    expect(duplicateElement({}, canvas(), 5)).toBe(null);
-  });
-
-  it('canDuplicate agrees with it', () => {
-    const s = slot(), c = canvas();
-    c.elements.forEach((el, i) => {
-      expect(canDuplicate(s, el)).toBe(duplicateElement(s, c, i) !== null);
-    });
-    expect(canDuplicate({}, { id: 'gauge_0' })).toBe(false);
-    expect(canDuplicate(s, { id: 'gauge_9' })).toBe(false);
-  });
-});
-
 describe('addElement', () => {
   const slot = () => ({
     gauges: [{ entity: 'sensor.a' }],
@@ -2124,6 +2048,25 @@ describe('duplicateElements', () => {
     const before = structuredClone(c);
     duplicateElements(slot(), c, ['surface_0', 'gauge_0']);
     expect(c).toEqual(before);
+  });
+
+  it('carries a label sub-target across to the copy', () => {
+    const sl = { ...slot(), labels_list: [{ label_text: 'one' }] };
+    const c = canvas();
+    c.elements.push({ id: 'label_0_value', x: 10, y: 10, w: 50, h: 20 });
+    const out = duplicateElements(sl, c, ['label_0_value']);
+    expect(out.ids).toEqual(['label_1_value']);
+    expect(out.patch.labels_list).toHaveLength(2);
+  });
+
+  it('is what canDuplicate answers for, element by element', () => {
+    const s = slot(), c = canvas();
+    c.elements.push({ id: 'icon', x: 0, y: 0, w: 20, h: 20 });
+    for (const el of c.elements) {
+      expect(canDuplicate(s, el)).toBe(duplicateElements(s, c, [el.id]) !== null);
+    }
+    expect(canDuplicate({}, { id: 'gauge_0' })).toBe(false);
+    expect(canDuplicate(s, { id: 'gauge_9' })).toBe(false);
   });
 
   it('keeps the copy of a locked element locked', () => {

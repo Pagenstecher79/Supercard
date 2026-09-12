@@ -1228,46 +1228,6 @@ export function canDuplicate(slot, el) {
 }
 
 /**
- * The canvas and the slot fields that result from duplicating one element.
- *
- * The copy is offset by one snap step so it does not land exactly on its
- * original and look like nothing happened, and clamped so it stays on the
- * canvas. A surface exists only on the canvas, so a free id is the whole
- * copy; everything else grows its list by one entry.
- *
- * Pure: mutates neither argument. Null when the element cannot be
- * duplicated.
- *
- * @param {any} slot
- * @param {any} canvas
- * @param {number} idx index into `canvas.elements`
- * @returns {{ canvas: any, patch: Record<string, any[]>, id: string } | null}
- */
-export function duplicateElement(slot, canvas, idx) {
-  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
-  const el = elements[idx];
-  if (!el) return null;
-
-  let id, patch = {};
-  if (el.surface) {
-    let n = 0;
-    while (elements.some(e => e.id === `surface_${n}`)) n++;
-    id = `surface_${n}`;
-  } else {
-    const spec = copySpec(slot, el);
-    if (!spec) return null;
-    id = spec.id(spec.list.length);
-    patch = { [spec.key]: [...spec.list, structuredClone(spec.list[spec.from])] };
-  }
-
-  const step = resolveSnap(canvas);
-  const copy = { ...el, id,
-    x: Math.max(0, Math.min(el.x + step, canvas.w - el.w)),
-    y: Math.max(0, Math.min(el.y + step, canvas.h - el.h)) };
-  return { canvas: { ...canvas, elements: [...elements, copy] }, patch, id };
-}
-
-/**
  * The ids a selection frame dragged over the canvas catches.
  *
  * Wholly inside, not merely touched. Almost every canvas has a background
@@ -1310,8 +1270,9 @@ export function elementsInRect(canvas, frame) {
  * - are passed over rather than refusing the whole copy, and null comes back
  * only when nothing in the selection could be copied at all.
  *
- * Pure: mutates neither argument. See `duplicateElement` for one element,
- * whose offset and id rules this follows.
+ * Pure: mutates neither argument. One element is a selection of one - there
+ * is no second helper for that case, and a copy must behave the same whether
+ * it was made alone or among others.
  *
  * @param {any} slot
  * @param {any} canvas
@@ -1382,7 +1343,7 @@ export const NEW_ELEMENT_KINDS = Object.freeze([
  * Only one thing says no: a card whose gauge *is* the slot, from before
  * `gauges` was an array. There is no array to append to, and writing one
  * would replace that gauge rather than add a second - the same reason
- * `duplicateElement` refuses it.
+ * `copySpec` refuses it, and with it `duplicateElements`.
  *
  * @param {any} slot
  * @param {string} kind
