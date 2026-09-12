@@ -2707,10 +2707,11 @@ class ScCanvasEditor extends LitElement {
                          .commitFn=${props.commitFn} .only=${Number(m[1])}></sc-gauge-editor>`);
     }
     if ((m = id.match(/^label_(\d+)(?:_(?:icon|name|value))?$/))) {
+      const box = this._canvas.elements.find(e => e.id === id);
       return wrap('Label settings', html`
         ${this._renderLabelBoxTypo(id)}
-        <sc-labels-editor .hass=${props.hass} .slot=${props.slot}
-                          .commitFn=${props.commitFn} .only=${Number(m[1])}></sc-labels-editor>`);
+        <sc-labels-editor .hass=${props.hass} .slot=${props.slot} .commitFn=${props.commitFn}
+                          .only=${Number(m[1])} .boxSized=${!!box?.font_fit}></sc-labels-editor>`);
     }
 
     const el = this._canvas.elements.find(e => e.id === id);

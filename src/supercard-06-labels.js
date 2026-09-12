@@ -29,6 +29,12 @@ class ScLabelsEditor extends LitElement {
       commitFn:   { type: Function },
       hass:       { type: Object },
       only:       { type: Number },
+      /*
+       * Set by the canvas editor when the box this label is drawn in sizes
+       * the label itself. The size fields are then not merely unused, they
+       * are misleading: whatever is typed there changes nothing.
+       */
+      boxSized:   { type: Boolean },
       _expanded:  { type: Object, state: true },
       _outerOpen: { state: true }
     };
@@ -290,12 +296,20 @@ class ScLabelsEditor extends LitElement {
                       </div>
                     </div>
 
-                    <div class="row">
-                      <label>Icon size (CSS)</label>
-                      <input type="text" style="width:80px" placeholder="20px, 50cqmin"
-                        .value=${item.icon_size || ''}
-                        @input=${e => { this._set(list, idx, 'icon_size', e.target.value); }}>
-                    </div>
+                    ${this.boxSized ? html`
+                      <div class="row">
+                        <label style="font-size:11px;color:var(--secondary-text-color)">
+                          The icon takes the size of its box, because "Fill the box" is on for this element.
+                        </label>
+                      </div>
+                    ` : html`
+                      <div class="row">
+                        <label>Icon size (CSS)</label>
+                        <input type="text" style="width:80px" placeholder="20px, 50cqmin"
+                          .value=${item.icon_size || ''}
+                          @input=${e => { this._set(list, idx, 'icon_size', e.target.value); }}>
+                      </div>
+                    `}
 
                     <div class="row">
                       <label>Gap to text (px)</label>
