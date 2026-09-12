@@ -123,3 +123,135 @@ export function isRoundTarget(target) {
   if (typeof target !== 'string') return false;
   return target.startsWith('elm_gauge_') || target === 'elm_icon';
 }
+
+/**
+ * Whether a target is a circular bar, so relief is something it can have.
+ *
+ * Relief is an edge on the thing the ring is made of, and only a ring has
+ * one: a straight bar is already a plate and a gauge is not ours. Which
+ * orientation a bar has lives in its own config and not in the pattern's
+ * target, so this needs the slot - the way the canvas model needs it to
+ * answer for a bar's orientation.
+ *
+ * Segmented or not is deliberately not asked here. A continuous ring gets the
+ * same relief through an SVG filter, because a stroke cannot wear a
+ * box-shadow; that is a difference in how it is painted, not in whether it is
+ * offered.
+ *
+ * @param {unknown} target a pattern's `target`
+ * @param {any} [slot] the card's own config
+ * @returns {boolean}
+ */
+export function isReliefTarget(target, slot) {
+  if (typeof target !== 'string') return false;
+  const bar = /^elm_progressbar_(\d+)$/.exec(target);
+  if (!bar) return false;
+  const conf = slot?.progressbars?.[Number(bar[1])];
+  return typeof conf?.orientation === 'string' && conf.orientation.startsWith('circular');
+}
+
+/**
+ * The glass pattern that puts relief on this bar, if there is one.
+ *
+ * The bar is asked for by its config object rather than by an index, because
+ * a bar on a canvas is rendered without one - the renderer hands it the config
+ * it found and nothing else. Identity in the slot's own array is the index,
+ * and it is the same array the pattern's target counts against.
+ *
+ * @param {any} slot the card's own config
+ * @param {any} config the bar's config
+ * @returns {any|null} the pattern, or null when no enabled one asks for relief
+ */
+export function reliefPattern(slot, config) {
+  const bars = Array.isArray(slot?.progressbars) ? slot.progressbars : [];
+  const idx = bars.indexOf(config);
+  if (idx < 0) return null;
+  const list = Array.isArray(slot?.fx_glass_patterns) ? slot.fx_glass_patterns : [];
+  const target = `elm_progressbar_${idx}`;
+  return list.find(p => p && p.enabled && p.target === target && p.segment_relief) || null;
+}
+
+/**
+ * One layer of a relief, as light rather than as CSS.
+ *
+ * @typedef {object} ReliefLayer
+ * @property {boolean} inset whether the layer falls inside the shape
+ * @property {number} dx
+ * @property {number} dy
+ * @property {number} blur
+ * @property {number} spread only an inset layer uses one, and only to fill
+ * @property {boolean} light white when true, black when false
+ * @property {number} alpha
+ */
+
+/**
+ * The light on a relief, layer by layer, before anything is drawn.
+ *
+ * Same light as the pattern's own edge, so a segment or a ring is lit from
+ * where the sun is on the pad: a raised one carries the highlight on the side
+ * facing the light and throws its shadow away from it, and an engraved one is
+ * that picture turned inside out - the wall you look into is the dark one. The
+ * last layer is what says which: a cast shadow reads as standing off the
+ * surface, a lit lip as an opening in it.
+ *
+ * Depth is a length in the caller's unit, not a multiplier, because a segment
+ * has no width worth scaling against - a pill is two percent of a ring. Only
+ * the direction is taken from the light, never `shadow_distance`: that one is
+ * a multiple of the bevel width, and a bevel is wider than a whole pill, so a
+ * relief scaled by it lands its highlight beside the segment instead of on it.
+ *
+ * Two painters read these layers - `box-shadow` on a pill, an SVG filter on a
+ * stroke - which is why they are numbers here and CSS nowhere.
+ *
+ * @param {ReturnType<lightParams>} light
+ * @param {any} pat the pattern carrying the relief settings
+ * @returns {ReliefLayer[]} empty when the relief has no depth
+ */
+export function reliefLayers(light, pat) {
+  const depth = pat?.segment_relief_depth ?? 0.6;
+  if (!(depth > 0)) return [];
+
+  const { edgeLight, edgeShadow } = light;
+  const rad = light.angle * Math.PI / 180;
+  // Towards the sun, which is the opposite end of the line the shadow is on.
+  const dx = -Math.cos(rad) * depth, dy = -Math.sin(rad) * depth;
+  // A pill is a couple of percent of the ring wide, so a blur wider than the
+  // offset stops reading as an edge and starts reading as a smudge.
+  const blur = depth;
+
+  if (pat?.segment_relief_mode === 'engraved') {
+    return [
+      { inset: true, dx, dy, blur, spread: 0, light: false, alpha: edgeShadow },
+      { inset: true, dx: -dx, dy: -dy, blur, spread: 0, light: true, alpha: edgeLight },
+      // A pill is one flat colour, so the walls alone leave it looking painted
+      // on. The spread darkens what is between them, which is the floor of the
+      // groove, and that is what makes it read as below the surface.
+      { inset: true, dx: 0, dy: 0, blur, spread: depth * 0.5, light: false, alpha: edgeShadow * 0.5 },
+      { inset: false, dx: dx * 0.5, dy: dy * 0.5, blur, spread: 0, light: true, alpha: edgeLight * 0.4 },
+    ];
+  }
+  return [
+    { inset: true, dx, dy, blur, spread: 0, light: true, alpha: edgeLight },
+    { inset: true, dx: -dx, dy: -dy, blur, spread: 0, light: false, alpha: edgeShadow },
+    { inset: false, dx: -dx, dy: -dy, blur: blur * 1.5, spread: 0, light: false, alpha: edgeShadow * 0.8 },
+  ];
+}
+
+/**
+ * The layers of a relief as a `box-shadow`, for a segment that is an element.
+ *
+ * @param {ReturnType<lightParams>} light
+ * @param {any} pat the pattern carrying the relief settings
+ * @param {UnitFn} u how to write a length
+ * @returns {string} a `box-shadow` value
+ */
+export function reliefShadow(light, pat, u = px) {
+  const layers = reliefLayers(light, pat);
+  if (layers.length === 0) return 'none';
+  return layers.map(l => [
+    l.inset ? 'inset' : null,
+    u(l.dx), u(l.dy), u(l.blur),
+    l.spread ? u(l.spread) : null,
+    l.light ? `rgba(255, 255, 255, ${l.alpha})` : `rgba(0, 0, 0, ${l.alpha})`,
+  ].filter(v => v !== null).join(' ')).join(', ');
+}
