@@ -14,6 +14,8 @@ import {
   deadCellTargets,
   repointPatterns,
   resolveSnap,
+  gridToUnits,
+  unitsToGrid,
   applyDrag,
   gridRowsToPx,
   reportedRows,
@@ -673,6 +675,57 @@ describe('resolveSnap', () => {
     // The two used to resolve to the same step, so "Free" and "Snap to grid"
     // were one behaviour offered as two.
     expect(resolveSnap({ snap: 0 })).not.toBe(resolveSnap({}));
+  });
+  it('reads the grid as per cent of the width when the unit says so', () => {
+    expect(resolveSnap({ w: 400, h: 200, grid: 2.5, grid_unit: 'pct' })).toBe(10);
+    expect(resolveSnap({ w: 320, h: 320, grid: 10, grid_unit: 'pct' })).toBe(32);
+  });
+  it('reads an explicit step in that unit too', () => {
+    expect(resolveSnap({ w: 400, h: 200, grid: 2.5, snap: 5, grid_unit: 'pct' })).toBe(20);
+  });
+  it('leaves free placement alone whatever the unit', () => {
+    expect(resolveSnap({ w: 400, grid: 2.5, snap: 0, grid_unit: 'pct' })).toBe(1);
+  });
+  it('falls back to the default grid in units, not per cent', () => {
+    // The fallback stands in for a canvas nobody configured, so there is no
+    // percentage to honour - 10 per cent of a 400 canvas would be a 40 step.
+    expect(resolveSnap({ w: 400, grid_unit: 'pct' })).toBe(DEFAULT_GRID);
+  });
+});
+
+describe('gridToUnits / unitsToGrid', () => {
+  it('leaves a number alone without the per cent unit', () => {
+    expect(gridToUnits({ w: 400 }, 10)).toBe(10);
+    expect(gridToUnits({ w: 400, grid_unit: 'px' }, 10)).toBe(10);
+  });
+  it('resolves per cent against the width', () => {
+    expect(gridToUnits({ w: 400, h: 100, grid_unit: 'pct' }, 25)).toBe(100);
+  });
+  it('rounds to whole units, and never below one', () => {
+    // Coordinates are typed and read in the editor's number fields, so the
+    // step that produces them has to be whole - and a step of zero would
+    // divide the drag by nothing.
+    expect(gridToUnits({ w: 350, grid_unit: 'pct' }, 3)).toBe(11);
+    expect(gridToUnits({ w: 400, grid_unit: 'pct' }, 0.1)).toBe(1);
+  });
+  it('treats nothing, zero and negatives as no step', () => {
+    expect(gridToUnits({ w: 400, grid_unit: 'pct' }, 0)).toBe(0);
+    expect(gridToUnits({ w: 400 }, -5)).toBe(0);
+    expect(gridToUnits({ w: 400 }, undefined)).toBe(0);
+  });
+  it('falls back to the default width when the canvas has none', () => {
+    expect(gridToUnits({ grid_unit: 'pct' }, 10)).toBe(DEFAULT_CANVAS.w / 10);
+  });
+  it('round-trips a step through the unit switch', () => {
+    for (const w of [400, 350, 320, 1000]) {
+      for (const units of [1, 2, 5, 10, 25, 50]) {
+        expect(gridToUnits({ w, grid_unit: 'pct' }, unitsToGrid({ w }, units))).toBe(units);
+      }
+    }
+  });
+  it('reports no percentage for a step that is not one', () => {
+    expect(unitsToGrid({ w: 400 }, 0)).toBe(0);
+    expect(unitsToGrid({ w: 400 }, undefined)).toBe(0);
   });
 });
 

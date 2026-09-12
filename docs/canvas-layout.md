@@ -115,8 +115,9 @@ supercard:
   canvas:
     w: 400          # virtual units — with h, this IS the aspect ratio
     h: 200
-    grid: 10        # visible grid spacing in virtual units
+    grid: 10        # visible grid spacing, in the unit below
     snap: 10        # unset = snap to grid | 0 = free | n = custom step
+    grid_unit: pct  # absent = virtual units | pct = per cent of `w`
     elements:
       # A surface: a plain box with no entity, which colour and fx-glass can
       # target like anything else. See "Cell targets" below.
@@ -151,6 +152,17 @@ and no way for the two to disagree. `grid: 10` on a `400 × 200` canvas means a
 visible grid (the default, and what most people want), `0` means free
 placement, a positive number is a custom step. One field, no separate
 "snapping on/off" boolean that can contradict a step value.
+
+**`grid_unit` is how those two numbers are written, not a second kind of
+step.** Absent, they are virtual units, which is the picturable form argued
+for above and what every canvas has. `pct` reads them as a percentage of `w` -
+one axis, because the step is a single number and the grid is square - and
+`resolveSnap` turns that back into whole units before anything snaps, so the
+coordinates elements are written in never change. It is offered because a
+percentage survives a reshape: change `w`/`h`, or let the Layout tab change
+them, and `rescaleCanvas` carries the elements across while a grid in units
+stays behind, either as a haze or as four lines. The editor converts both
+numbers when the unit is switched, so picking a unit never moves the grid.
 
 **Stacking is array order.** Later elements draw on top. No `z` field until
 something needs one — reordering a list is a UI affordance people already

@@ -1,5 +1,5 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElements,
+import { getCellItems, resolveSnap, gridToUnits, unitsToGrid, applyDrag, applyGroupDrag, distributeElements,
          elementsInRect, duplicateElements,
          isSquareLocked, isPinned, DEFAULT_CANVAS, DEFAULT_GRID,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid,
@@ -1892,6 +1892,26 @@ class ScCanvasEditor extends LitElement {
     this._commit(c);
   }
 
+  /**
+   * Switch the unit `grid` and `snap` are written in, carrying both numbers
+   * over so the grid on screen does not move. The unit is a way of writing
+   * the step down, not a different step - someone picking per cent wants
+   * their grid to survive a reshape, not to lose it on the way there.
+   */
+  _setGridUnit(unit) {
+    const c = structuredClone(this._canvas);
+    const toPct = unit === 'pct';
+    if (toPct === (c.grid_unit === 'pct')) return;
+    const convert = v => (typeof v === 'number' && v > 0
+      ? (toPct ? unitsToGrid(c, v) : gridToUnits({ ...c, grid_unit: 'pct' }, v))
+      : v);
+    if (typeof c.grid === 'number') c.grid = convert(c.grid);
+    else if (toPct) c.grid = unitsToGrid(c, DEFAULT_GRID);
+    if (typeof c.snap === 'number') c.snap = convert(c.snap);
+    if (toPct) c.grid_unit = 'pct'; else delete c.grid_unit;
+    this._commit(c);
+  }
+
   // --- dragging ---------------------------------------------------------
 
   /**
@@ -2728,11 +2748,18 @@ class ScCanvasEditor extends LitElement {
     const c = this._canvas;
     const els = Array.isArray(c.elements) ? c.elements : [];
     const step = resolveSnap(c);
+    const pctGrid = c.grid_unit === 'pct';
+    // A step converted from the other unit is rarely one of the offered ones,
+    // and a select with nothing selected shows its first option instead - the
+    // step in force has to be in the list for the field to read true.
+    const snapSteps = [...new Set([...(pctGrid ? [0.5, 1, 2.5, 5] : [1, 2, 5, 25]),
+                                   ...(typeof c.snap === 'number' && c.snap > 0 ? [c.snap] : [])])]
+      .sort((a, b) => a - b);
     const rows = this._rows;
     const columns = this._columns;
     const maxColumns = this._maxColumns;
     const mismatch = this._gridMismatch;
-    const gridPct = (c.grid > 0 ? c.grid : step) / c.w * 100;
+    const gridPct = (c.grid > 0 ? gridToUnits(c, c.grid) : step) / c.w * 100;
     const pct = (v, total) => `${v / total * 100}%`;
     // The list below the canvas shows the selected elements alone, so an id
     // that no longer names one - a gauge deleted in its own editor, say -
@@ -2800,18 +2827,29 @@ class ScCanvasEditor extends LitElement {
         <div class="row">
           <label>Grid / snap</label>
           <div style="display:flex; gap:6px; align-items:center;">
-            <input class="num" type="number" min="0" .value=${c.grid ?? DEFAULT_GRID}
-                   @change=${e => this._setCanvas('grid', Math.max(0, parseInt(e.target.value) || 0))}>
+            <input class="num" type="number" min="0" step=${pctGrid ? 'any' : '1'} .value=${c.grid ?? DEFAULT_GRID}
+                   @change=${e => this._setCanvas('grid', Math.max(0,
+                     (pctGrid ? parseFloat(e.target.value) : parseInt(e.target.value)) || 0))}>
+            <select style="width:60px" @change=${e => this._setGridUnit(e.target.value)}>
+              <option value="px" ?selected=${!pctGrid}>px</option>
+              <option value="pct" ?selected=${pctGrid}>%</option>
+            </select>
             <select style="width:110px" @change=${e => {
               const v = e.target.value;
               this._setCanvas('snap', v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)));
             }}>
               <option value="grid" ?selected=${c.snap === undefined}>Snap to grid</option>
               <option value="free" ?selected=${c.snap === 0}>Free</option>
-              ${[1, 2, 5, 25].map(n => html`<option value=${n} ?selected=${c.snap === n}>Step ${n}</option>`)}
+              ${snapSteps.map(n => html`
+                <option value=${n} ?selected=${c.snap === n}>Step ${n}${pctGrid ? '%' : ''}</option>`)}
             </select>
           </div>
         </div>
+        ${pctGrid ? html`
+          <div class="hint" style="margin:-4px 0 4px 0;">
+            Per cent of the canvas width, so the grid keeps its proportions when the canvas is
+            reshaped. ${c.grid > 0 ? html`Currently ${gridToUnits(c, c.grid)} of ${c.w} units.` : ''}
+          </div>` : ''}
 
         <div class="row">
           <label>Live preview</label>
