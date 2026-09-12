@@ -1491,12 +1491,17 @@ class ScCanvasEditor extends LitElement {
          buttons, and in a stretched box it sits at the top of its own height
          while the buttons beside it are tall. */
       .tools .group { display: flex; align-items: center; gap: 4px; }
-      .tools button { min-width: 40px; background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 5px 9px; font-size: 21px; line-height: 1.1; cursor: pointer; }
+      /* One square for every tool, whether it holds a glyph or a drawing:
+         a row of buttons that are each as wide as their symbol reads as a row
+         of different things. Centred by the button itself, so nothing depends
+         on how much side bearing a particular character happens to carry. */
+      .tools button { width: 30px; height: 30px; min-width: 30px; box-sizing: border-box;
+                      display: flex; align-items: center; justify-content: center;
+                      background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 0; font-size: 17px; line-height: 1; cursor: pointer; }
       .tools button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
       .tools button[disabled] { opacity: 0.4; cursor: default; }
       .tools .level { min-width: 46px; display: flex; align-items: center; justify-content: center; align-self: stretch; font-variant-numeric: tabular-nums; }
-      .tools button.icon { display: flex; align-items: center; justify-content: center; min-width: 34px; padding: 4px 6px; }
-      .tools button.icon svg { display: block; }
+      .tools button.icon svg { display: block; width: 16px; height: 16px; }
       .tools button.danger { color: var(--error-color, #f44336); }
       .tools button.danger:hover:not([disabled]) { background: var(--error-color, #f44336); color: #fff; }
       .tools .spacer { flex: 1; }
