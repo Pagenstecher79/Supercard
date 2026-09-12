@@ -713,8 +713,9 @@ export function reportedRows(slot) {
  * A section is `HA_COLUMN_COUNT` equal columns with a gap between them, and a
  * card spanning `n` of them is `n` columns plus the `n-1` gaps they close up.
  * The section's own width is a layout result and varies with the viewport, so
- * `HA_SECTION_WIDTH` is a *reference* - measured on a real dashboard, where a
- * full-width card came out at exactly 480px and a six-column one at 236.
+ * `HA_SECTION_WIDTH` is a *fallback* - measured on a real dashboard, where a
+ * full-width card came out at exactly 480px and a six-column one at 236. Where
+ * the real section can be read instead it is: see `sectionWidthPx`.
  *
  * Only the ratio against `gridRowsToPx` is ever used, so the reference width
  * decides how wide a column counts relative to a row and nothing else. On a
@@ -746,23 +747,104 @@ export const HA_SECTION_WIDTH = 480;
  * @returns {number}
  */
 export function sectionColumns(node) {
+  const section = editedSection(node);
+  if (!section) return HA_COLUMN_COUNT;
+  const span = Number(section.column_span);
+  return HA_COLUMN_COUNT * (span > 0 ? Math.round(span) : 1);
+}
+
+/**
+ * The config of the section being edited, or null outside a card dialog.
+ *
+ * Both readers below start from the same walk, so it is written once. See
+ * `sectionColumns` for why the edit dialog is the only thing that knows.
+ *
+ * @param {any} node the editor element to start from
+ * @returns {any}
+ */
+function editedSection(node) {
   for (let n = node, hops = 0; n && hops < 20; hops++) {
     const root = typeof n.getRootNode === 'function' ? n.getRootNode() : null;
     n = root && root.host ? root.host : n.parentElement;
     const section = n && n._params && n._params.sectionConfig;
-    if (!section) continue;
-    const span = Number(section.column_span);
-    return HA_COLUMN_COUNT * (span > 0 ? Math.round(span) : 1);
+    if (section) return section;
   }
-  return HA_COLUMN_COUNT;
+  return null;
+}
+
+/**
+ * The first element of this tag whose `config` is that very object.
+ *
+ * Identity, not equality: two cards can carry configurations that compare
+ * equal, and Home Assistant hands the dialog the same object it rendered,
+ * so `===` is both cheaper and the only one of the two that is unambiguous.
+ * Bounded, because this crosses every shadow root on the page and a dashboard
+ * is not a small tree - a section that cannot be found in twenty thousand
+ * nodes is a section this was never going to find.
+ *
+ * @param {any} root a document or shadow root to search from
+ * @param {string} tag the tag name, upper case
+ * @param {any} config the config object to match by identity
+ * @returns {any} the element, or null
+ */
+function findByConfig(root, tag, config) {
+  const queue = [root];
+  let seen = 0;
+  while (queue.length) {
+    const next = queue.shift();
+    const all = next && typeof next.querySelectorAll === 'function' ? next.querySelectorAll('*') : [];
+    for (const el of all) {
+      if (++seen > 20000) return null;
+      if (el.tagName === tag && el.config === config) return el;
+      if (el.shadowRoot) queue.push(el.shadowRoot);
+    }
+  }
+  return null;
+}
+
+/**
+ * How wide the section holding this card really is, in pixels.
+ *
+ * `HA_SECTION_WIDTH` is a measurement from one dashboard, and a section is as
+ * wide as the viewport makes it: on a screen showing three sections side by
+ * side the same twelve columns came out at 307px, so a canvas matched against
+ * 480 letterboxes by a third of the card's height. The dashboard is still
+ * rendered behind the dialog, so at the moment someone asks for a match the
+ * real number is there to be read.
+ *
+ * It is right for the viewport it was read on and no other, which is the same
+ * trade as every other fixed aspect ratio: a card pinned to a row count has a
+ * ratio that can only suit one width. A canvas card left on `auto` needs none
+ * of this and is right everywhere.
+ *
+ * The content box, not the border box - a section carries padding of its own
+ * and the columns are laid out inside it.
+ *
+ * @param {any} node the editor element to start from
+ * @param {any} [root] where to search, for tests; the document by default
+ * @returns {number} 0 when there is nothing to measure
+ */
+export function sectionWidthPx(node, root) {
+  const section = editedSection(node);
+  const doc = root || (typeof document !== 'undefined' ? document : null);
+  if (!section || !doc) return 0;
+  const el = findByConfig(doc, 'HUI-SECTION', section);
+  const box = el && typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null;
+  if (!box || !(box.width > 0)) return 0;
+  const view = doc.defaultView || (typeof window !== 'undefined' ? window : null);
+  const style = view && typeof view.getComputedStyle === 'function' ? view.getComputedStyle(el) : null;
+  const pad = style ? (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0) : 0;
+  return box.width - pad > 0 ? box.width - pad : 0;
 }
 
 /**
  * @param {number | 'full'} columns
  * @param {number} [total] the section's column count, from `sectionColumns`
+ * @param {number} [sectionPx] the section's measured width, from
+ *   `sectionWidthPx`; the reference is used when there is none
  * @returns {number} the card width that many grid columns give
  */
-export function gridColumnsToPx(columns, total = HA_COLUMN_COUNT) {
+export function gridColumnsToPx(columns, total = HA_COLUMN_COUNT, sectionPx = 0) {
   const asked = Math.round(Number(total));
   const max = asked > 0 ? asked : HA_COLUMN_COUNT;
   const raw = columns === 'full' ? max : Math.round(Number(columns) || 0);
@@ -770,7 +852,8 @@ export function gridColumnsToPx(columns, total = HA_COLUMN_COUNT) {
   // A column is the same width in a wide section as in a narrow one - the
   // section is wider because it has more of them - so the unit stays one
   // section's worth however many columns the card may span.
-  const unit = (HA_SECTION_WIDTH - (HA_COLUMN_COUNT - 1) * HA_COLUMN_GAP) / HA_COLUMN_COUNT;
+  const width = Number(sectionPx) > 0 ? Number(sectionPx) : HA_SECTION_WIDTH;
+  const unit = (width - (HA_COLUMN_COUNT - 1) * HA_COLUMN_GAP) / HA_COLUMN_COUNT;
   return n * unit + (n - 1) * HA_COLUMN_GAP;
 }
 
@@ -810,11 +893,12 @@ export function gridSize(cardConfig, slot) {
  * @param {any} slot
  * @param {number} [scale]
  * @param {number} [total] the section's column count, from `sectionColumns`
+ * @param {number} [sectionPx] the section's measured width, from `sectionWidthPx`
  * @returns {{ w: number, h: number }}
  */
-export function canvasFromGrid(cardConfig, slot, scale = 400, total = HA_COLUMN_COUNT) {
+export function canvasFromGrid(cardConfig, slot, scale = 400, total = HA_COLUMN_COUNT, sectionPx = 0) {
   const { columns, rows } = gridSize(cardConfig, slot);
-  const w = gridColumnsToPx(columns, total);
+  const w = gridColumnsToPx(columns, total, sectionPx);
   const h = gridRowsToPx(rows);
   const k = scale / Math.max(w, h);
   return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
@@ -852,10 +936,11 @@ export function canvasFromGrid(cardConfig, slot, scale = 400, total = HA_COLUMN_
  * @param {any} cardConfig
  * @param {any} slot
  * @param {number} [total] the section's column count, from `sectionColumns`
+ * @param {number} [sectionPx] the section's measured width, from `sectionWidthPx`
  * @returns {any} a canvas
  */
-export function canvasFromCard(cardConfig, slot, total = HA_COLUMN_COUNT) {
-  const shape = canvasFromGrid(cardConfig, slot, 400, total);
+export function canvasFromCard(cardConfig, slot, total = HA_COLUMN_COUNT, sectionPx = 0) {
+  const shape = canvasFromGrid(cardConfig, slot, 400, total, sectionPx);
   const icon = !slot?.hide_icon;
   const name = !slot?.hide_entity_name;
   const state = !slot?.hide_entity_state;

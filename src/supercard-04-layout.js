@@ -4,7 +4,7 @@ import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElement
          isSquareLocked, isPinned, DEFAULT_CANVAS, DEFAULT_GRID,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid,
          pinnedToShape, unpinnedCanvas,
-         sectionColumns,
+         sectionColumns, sectionWidthPx,
          migrateLayoutToCanvas, paintedCells, clickedCells, deadCellTargets,
          repointPatterns, colouredCells, glassedCells, soleElementTargets,
          canvasFromCard,
@@ -1578,6 +1578,13 @@ class ScCanvasEditor extends LitElement {
   get _maxColumns() { return sectionColumns(this); }
 
   /**
+   * How wide the card's section really is, read the same way and for the same
+   * reason: the dashboard behind the dialog is where the number lives, and it
+   * changes while this editor stays mounted.
+   */
+  get _sectionPx() { return sectionWidthPx(this); }
+
+  /**
    * Writes HA's own `grid_options` rather than fields of our own, so these
    * controls and the layout tab are two views of one value instead of two
    * settings that have to be kept in step.
@@ -1617,7 +1624,7 @@ class ScCanvasEditor extends LitElement {
   _reshapedFor(cardConfig = this.cardConfig) {
     const c = structuredClone(this._canvas);
     if (typeof cardConfig?.grid_options?.rows !== 'number') return unpinnedCanvas(c);
-    return pinnedToShape(c, canvasFromGrid(cardConfig, this.slot, 400, this._maxColumns));
+    return pinnedToShape(c, canvasFromGrid(cardConfig, this.slot, 400, this._maxColumns, this._sectionPx));
   }
 
   /** Reshape the canvas to the card's grid box, carrying the layout with it. */
@@ -1629,7 +1636,7 @@ class ScCanvasEditor extends LitElement {
   /** Whether the canvas is a different shape from the box the card occupies. */
   get _gridMismatch() {
     if (typeof this.cardConfig?.grid_options?.rows !== 'number') return false;
-    const shape = canvasFromGrid(this.cardConfig, this.slot, 400, this._maxColumns);
+    const shape = canvasFromGrid(this.cardConfig, this.slot, 400, this._maxColumns, this._sectionPx);
     const c = this._canvas;
     return Math.abs(c.w / c.h - shape.w / shape.h) > 0.005;
   }
@@ -2766,7 +2773,8 @@ Object.assign(window.SupercardModules['layout'], (() => {
               // card that is not 2:1 and shrink whatever had to fit inside it.
               // e.currentTarget is the one thing in reach that sits inside the
               // edit dialog, which is where the section's width is to be had.
-              const shape = canvasFromGrid(cardConfig, slot, 400, sectionColumns(e.currentTarget));
+              const shape = canvasFromGrid(cardConfig, slot, 400,
+                sectionColumns(e.currentTarget), sectionWidthPx(e.currentTarget));
               // Only the cells that still need one get a surface: glass that
               // follows the single element in its cell leaves nothing behind
               // to paint, and migration does not invent elements nobody asked
@@ -2798,7 +2806,8 @@ Object.assign(window.SupercardModules['layout'], (() => {
               // canvas nobody sees - and it travels in the same commit,
               // because a second one in this tick would be lost.
               commitFn('__merge__', {
-                canvas: canvasFromCard(cardConfig, slot, sectionColumns(e.currentTarget)),
+                canvas: canvasFromCard(cardConfig, slot,
+                  sectionColumns(e.currentTarget), sectionWidthPx(e.currentTarget)),
                 layout_active: true, ...pillAsRadius });
             }}>
             Use canvas

@@ -659,15 +659,31 @@ Measured against real cards on a real dashboard, with a section 480px wide:
 236 × 248, which scaled to a longer side of 400 is **381 × 400** — the shape
 `canvasFromGrid` now hands Convert.
 
-### Why the section width is a reference, not a measurement
+### Why the section width is measured, and what it falls back to
 
-A section's width is a layout result: it changes with the viewport, and it is
-not knowable from inside a card at the moment someone presses Convert.
-`HA_SECTION_WIDTH` is therefore a fixed reference, measured on a real
-dashboard. Only the *ratio* between a column and a row is ever used, so what
-the constant decides is how wide a column counts relative to a row — and on a
-narrower section the card is narrower and the canvas letterboxes, the same
-trade a fixed aspect ratio makes everywhere else.
+A section's width is a layout result: it changes with the viewport. Only the
+*ratio* between a column and a row is ever used, so what the number decides is
+how wide a column counts relative to a row.
+
+`HA_SECTION_WIDTH` is a fixed reference measured on one real dashboard, and it
+was the only answer for a while. It is a poor one on a screen wide enough for
+three sections side by side: there the same twelve columns come out at 307px,
+so a canvas matched against 480 keeps a ratio of 1.93 inside a card whose
+ratio is 1.24, and a third of the card's height is left empty below it. That
+is what *Match the card* is for, and matching against the wrong width is a
+match that cannot land.
+
+So the real number is read where it exists. The dashboard is still rendered
+behind the edit dialog, and `sectionWidthPx` finds the `hui-section` whose
+`config` **is** the object the dialog was handed — identity, not equality, since
+two sections can hold configurations that compare equal — and measures its
+content box. `HA_SECTION_WIDTH` stays as the fallback for everywhere that has
+no dialog to walk out of: YAML mode, a masonry view, a card rendered outside
+one.
+
+A measured width is right for the viewport it was read on and no other. That
+is not a flaw in the measurement but the nature of pinning a ratio to a row
+count, and the card that needs none of it is the one left on `auto`.
 
 ### One box, set in either place
 
