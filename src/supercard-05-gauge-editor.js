@@ -267,6 +267,28 @@ class ScGaugeEditor extends LitElement {
     this._timeouts = {};
   }
 
+  /**
+   * Whether a list entry in this editor is unfolded.
+   *
+   * Unfolded is a state of the editor, not of the card: it used to be an
+   * `_isOpen` field on the stop, tick or sector itself, which made clicking a
+   * triangle a config change - written through Home Assistant's storage into
+   * somebody's dashboard YAML, where it reads like a setting and no renderer
+   * ever looks at it. `_expanded` is where this editor already keeps the fold
+   * state of everything else, keyed by a string the caller makes up.
+   *
+   * Unfolded is the default, because a stop somebody just added should be
+   * open; `_expanded` elsewhere in this editor defaults the other way, which
+   * is why this asks for `!== false` rather than for truth.
+   */
+  _isUnfolded(key) { return this._expanded[key] !== false; }
+
+  /** Remember a fold without committing anything. */
+  _setUnfolded(key, open) { this._expanded[key] = open; }
+
+  /** Fold every entry of one list, for an add button that opens the new one. */
+  _foldAll(key, count) { for (let i = 0; i < count; i++) this._expanded[`${key}:${i}`] = false; }
+
   static get styles() {
     return [SC.formStyles, css`
       input[type="text"], input[type="number"], select { transition: border-color 0.2s; }
@@ -576,7 +598,7 @@ class ScGaugeEditor extends LitElement {
   }
 
 
-  _renderStopsEditor(stopsArray, isAbsolute, onUpdate, resolution) {
+  _renderStopsEditor(stopsArray, isAbsolute, onUpdate, resolution, stateKey = 'stops') {
     const mStops = Array.isArray(stopsArray) ? stopsArray : [];
     return html`
       <div class="col" style="gap:8px; margin-top:4px;">
@@ -585,7 +607,7 @@ class ScGaugeEditor extends LitElement {
           <button type="button" style="flex:1; padding:6px; border-radius:6px; border:1px dashed var(--primary-color,#03a9f4); background:none; color:var(--primary-color,#03a9f4); cursor:pointer; font-size:12px;" @click=${(e) => {
             e.preventDefault();
             const n = structuredClone(mStops);
-            n.forEach(t => t._isOpen = false);
+            this._foldAll(stateKey, n.length);
 
             // Dynamic default color (safe palette)
             const palette = ['#4caf50', '#fdd835', '#fb8c00', '#f44336', '#9c27b0', '#03a9f4'];
@@ -596,7 +618,8 @@ class ScGaugeEditor extends LitElement {
             if (n.length > 0) {
               newVal = isAbsolute ? Math.max(...n.map(s => parseFloat(s.value) || 0)) : 100;
             }
-            n.push({ value: newVal, color: newColor, _isOpen: true });
+            n.push({ value: newVal, color: newColor });
+            this._setUnfolded(`${stateKey}:${n.length - 1}`, true);
             onUpdate(n);
           }}>＋ Add color stop</button>
 
@@ -644,17 +667,11 @@ class ScGaugeEditor extends LitElement {
         </div>
 
         ${mStops.map((st, sIdx) => {
-          const isOpen = st._isOpen !== false;
+          const foldKey = `${stateKey}:${sIdx}`;
           return html`
             <details class="inner-section" style="margin-bottom:0;" 
-              ?open=${isOpen} 
-              @toggle=${e => {
-                if (st._isOpen !== e.target.open) {
-                  const n = structuredClone(mStops);
-                  n[sIdx]._isOpen = e.target.open;
-                  onUpdate(n);
-                }
-              }}
+              ?open=${this._isUnfolded(foldKey)} 
+              @toggle=${e => this._setUnfolded(foldKey, e.target.open)}
               @dragstart=${(e) => {
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('stopIdx', sIdx);
@@ -826,7 +843,7 @@ class ScGaugeEditor extends LitElement {
             </div>
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
               this.commitFn('gauges', SC.withPatch(gauges, idx, 'manual_stops', newStops));
-            }, entry.gradient_resolution)} </div>
+            }, entry.gradient_resolution, `g${idx}_stops`)} </div>
         `;
         break;
       }
@@ -836,7 +853,7 @@ class ScGaugeEditor extends LitElement {
           <div class="col" style="gap:8px;">
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
               this.commitFn('gauges', SC.withPatch(gauges, idx, 'bg_manual_stops', newStops));
-            }, entry.gradient_resolution)} </div>
+            }, entry.gradient_resolution, `g${idx}_bgstops`)} </div>
         `;
         break;
       }
@@ -845,17 +862,11 @@ class ScGaugeEditor extends LitElement {
         content = html`
           <div class="col" style="gap:8px;">
             ${cTicks.map((ct, ctIdx) => {
-              const isOpen = ct._isOpen !== false;
+              const foldKey = `g${idx}_tick:${ctIdx}`;
               return html`
                 <details class="inner-section" style="margin-bottom:0;" 
-                  ?open=${isOpen} 
-                  @toggle=${e => {
-                    if (ct._isOpen !== e.target.open) {
-                      const n = structuredClone(gauges);
-                      n[idx].custom_ticks[ctIdx]._isOpen = e.target.open;
-                      this.commitFn('gauges', n);
-                    }
-                  }}
+                  ?open=${this._isUnfolded(foldKey)} 
+                  @toggle=${e => this._setUnfolded(foldKey, e.target.open)}
                   @dragstart=${(e) => {
                     e.dataTransfer.effectAllowed = 'move';
                     e.dataTransfer.setData('tickIdx', ctIdx);
@@ -928,7 +939,8 @@ class ScGaugeEditor extends LitElement {
             <button class="add-btn" @click=${() => {
               const n = structuredClone(gauges);
               if (!n[idx].custom_ticks) n[idx].custom_ticks = [];
-              n[idx].custom_ticks.push({ value: 0, length: 4, width: 1, offset: 0, color: '#ff0000', label: '', _isOpen: true });
+              n[idx].custom_ticks.push({ value: 0, length: 4, width: 1, offset: 0, color: '#ff0000', label: '' });
+              this._setUnfolded(`g${idx}_tick:${n[idx].custom_ticks.length - 1}`, true);
               this.commitFn('gauges', n);
             }}>＋ Add custom tick</button>
           </div>
@@ -940,19 +952,13 @@ class ScGaugeEditor extends LitElement {
         content = html`
           <div class="col" style="gap:8px;">
             ${sects.map((sec, sIdx) => {
-              const isOpen = sec._isOpen !== false;
+              const foldKey = `g${idx}_sector:${sIdx}`;
               const secPreset = sec.gradient_preset || (sec.use_gradient ? 'classic' : 'none');
 
               return html`
                 <details class="inner-section" style="margin-bottom:0;" 
-                  ?open=${isOpen} 
-                  @toggle=${e => {
-                    if (sec._isOpen !== e.target.open) {
-                      const n = structuredClone(gauges);
-                      n[idx].sectors[sIdx]._isOpen = e.target.open;
-                      this.commitFn('gauges', n);
-                    }
-                  }}
+                  ?open=${this._isUnfolded(foldKey)} 
+                  @toggle=${e => this._setUnfolded(foldKey, e.target.open)}
                   @dragstart=${(e) => {
                     e.dataTransfer.effectAllowed = 'move';
                     e.dataTransfer.setData('secIdx', sIdx);
@@ -1075,7 +1081,7 @@ class ScGaugeEditor extends LitElement {
                         const n = structuredClone(gauges);
                         n[idx].sectors[sIdx].manual_stops = newStops;
                         this.commitFn('gauges', n);
-                      })}
+                      }, undefined, `g${idx}_sec${sIdx}_stops`)}
                     ` : ''}
 
                   </div>
@@ -1085,7 +1091,8 @@ class ScGaugeEditor extends LitElement {
             <button class="add-btn" @click=${() => {
               const n = structuredClone(gauges);
               if (!n[idx].sectors) n[idx].sectors = [];
-              n[idx].sectors.push({ start_percent: 75, length_percent: 25, inner_radius: 12, outer_radius: 22, opacity: 0.85, color: '#dc3232', _isOpen: true });
+              n[idx].sectors.push({ start_percent: 75, length_percent: 25, inner_radius: 12, outer_radius: 22, opacity: 0.85, color: '#dc3232' });
+              this._setUnfolded(`g${idx}_sector:${n[idx].sectors.length - 1}`, true);
               this.commitFn('gauges', n);
             }}>＋ Add sector</button>
           </div>
