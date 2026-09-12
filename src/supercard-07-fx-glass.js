@@ -1,6 +1,6 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { DEAD_PATTERN_TARGETS } from "./config-cleanup.js";
-import { lightParams, bevelShadow, px, isRoundTarget } from "./glass-light.js";
+import { lightParams, bevelShadow, px, isRoundTarget, isReliefTarget } from "./glass-light.js";
 
 const SC = window.SupercardUtils;
 
@@ -197,8 +197,10 @@ function getTargets(slot) {
  * @param {any} pat the pattern being edited
  * @param {(key: string, value: any) => void} set commit one field
  * @param {(fields: Record<string, any>) => void} setMany commit several at once
+ * @param {any} [slot] the card's own config, for the controls only a circular
+ *   bar has - which orientation a bar has is not in the pattern's target
  */
-function glassBody(pat, set, setMany) {
+function glassBody(pat, set, setMany, slot) {
   /*
    * An element's glass fits itself: `inset: 0` on the element made
    * `position: relative`, or a centred `100cqmin` square where the element is
@@ -214,6 +216,29 @@ function glassBody(pat, set, setMany) {
    */
   const isDirectElement = !!pat.target && pat.target.startsWith('elm_');
   const showManualControls = !isDirectElement || pat.manual_override;
+
+  /*
+   * The sun is the bevel's, but the relief below borrows it: both are lit from
+   * the same direction, and a relief on flat glass would otherwise be lit by a
+   * pad nobody can see. So the pad is one thing shown in whichever section is
+   * currently the one that uses it.
+   */
+  const sunPad = html`
+    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px dashed var(--divider-color, #444); display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 8px 0;">
+      <label style="align-self: flex-start; margin-bottom: -4px;">Light source (sun)</label>
+      <sc-shadow-pad
+        .angle=${pat.shadow_angle ?? 90}
+        .distance=${pat.shadow_distance ?? 1}
+        .maxDistance=${5}
+        .pattern=${pat}
+        @pad-change=${e => setMany({ shadow_angle: e.detail.angle, shadow_distance: e.detail.distance })}
+      ></sc-shadow-pad>
+      <div style="display: flex; gap: 16px; font-size: 11px; color: var(--secondary-text-color);">
+        <span>Angle: <b style="color:var(--primary-color)">${pat.shadow_angle ?? 90}°</b></span>
+        <span>Distance offset: <b style="color:var(--primary-color)">${pat.shadow_distance ?? 1}x</b></span>
+      </div>
+    </div>
+  `;
   return html`
   <div class="section-title">📏 Dimensions & Shape</div>
 
@@ -307,20 +332,7 @@ function glassBody(pat, set, setMany) {
   </div>
 
   ${pat.shadow_style !== 'none' ? html`
-    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px dashed var(--divider-color, #444); display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 8px 0;">
-      <label style="align-self: flex-start; margin-bottom: -4px;">Light source (sun)</label>
-      <sc-shadow-pad
-        .angle=${pat.shadow_angle ?? 90}
-        .distance=${pat.shadow_distance ?? 1}
-        .maxDistance=${5}
-        .pattern=${pat}
-        @pad-change=${e => setMany({ shadow_angle: e.detail.angle, shadow_distance: e.detail.distance })}
-      ></sc-shadow-pad>
-      <div style="display: flex; gap: 16px; font-size: 11px; color: var(--secondary-text-color);">
-        <span>Angle: <b style="color:var(--primary-color)">${pat.shadow_angle ?? 90}°</b></span>
-        <span>Distance offset: <b style="color:var(--primary-color)">${pat.shadow_distance ?? 1}x</b></span>
-      </div>
-    </div>
+    ${sunPad}
 
     <div class="row"><label>Bevel width (px)<br><span style="font-size:10px;color:var(--secondary-text-color)">Extent of the edge inward</span></label>
       <input type="range" step="0.1" min="0" max="30" style="width:60%" .value=${pat.bevel_width ?? pat.bevel_size ?? 2}
@@ -336,6 +348,27 @@ function glassBody(pat, set, setMany) {
       <input type="range" step="0.001" min="0" max="1" style="width:60%" .value=${pat.light_brightness ?? 0.4}
         @input=${e => { set('light_brightness', parseFloat(e.target.value)); }}>
     </div>
+  ` : ''}
+
+  ${isReliefTarget(pat.target, slot) ? html`
+    <div class="section-title">⛰️ Relief</div>
+    <div class="row">
+      <label>Light the ring too<br><span style="font-size:10px;color:var(--secondary-text-color)">Gives the ring an edge of its own, lit from the same sun as the glass - each pill on a segmented bar, the stroke on a continuous one.</span></label>
+      <ha-switch .checked=${pat.segment_relief ?? false} @change=${e => { set('segment_relief', e.target.checked); }}></ha-switch>
+    </div>
+    ${pat.segment_relief ? html`
+      ${pat.shadow_style === 'none' ? sunPad : ''}
+      <div class="row"><label>Relief</label>
+        <select style="width:60%" @change=${e => { set('segment_relief_mode', e.target.value); }}>
+          <option value="raised" ?selected=${pat.segment_relief_mode !== 'engraved'}>Raised (standing out of the glass)</option>
+          <option value="engraved" ?selected=${pat.segment_relief_mode === 'engraved'}>Engraved (cut into the glass)</option>
+        </select>
+      </div>
+      <div class="row"><label>Relief depth<br><span style="font-size:10px;color:var(--secondary-text-color)">In the bar's own unit, so it keeps its look as the ring resizes</span></label>
+        <input type="range" step="0.1" min="0" max="3" style="width:60%" .value=${pat.segment_relief_depth ?? 0.6}
+          @input=${e => { set('segment_relief_depth', parseFloat(e.target.value)); }}>
+      </div>
+    ` : ''}
   ` : ''}
   `;
 }
@@ -416,7 +449,7 @@ class ScFxGlassPanel extends LitElement {
         <label>${this.label || '✨ Glass FX'}</label>
         <ha-switch .checked=${on} @change=${e => this._toggle(e.target.checked)}></ha-switch>
       </div>
-      ${on && pat ? html`<div class="fx-body">${glassBody(pat, set, setMany)}</div>` : ''}
+      ${on && pat ? html`<div class="fx-body">${glassBody(pat, set, setMany, this.slot)}</div>` : ''}
     `;
   }
 }
@@ -560,7 +593,8 @@ class ScFxGlassEditor extends LitElement {
 
                     ${glassBody(pat,
                       (key, value) => this._set(patterns, idx, key, value),
-                      (fields) => { const n = structuredClone(patterns); Object.assign(n[idx], fields); this._commit(n); })}
+                      (fields) => { const n = structuredClone(patterns); Object.assign(n[idx], fields); this._commit(n); },
+                      this.slot)}
                   </div>
                 ` : ''}
               </div>

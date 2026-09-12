@@ -1,5 +1,6 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { squareBarOnCanvas } from "./canvas-model.js";
+import { lightParams, reliefPattern, reliefShadow, reliefLayers } from "./glass-light.js";
 
 const SC = window.SupercardUtils;
 
@@ -443,12 +444,22 @@ class ScProgressbar extends LitElement {
       const isReverse = this._get('circular_reverse', false); 
       const dirMult = isReverse ? -1 : 1;
       
+      // Relief is configured on the glass pattern that covers this bar, not
+      // on the bar - it is an optical effect of the glass, and it has to be
+      // lit by the same sun. The ring lives in this shadow root, where the
+      // module's CSS cannot reach it, so the bar reads the pattern itself.
+      const reliefPat = reliefPattern(this.rootConfig, this.config);
+
       if (isSegmented) {
         const segCount = parseInt(this._get('circular_segment_count', 40)); 
         const activeCount = Math.floor(renderPct * segCount);
         const angleStep = (circArc / (circArc === 360 ? segCount : Math.max(1, segCount - 1))) * dirMult;
         const wThick = safeFloat(this._get('circular_segment_thickness', 2), 2) + '%'; 
         const hLen = sw + '%'; 
+
+        const reliefShadowCSS = reliefPat
+          ? reliefShadow(lightParams(reliefPat), reliefPat, v => (v === 0 ? '0px' : `${Math.round(v * 1000) / 1000}${u}`))
+          : 'none';
         
         const segs = [];
         for (let i = 0; i < segCount; i++) {
@@ -460,11 +471,15 @@ class ScProgressbar extends LitElement {
           const inactiveColor = `color-mix(in srgb, ${bgColorRaw} ${bgOpacity}%, transparent)`; 
           const segBg = isActive ? activeColor : inactiveColor;
           const glowShadow = (showGlow && isActive) ? `0 0 2px ${activeColor}, 0 0 5px ${activeColor}` : 'none';
+          // The glow is a colour the segment gives off and the relief is the
+          // shape it has; both are box-shadows, so a segment that does both
+          // wears them in one list rather than losing one to the other.
+          const segShadow = [glowShadow, reliefShadowCSS].filter(v => v !== 'none').join(', ') || 'none';
           const zIdx = isActive ? ELM_DYNAMIC : ELM_STATIC;
           
           segs.push(html`
             <i class="sc-seg" style="--rot: ${angle}deg; z-index: ${zIdx};">
-              <div class="sc-seg-inner" style="background: ${segBg}; box-shadow: ${glowShadow}; width: ${wThick}; height: ${hLen};"></div>
+              <div class="sc-seg-inner" style="background: ${segBg}; box-shadow: ${segShadow}; width: ${wThick}; height: ${hLen};"></div>
             </i>
           `);
         }
@@ -480,6 +495,20 @@ class ScProgressbar extends LitElement {
         const progLength = (targetPct * dashLength) > 0 ? Math.max(0.001, targetPct * dashLength) : 0;
         
         if (!this._uniqueId) this._uniqueId = 'grad-' + Math.random().toString(36).substr(2, 9);
+
+        // A stroke is not a box and cannot wear a box-shadow, so the same
+        // relief layers are painted as an SVG filter instead. The viewBox is
+        // 100 units across the ring's own square, which is what `cqmin` counts
+        // in too, so a depth means the same thing in both branches. A layer's
+        // spread has no SVG counterpart and is dropped: it only fills the
+        // floor of an engraved groove, which a stroke this thin has none of.
+        const rLayers = reliefPat ? reliefLayers(lightParams(reliefPat), reliefPat) : [];
+        const reliefId = 'relief-' + this._uniqueId;
+        const circleFilter = [
+          showGlow ? `url(#glow-${this._uniqueId})` : null,
+          rLayers.length ? `url(#${reliefId})` : null,
+        ].filter(Boolean).join(' ') || 'none';
+        const bgFilter = rLayers.length ? `url(#${reliefId})` : 'none';
         
         circularHtml = html`
           <svg viewBox="0 0 100 100" style="width:100%; height:100%; position:absolute; inset:0; overflow:visible; z-index:${ELM_STATIC}; pointer-events:none; ${circScale !== 1 ? `transform: scale(${circScale}); transform-origin: center;` : ''}">
@@ -494,10 +523,31 @@ class ScProgressbar extends LitElement {
                   <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="${exactHexColor}" flood-opacity="0.6"/>
                 </filter>
               ` : ''}
+              ${rLayers.length ? svg`
+                <filter id="${reliefId}" x="-50%" y="-50%" width="200%" height="200%">
+                  ${rLayers.map((l, i) => l.inset ? svg`
+                    <feOffset in="SourceAlpha" dx="${l.dx}" dy="${l.dy}" result="ro${i}"></feOffset>
+                    <feGaussianBlur in="ro${i}" stdDeviation="${l.blur / 2}" result="rb${i}"></feGaussianBlur>
+                    <feComposite in="SourceAlpha" in2="rb${i}" operator="out" result="rc${i}"></feComposite>
+                    <feFlood flood-color="${l.light ? '#ffffff' : '#000000'}" flood-opacity="${l.alpha}" result="rf${i}"></feFlood>
+                    <feComposite in="rf${i}" in2="rc${i}" operator="in" result="rl${i}"></feComposite>
+                  ` : svg`
+                    <feOffset in="SourceAlpha" dx="${l.dx}" dy="${l.dy}" result="ro${i}"></feOffset>
+                    <feGaussianBlur in="ro${i}" stdDeviation="${l.blur / 2}" result="rb${i}"></feGaussianBlur>
+                    <feFlood flood-color="${l.light ? '#ffffff' : '#000000'}" flood-opacity="${l.alpha}" result="rf${i}"></feFlood>
+                    <feComposite in="rf${i}" in2="rb${i}" operator="in" result="rl${i}"></feComposite>
+                  `)}
+                  <feMerge>
+                    ${rLayers.map((l, i) => l.inset ? '' : svg`<feMergeNode in="rl${i}"></feMergeNode>`)}
+                    <feMergeNode in="SourceGraphic"></feMergeNode>
+                    ${rLayers.map((l, i) => l.inset ? svg`<feMergeNode in="rl${i}"></feMergeNode>` : '')}
+                  </feMerge>
+                </filter>
+              ` : ''}
             </defs>
-            <circle cx="50" cy="50" r="${r}" fill="none" stroke="${bgColorRaw}" stroke-opacity="${bgOpacity/100}" stroke-width="${sw}" stroke-dasharray="${dashLength} ${gapLength}" stroke-dashoffset="0" stroke-linecap="round" style="z-index: ${ELM_STATIC};" transform="${svgTransform}"></circle>
+            <circle cx="50" cy="50" r="${r}" fill="none" stroke="${bgColorRaw}" stroke-opacity="${bgOpacity/100}" stroke-width="${sw}" stroke-dasharray="${dashLength} ${gapLength}" stroke-dashoffset="0" stroke-linecap="round" style="z-index: ${ELM_STATIC}; filter: ${bgFilter};" transform="${svgTransform}"></circle>
             ${progLength > 0 ? svg`
-              <circle cx="50" cy="50" r="${r}" fill="none" stroke="${(this._get('use_gradient', false) && !this._get('gradient_as_solid', false)) ? `url(#${this._uniqueId})` : exactHexColor}" stroke-width="${sw}" stroke-dasharray="${progLength} ${c}" stroke-dashoffset="0" stroke-linecap="round" style="transition: stroke-dasharray var(--pb-anim-dur) var(--pb-bounce-ease), stroke 0.1s linear; z-index: ${ELM_DYNAMIC};" transform="${svgTransform}" filter="${showGlow ? `url(#glow-${this._uniqueId})` : 'none'}"></circle>
+              <circle cx="50" cy="50" r="${r}" fill="none" stroke="${(this._get('use_gradient', false) && !this._get('gradient_as_solid', false)) ? `url(#${this._uniqueId})` : exactHexColor}" stroke-width="${sw}" stroke-dasharray="${progLength} ${c}" stroke-dashoffset="0" stroke-linecap="round" style="transition: stroke-dasharray var(--pb-anim-dur) var(--pb-bounce-ease), stroke 0.1s linear; z-index: ${ELM_DYNAMIC}; filter: ${circleFilter};" transform="${svgTransform}"></circle>
             ` : ''}
           </svg>
         `;

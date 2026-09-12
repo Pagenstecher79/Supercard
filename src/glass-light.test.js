@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lightParams, bevelShadow, px, isRoundTarget } from './glass-light.js';
+import { lightParams, bevelShadow, px, isRoundTarget, isReliefTarget, reliefPattern, reliefShadow, reliefLayers } from './glass-light.js';
 
 /**
  * The formula exactly as it stood inside fx-glass before it moved here.
@@ -133,5 +133,163 @@ describe('isRoundTarget', () => {
     expect(isRoundTarget('elm_gauges')).toBe(false);
     expect(isRoundTarget('elm_icon_ring')).toBe(false);
     expect(isRoundTarget('gauge_0')).toBe(false);
+  });
+});
+
+describe('isReliefTarget', () => {
+  const slot = (bar) => ({ progressbars: [bar] });
+
+  it('is a circular bar, segmented or drawn as one stroke', () => {
+    expect(isReliefTarget('elm_progressbar_0',
+      slot({ orientation: 'circular_donut', circular_segmented: true }))).toBe(true);
+    expect(isReliefTarget('elm_progressbar_0',
+      slot({ orientation: 'circular_donut' }))).toBe(true);
+    expect(isReliefTarget('elm_progressbar_0',
+      slot({ orientation: 'circular_speedo', circular_segmented: false }))).toBe(true);
+  });
+
+  it('is not a straight bar, segments or no segments', () => {
+    expect(isReliefTarget('elm_progressbar_0',
+      slot({ orientation: 'vertical', circular_segmented: true }))).toBe(false);
+    expect(isReliefTarget('elm_progressbar_0', slot({ orientation: 'horizontal' }))).toBe(false);
+  });
+
+  it('reads the bar the target names', () => {
+    const two = { progressbars: [
+      { orientation: 'horizontal' },
+      { orientation: 'circular_donut' },
+    ] };
+    expect(isReliefTarget('elm_progressbar_0', two)).toBe(false);
+    expect(isReliefTarget('elm_progressbar_1', two)).toBe(true);
+  });
+
+  it('answers no without a slot, and to anything that is not a bar', () => {
+    expect(isReliefTarget('elm_progressbar_0')).toBe(false);
+    expect(isReliefTarget('elm_gauge_0', slot({ orientation: 'circular' }))).toBe(false);
+    expect(isReliefTarget('main', {})).toBe(false);
+    expect(isReliefTarget(null, {})).toBe(false);
+  });
+});
+
+describe('reliefPattern', () => {
+  const bar = { orientation: 'circular_donut', circular_segmented: true };
+  const other = { orientation: 'horizontal' };
+  const pat = (over) => ({ enabled: true, target: 'elm_progressbar_1', segment_relief: true, ...over });
+
+  it('finds the pattern that asks for relief on this bar', () => {
+    const p = pat();
+    expect(reliefPattern({ progressbars: [other, bar], fx_glass_patterns: [p] }, bar)).toBe(p);
+  });
+
+  it('counts the bar by identity, so a canvas bar needs no index', () => {
+    const twin = { ...bar };
+    const p = pat();
+    const slot = { progressbars: [other, bar, twin], fx_glass_patterns: [p] };
+    expect(reliefPattern(slot, bar)).toBe(p);
+    // the twin is bar 2, and nothing targets it - equal config, different bar
+    expect(reliefPattern(slot, twin)).toBe(null);
+  });
+
+  it('ignores a pattern that is off, aimed elsewhere, or not asking', () => {
+    const slot = (p) => ({ progressbars: [other, bar], fx_glass_patterns: [p] });
+    expect(reliefPattern(slot(pat({ enabled: false })), bar)).toBe(null);
+    expect(reliefPattern(slot(pat({ target: 'elm_progressbar_0' })), bar)).toBe(null);
+    expect(reliefPattern(slot(pat({ target: 'main' })), bar)).toBe(null);
+    expect(reliefPattern(slot(pat({ segment_relief: false })), bar)).toBe(null);
+  });
+
+  it('is null when there is nothing to read', () => {
+    expect(reliefPattern(undefined, bar)).toBe(null);
+    expect(reliefPattern({}, bar)).toBe(null);
+    expect(reliefPattern({ progressbars: [bar] }, bar)).toBe(null);
+    expect(reliefPattern({ progressbars: [bar], fx_glass_patterns: [pat()] }, other)).toBe(null);
+  });
+});
+
+describe('reliefShadow', () => {
+  const light = lightParams({ shadow_angle: 90, shadow_distance: 1 });
+
+  it('is nothing at no depth', () => {
+    expect(reliefShadow(light, { segment_relief_depth: 0 })).toBe('none');
+    expect(reliefShadow(light, { segment_relief_depth: -1 })).toBe('none');
+  });
+
+  it('raised carries the highlight towards the sun and casts away from it', () => {
+    const out = reliefShadow(light, { segment_relief_depth: 2 }, (v) => `${Math.round(v * 1000) / 1000}px`);
+    const [lit, dark, cast] = out.split('), ').map(s => s + ')');
+    expect(lit).toContain('inset');
+    expect(lit).toContain('255, 255, 255');
+    expect(dark).toContain('inset');
+    expect(dark).toContain('rgba(0, 0, 0');
+    // the cast shadow is the one that is not inset, and it is opposite the light
+    expect(cast.startsWith('inset')).toBe(false);
+    expect(cast).toContain('rgba(0, 0, 0');
+  });
+
+  it('engraved is that picture inside out', () => {
+    // A sun straight overhead has a cosine of 6e-17 rather than of 0, so the
+    // offsets are read through a rounding unit - which is what the card hands
+    // in anyway, and what this test is about is the signs and the colours.
+    const round = (v) => `${Math.round(v * 1000) / 1000}px`;
+    const raised = reliefShadow(light, { segment_relief_depth: 2, segment_relief_mode: 'raised' }, round);
+    const sunk = reliefShadow(light, { segment_relief_depth: 2, segment_relief_mode: 'engraved' }, round);
+    expect(sunk).not.toBe(raised);
+    // the lit wall of one is the dark wall of the other, on the same side
+    expect(raised.startsWith('inset 0px -2px 2px rgba(255, 255, 255')).toBe(true);
+    expect(sunk.startsWith('inset 0px -2px 2px rgba(0, 0, 0')).toBe(true);
+    // and what stands outside the pill is a lit lip rather than a cast shadow
+    expect(sunk.split('), ').pop()).toContain('255, 255, 255');
+    expect(raised.split('), ').pop()).toContain('rgba(0, 0, 0');
+    // only the groove has a floor to darken, which is the fourth shadow
+    expect(sunk.split('), ').length).toBe(4);
+    expect(raised.split('), ').length).toBe(3);
+    expect(sunk).toContain('inset 0px 0px 2px 1px');
+  });
+
+  it('takes the direction of the light but not its distance', () => {
+    const near = lightParams({ shadow_angle: 40, shadow_distance: 1 });
+    const far = lightParams({ shadow_angle: 40, shadow_distance: 5 });
+    const of = (l) => reliefShadow(l, { segment_relief_depth: 2 });
+    // `shadow_distance` is a multiple of the bevel width, and a bevel is wider
+    // than the pill this sits on: scaled by it, the highlight misses.
+    expect(of(far)).toBe(of(near));
+  });
+
+  it('defaults to a depth of 0.6 and writes lengths in the caller unit', () => {
+    const out = reliefShadow(light, {}, (v) => (v === 0 ? '0px' : `${v}cqmin`));
+    expect(out).toContain('cqmin');
+    expect(out).toContain('0.6cqmin');
+  });
+});
+
+describe('reliefLayers', () => {
+  const light = lightParams({ shadow_angle: 90, light_brightness: 0.4 });
+
+  it('has nothing to paint without depth', () => {
+    expect(reliefLayers(light, { segment_relief_depth: 0 })).toEqual([]);
+  });
+
+  it('lays a raised relief out as two walls and a cast shadow', () => {
+    const layers = reliefLayers(light, { segment_relief_depth: 2 });
+    expect(layers.map(l => l.inset)).toEqual([true, true, false]);
+    expect(layers.map(l => l.light)).toEqual([true, false, false]);
+    // The walls sit on opposite sides of the same line.
+    expect(layers[0].dy).toBeCloseTo(-layers[1].dy);
+    expect(layers.every(l => l.spread === 0)).toBe(true);
+  });
+
+  it('turns an engraved one inside out and fills its floor', () => {
+    const layers = reliefLayers(light, { segment_relief_depth: 2, segment_relief_mode: 'engraved' });
+    expect(layers.map(l => l.light)).toEqual([false, true, false, true]);
+    // Only the floor spreads; the walls are edges, not fills.
+    expect(layers.map(l => l.spread)).toEqual([0, 0, 1, 0]);
+    expect(layers[2].dx).toBe(0);
+    expect(layers[2].dy).toBe(0);
+  });
+
+  it('is one box-shadow per layer, in order', () => {
+    const pat = { segment_relief_depth: 1.5, segment_relief_mode: 'engraved' };
+    const shadows = reliefShadow(light, pat).split('rgba').length - 1;
+    expect(shadows).toBe(reliefLayers(light, pat).length);
   });
 });
