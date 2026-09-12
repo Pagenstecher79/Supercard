@@ -1316,6 +1316,9 @@ class ScCanvasEditor extends LitElement {
     // The layer panel, folded away until somebody has elements stacked and
     // goes looking for them. Editor state like the zoom, never committed.
     this._layers = false;
+    // Which row a layer drag started on. Not reactive: the row it lands on
+    // renders the drop, and the list re-renders from the commit anyway.
+    this._layerFrom = null;
     // The last press: where it was, whether it moved, and what lay under it.
     // Not reactive - nothing renders from it.
     this._lastDown = null;
@@ -1434,6 +1437,9 @@ class ScCanvasEditor extends LitElement {
       .layer-list { display: flex; flex-direction: column; gap: 2px; padding: 0 6px 6px; }
       .layer { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); }
       .layer.sel { background: rgba(3,169,244,0.18); box-shadow: inset 0 0 0 1px var(--primary-color,#03a9f4); }
+      .layer .grip { color: var(--secondary-text-color); cursor: grab; font-size: 11px; letter-spacing: -1px; }
+      .layer.dragging { opacity: 0.4; }
+      .layer.drop { outline: 2px dashed var(--primary-color,#03a9f4); outline-offset: -2px; }
       .layer .who { flex: 1; min-width: 0; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .layer .who .id { color: var(--secondary-text-color); font-size: 11px; margin-left: 4px; }
       .layer .over { color: var(--warning-color,#ffc107); cursor: help; }
@@ -2382,7 +2388,35 @@ class ScCanvasEditor extends LitElement {
             const over = overlappingElements(this._canvas, el.id);
             const name = this._label(el.id);
             return html`
-              <div class="layer ${selected.includes(el.id) ? 'sel' : ''}">
+              <div class="layer ${selected.includes(el.id) ? 'sel' : ''}" draggable="true"
+                   @dragstart=${e => {
+                     e.dataTransfer.effectAllowed = 'move';
+                     // A drag inside one list needs no payload, but a drag with
+                     // nothing on it never starts in Firefox.
+                     e.dataTransfer.setData('text/plain', String(idx));
+                     this._layerFrom = idx;
+                     e.currentTarget.classList.add('dragging');
+                   }}
+                   @dragover=${e => {
+                     if (this._layerFrom === null || this._layerFrom === idx) return;
+                     e.preventDefault();
+                     e.dataTransfer.dropEffect = 'move';
+                     e.currentTarget.classList.add('drop');
+                   }}
+                   @dragleave=${e => e.currentTarget.classList.remove('drop')}
+                   @drop=${e => {
+                     e.preventDefault();
+                     e.currentTarget.classList.remove('drop');
+                     // The row it was dropped on is the place it takes, which
+                     // is what dropping something on a list means.
+                     if (this._layerFrom !== null) this._reorder(this._layerFrom, idx);
+                     this._layerFrom = null;
+                   }}
+                   @dragend=${e => {
+                     e.currentTarget.classList.remove('dragging');
+                     this._layerFrom = null;
+                   }}>
+                <span class="grip" title="Drag to move it through the stack">⋮⋮</span>
                 <span class="who" title=${el.id} @click=${e => {
                         if (e.shiftKey || e.ctrlKey || e.metaKey) this._toggleSel(el.id);
                         else this._selectOnly(el.id);
