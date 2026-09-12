@@ -20,6 +20,9 @@ import {
   isHeightPinned,
   isSquareLocked,
   isPinned,
+  reorderElement,
+  overlaps,
+  overlappingElements,
   squareElement,
   squareBarOnCanvas,
   gridColumnsToPx,
@@ -2128,5 +2131,86 @@ describe('duplicateElements', () => {
     c.elements[0].locked = true;
     const out = duplicateElements(slot(), c, ['surface_0']);
     expect(out.canvas.elements.at(-1).locked).toBe(true);
+  });
+});
+
+describe('reorderElement', () => {
+  const canvas = () => ({ w: 400, h: 200, elements: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] });
+  const ids = c => c.elements.map(e => e.id);
+
+  it('moves one element to the front, which is the end of the list', () => {
+    expect(ids(reorderElement(canvas(), 0, 'front'))).toEqual(['b', 'c', 'a']);
+  });
+
+  it('moves one to the back', () => {
+    expect(ids(reorderElement(canvas(), 2, 'back'))).toEqual(['c', 'a', 'b']);
+  });
+
+  it('moves one to a place named by number', () => {
+    expect(ids(reorderElement(canvas(), 0, 1))).toEqual(['b', 'a', 'c']);
+  });
+
+  it('is nothing to do when it is already there', () => {
+    expect(reorderElement(canvas(), 2, 'front')).toBe(null);
+    expect(reorderElement(canvas(), 0, 'back')).toBe(null);
+    expect(reorderElement(canvas(), 1, 1)).toBe(null);
+  });
+
+  it('holds a target inside the list rather than losing the element', () => {
+    expect(ids(reorderElement(canvas(), 0, 99))).toEqual(['b', 'c', 'a']);
+    expect(ids(reorderElement(canvas(), 2, -5))).toEqual(['c', 'a', 'b']);
+  });
+
+  it('answers null for an element that is not there', () => {
+    expect(reorderElement(canvas(), 7, 'front')).toBe(null);
+    expect(reorderElement(canvas(), -1, 0)).toBe(null);
+    expect(reorderElement({}, 0, 'front')).toBe(null);
+  });
+
+  it('leaves the canvas it was given alone', () => {
+    const c = canvas();
+    reorderElement(c, 0, 'front');
+    expect(ids(c)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('overlaps', () => {
+  const box = (x, y, w, h) => ({ x, y, w, h });
+
+  it('is true for boxes that share any area', () => {
+    expect(overlaps(box(0, 0, 10, 10), box(5, 5, 10, 10))).toBe(true);
+    expect(overlaps(box(0, 0, 10, 10), box(2, 2, 3, 3))).toBe(true);
+  });
+
+  it('is false for boxes that only touch', () => {
+    expect(overlaps(box(0, 0, 10, 10), box(10, 0, 10, 10))).toBe(false);
+    expect(overlaps(box(0, 0, 10, 10), box(0, 10, 10, 10))).toBe(false);
+  });
+
+  it('is false for boxes apart, and for nothing at all', () => {
+    expect(overlaps(box(0, 0, 5, 5), box(20, 20, 5, 5))).toBe(false);
+    expect(overlaps(null, box(0, 0, 5, 5))).toBe(false);
+    expect(overlaps(box(0, 0, 5, 5), undefined)).toBe(false);
+  });
+});
+
+describe('overlappingElements', () => {
+  const canvas = {
+    w: 100, h: 100, elements: [
+      { id: 'a', x: 0, y: 0, w: 40, h: 40 },
+      { id: 'b', x: 20, y: 20, w: 40, h: 40 },
+      { id: 'c', x: 80, y: 80, w: 10, h: 10 },
+    ],
+  };
+
+  it('names what lies over or under one element', () => {
+    expect(overlappingElements(canvas, 'a')).toEqual(['b']);
+    expect(overlappingElements(canvas, 'b')).toEqual(['a']);
+  });
+
+  it('is empty for one that stands alone, or is not there', () => {
+    expect(overlappingElements(canvas, 'c')).toEqual([]);
+    expect(overlappingElements(canvas, 'nope')).toEqual([]);
+    expect(overlappingElements({}, 'a')).toEqual([]);
   });
 });
