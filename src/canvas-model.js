@@ -615,6 +615,94 @@ export function applyGroupDrag(canvas, starts, delta, anchorId) {
 }
 
 /**
+ * The patch that puts the named keys of a slot back the way they were.
+ *
+ * A `__merge__` writes the keys it is given and leaves the rest, so putting
+ * a config back means naming every key that has to change - including the
+ * ones the state being undone created, which are restored as `undefined`
+ * because that is how a merge deletes.
+ *
+ * Only the named keys are touched. An editor's undo has a scope, and a card
+ * has settings that were not part of what it undoes.
+ *
+ * @param {any} current the slot as it is now
+ * @param {any} previous the slot as it should be again
+ * @param {readonly string[]} keys the keys this undo is responsible for
+ * @returns {Record<string, any> | null} null when nothing differs
+ */
+export function restorePatch(current, previous, keys) {
+  /** @type {Record<string, any>} */
+  const patch = {};
+  for (const key of keys) {
+    const was = previous?.[key];
+    const now = current?.[key];
+    if (JSON.stringify(was ?? null) === JSON.stringify(now ?? null)) continue;
+    patch[key] = was === undefined ? undefined : structuredClone(was);
+  }
+  return Object.keys(patch).length ? patch : null;
+}
+
+/**
+ * The edges an alignment can line elements up on.
+ *
+ * @typedef {'left'|'hcenter'|'right'|'top'|'vcenter'|'bottom'} AlignEdge
+ */
+
+/**
+ * Line the named elements up on one edge, or through one middle.
+ *
+ * What they line up *to* is the outermost of them - the leftmost element for
+ * a left alignment, the topmost for a top one - so an alignment never moves
+ * the group somewhere new, it only closes the gap between its members. A
+ * centring lines them up on the middle of the box the group occupies, for
+ * the same reason.
+ *
+ * Pinned elements are left out and do not count: they neither move nor set
+ * the line, because a lock that only sometimes holds is worse than none.
+ *
+ * Null when there is nothing to do - fewer than two elements that may move,
+ * or they are already lined up - so the editor can offer the button and
+ * commit nothing for a press that would change nothing.
+ *
+ * @param {any} canvas
+ * @param {string[]} ids
+ * @param {AlignEdge} edge
+ * @returns {any | null} a new canvas
+ */
+export function alignElements(canvas, ids, edge) {
+  const elements = Array.isArray(canvas?.elements) ? canvas.elements : [];
+  const named = new Set(Array.isArray(ids) ? ids : []);
+  const movers = elements.filter(el => named.has(el.id) && !isPinned(el));
+  if (movers.length < 2) return null;
+
+  const axis = edge === 'top' || edge === 'vcenter' || edge === 'bottom' ? 'y' : 'x';
+  const size = axis === 'y' ? 'h' : 'w';
+
+  /** @param {any} el */
+  let place;
+  if (edge === 'left' || edge === 'top') {
+    const at = Math.min(...movers.map(el => el[axis]));
+    place = () => at;
+  } else if (edge === 'right' || edge === 'bottom') {
+    const at = Math.max(...movers.map(el => el[axis] + el[size]));
+    place = (el) => at - el[size];
+  } else {
+    const lo = Math.min(...movers.map(el => el[axis]));
+    const hi = Math.max(...movers.map(el => el[axis] + el[size]));
+    const mid = (lo + hi) / 2;
+    place = (el) => mid - el[size] / 2;
+  }
+
+  /** @type {Record<string, number>} */
+  const at = {};
+  for (const el of movers) at[el.id] = Math.round(place(el));
+  if (movers.every(el => at[el.id] === el[axis])) return null;
+
+  return { ...canvas, elements: elements.map(el =>
+    at[el.id] === undefined || at[el.id] === el[axis] ? el : { ...el, [axis]: at[el.id] }) };
+}
+
+/**
  * Even gaps between the named elements, along one axis.
  *
  * The gaps are what is made equal, not the centres: the elements on a canvas

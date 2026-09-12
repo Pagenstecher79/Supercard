@@ -20,6 +20,8 @@ import {
   isHeightPinned,
   isSquareLocked,
   isPinned,
+  alignElements,
+  restorePatch,
   reorderElement,
   overlaps,
   overlappingElements,
@@ -2155,5 +2157,111 @@ describe('overlappingElements', () => {
     expect(overlappingElements(canvas, 'c')).toEqual([]);
     expect(overlappingElements(canvas, 'nope')).toEqual([]);
     expect(overlappingElements({}, 'a')).toEqual([]);
+  });
+});
+
+describe('alignElements', () => {
+  const canvas = () => ({ w: 400, h: 400, elements: [
+    { id: 'a', x: 10, y: 10, w: 40, h: 20 },
+    { id: 'b', x: 100, y: 60, w: 80, h: 40 },
+    { id: 'c', x: 250, y: 200, w: 20, h: 100 },
+  ]});
+  const at = (out, id, axis) => out.elements.find(e => e.id === id)[axis];
+
+  it('lines them up on the leftmost of them', () => {
+    const out = alignElements(canvas(), ['a', 'b', 'c'], 'left');
+    expect([at(out,'a','x'), at(out,'b','x'), at(out,'c','x')]).toEqual([10, 10, 10]);
+  });
+
+  it('lines them up on the rightmost edge, box by box', () => {
+    const out = alignElements(canvas(), ['a', 'b', 'c'], 'right');
+    // the group's right edge is c's, at 270
+    expect([at(out,'a','x'), at(out,'b','x'), at(out,'c','x')]).toEqual([230, 190, 250]);
+  });
+
+  it('centres them on the middle of the box they occupy', () => {
+    const out = alignElements(canvas(), ['a', 'c'], 'hcenter');
+    // 10..270, middle 140
+    expect(at(out,'a','x')).toBe(120);
+    expect(at(out,'c','x')).toBe(130);
+  });
+
+  it('does the same three the other way round', () => {
+    expect(at(alignElements(canvas(), ['a','b','c'], 'top'), 'c', 'y')).toBe(10);
+    expect(at(alignElements(canvas(), ['a','b','c'], 'bottom'), 'a', 'y')).toBe(280);
+    const mid = alignElements(canvas(), ['a','c'], 'vcenter');
+    expect(at(mid,'a','y')).toBe(145);   // 10..300, middle 155
+    expect(at(mid,'c','y')).toBe(105);
+  });
+
+  it('leaves the other axis alone', () => {
+    const out = alignElements(canvas(), ['a','b'], 'left');
+    expect(at(out,'b','y')).toBe(60);
+  });
+
+  it('rounds to whole units', () => {
+    const c = { w: 400, h: 400, elements: [
+      { id: 'a', x: 0, y: 0, w: 41, h: 10 },
+      { id: 'b', x: 0, y: 0, w: 10, h: 10 },
+    ]};
+    const out = alignElements(c, ['a','b'], 'hcenter');
+    expect(Number.isInteger(at(out,'b','x'))).toBe(true);
+  });
+
+  it('needs two that may move, and passes over the locked', () => {
+    const c = canvas();
+    c.elements[1].locked = true;
+    expect(alignElements(c, ['a','b'], 'left')).toBe(null);
+    expect(alignElements(canvas(), ['a'], 'left')).toBe(null);
+    expect(alignElements(canvas(), [], 'left')).toBe(null);
+    // a locked one neither moves nor sets the line
+    const out = alignElements(c, ['a','b','c'], 'left');
+    expect(at(out,'b','x')).toBe(100);
+    expect(at(out,'c','x')).toBe(10);
+  });
+
+  it('is nothing to do when they are already lined up', () => {
+    const c = { w: 400, h: 400, elements: [
+      { id: 'a', x: 20, y: 0, w: 10, h: 10 },
+      { id: 'b', x: 20, y: 50, w: 10, h: 10 },
+    ]};
+    expect(alignElements(c, ['a','b'], 'left')).toBe(null);
+  });
+
+  it('leaves the canvas it was given alone', () => {
+    const c = canvas();
+    alignElements(c, ['a','b','c'], 'left');
+    expect(c).toEqual(canvas());
+  });
+});
+
+describe('restorePatch', () => {
+  const KEYS = ['canvas', 'gauges'];
+
+  it('names the keys that differ, with the values they had', () => {
+    const patch = restorePatch({ canvas: { w: 2 }, gauges: [1] }, { canvas: { w: 1 }, gauges: [1] }, KEYS);
+    expect(patch).toEqual({ canvas: { w: 1 } });
+  });
+
+  it('deletes a key the undone state had created', () => {
+    const patch = restorePatch({ canvas: { w: 1 }, gauges: [1] }, { canvas: { w: 1 } }, KEYS);
+    expect(patch).toHaveProperty('gauges', undefined);
+    expect(Object.keys(patch)).toEqual(['gauges']);
+  });
+
+  it('copies rather than handing back the snapshot', () => {
+    const previous = { canvas: { w: 1, elements: [] } };
+    const patch = restorePatch({ canvas: { w: 2 } }, previous, KEYS);
+    expect(patch.canvas).not.toBe(previous.canvas);
+    expect(patch.canvas).toEqual(previous.canvas);
+  });
+
+  it('ignores what is not its business', () => {
+    expect(restorePatch({ colors: 1 }, { colors: 2 }, KEYS)).toBe(null);
+  });
+
+  it('is null when nothing differs', () => {
+    const slot = { canvas: { w: 1 }, gauges: [] };
+    expect(restorePatch(slot, structuredClone(slot), KEYS)).toBe(null);
   });
 });
