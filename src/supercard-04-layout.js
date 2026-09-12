@@ -2705,6 +2705,13 @@ Object.assign(window.SupercardModules['layout'], (() => {
                                     .commitFn=${commitFn}></sc-canvas-editor>`;
     }
     const convertible = Array.isArray(slot?.layout_rows) && slot.layout_rows.length > 0;
+    // Rows that are switched off are not what the card draws - the content
+    // row is - so "everything keeps its position" is a promise the conversion
+    // cannot keep for them, and a stale row height nobody has seen since
+    // becomes a three-unit element. The offer stays anyway: the rows are real
+    // configuration and may be a layout mid-build, so this says what is about
+    // to be converted rather than deciding it.
+    const dormant = convertible && !slot?.layout_active;
     const dead = deadCellTargets(slot);
     const live = (/** @type {string[]} */ keys) => keys.filter(k => !dead.includes(k));
     // What each painted cell becomes, so the offer can say it: a surface for
@@ -2730,6 +2737,11 @@ Object.assign(window.SupercardModules['layout'], (() => {
             <b style="color:var(--primary-text-color)">Try the canvas layout.</b>
             Everything keeps its position; the card takes a fixed shape you can
             then change. Your rows stay in the config, so this is reversible.
+            ${dormant ? html`<br><b style="color:var(--error-color,#db4437)">These rows are
+              switched off</b>, so they are not what the card draws right now -
+              converting copies the rows as configured, not the picture on
+              screen. Switch <b>Layout</b> on above to see what you would be
+              converting.` : ''}
             ${surfaced.length ? html`<br>Colour and glass patterns on
               ${surfaced.length === 1 ? 'one cell' : `${surfaced.length} cells`}
               are repointed at a surface covering the same region, so the
