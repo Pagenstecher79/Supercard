@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElements,
          elementsInRect, duplicateElements,
          isSquareLocked, isPinned, DEFAULT_CANVAS, DEFAULT_GRID,
@@ -9,6 +9,7 @@ import { getCellItems, resolveSnap, applyDrag, applyGroupDrag, distributeElement
          repointPatterns, colouredCells, glassedCells, soleElementTargets,
          canvasFromCard,
          canDuplicate, reorderElement, overlappingElements,
+         alignElements, restorePatch,
          NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from "./label-typography.js";
@@ -1247,6 +1248,58 @@ customElements.define('sc-layout-editor', ScLayoutEditor);
 const SAME_SPOT_PX = 4;
 
 /**
+ * The icon on an alignment button.
+ *
+ * Two bars and the line they are pulled to. Unicode has arrows and brackets
+ * but nothing that reads as "line these up on their left edges", and six
+ * buttons that all look like arrows are six buttons nobody can tell apart.
+ *
+ * @param {'left'|'hcenter'|'right'|'top'|'vcenter'|'bottom'} edge
+ */
+function alignIcon(edge) {
+  const vertical = edge === 'top' || edge === 'vcenter' || edge === 'bottom';
+  // Where the line is, and where the two bars start from.
+  const line = edge === 'left' || edge === 'top' ? 3 : (edge === 'right' || edge === 'bottom' ? 21 : 12);
+  const bars = vertical
+    ? [{ x: 5, w: 5 }, { x: 14, w: 5 }]
+    : [{ y: 5, h: 5 }, { y: 14, h: 5 }];
+  return svg`
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <line x1=${vertical ? 2 : line} y1=${vertical ? line : 2}
+            x2=${vertical ? 22 : line} y2=${vertical ? line : 22}
+            stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+      ${bars.map(b => {
+        const long = 8;
+        if (vertical) {
+          const y = edge === 'top' ? line : (edge === 'bottom' ? line - long : line - long / 2);
+          return svg`<rect x=${b.x} y=${y} width=${b.w} height=${long} rx="1" fill="currentColor"></rect>`;
+        }
+        const x = edge === 'left' ? line : (edge === 'right' ? line - long : line - long / 2);
+        return svg`<rect x=${x} y=${b.y} width=${long} height=${b.h} rx="1" fill="currentColor"></rect>`;
+      })}
+    </svg>`;
+}
+
+/**
+ * How many steps back the canvas editor remembers.
+ *
+ * A snapshot is the canvas and the element lists, so a card with sixteen
+ * gauges is a few kilobytes of it; thirty of those is nothing next to what
+ * the editor already holds, and further back than anybody reaches by hand.
+ */
+const HISTORY_DEPTH = 30;
+
+/**
+ * What the arrows put back.
+ *
+ * The canvas, the elements on it, and the box the card asks Home Assistant
+ * for - not the colour rules, the glass patterns or the interactions, which
+ * are edited in their own sections of the same dialog and are nobody's idea
+ * of "the last thing I did on the canvas".
+ */
+const HISTORY_KEYS = Object.freeze(['canvas', 'gauges', 'progressbars', 'labels_list']);
+
+/**
  * The zoom levels the - and + buttons walk through.
  *
  * Zoom is a property of the view, never of the card: it scales the pixels the
@@ -1287,6 +1340,8 @@ class ScCanvasEditor extends LitElement {
       _zoom: { type: Number, state: true },
       _names: { type: Boolean, state: true },
       _layers: { type: Boolean, state: true },
+      _undoStack: { type: Array, state: true },
+      _redoStack: { type: Array, state: true },
     };
   }
 
@@ -1310,18 +1365,25 @@ class ScCanvasEditor extends LitElement {
     this._placingEntry = null;
     this._ghost = null;
     this._zoom = 1;
-    // Off, because the id is what the rest of the editor calls an element -
-    // the list, the glass targets, the colour rules - and a canvas that
-    // silently spoke a different language than they do would be worse than
-    // one that needs a click. Like the zoom, it belongs to the open editor
-    // and is never committed.
-    this._names = false;
+    // On: a name under a box is what somebody recognises their element by.
+    // The box itself still says the id, which is what the rest of the editor
+    // calls it - the list, the glass targets, the colour rules - so the two
+    // languages are both on screen rather than one replacing the other. Like
+    // the zoom, it belongs to the open editor and is never committed.
+    this._names = true;
     // The layer panel, folded away until somebody has elements stacked and
     // goes looking for them. Editor state like the zoom, never committed.
     this._layers = false;
     // Which row a layer drag started on. Not reactive: the row it lands on
     // renders the drop, and the list re-renders from the commit anyway.
     this._layerFrom = null;
+    // The way back, and the way forward again. They live as long as the open
+    // editor does: what came before it is Home Assistant's own undo.
+    this._undoStack = [];
+    this._redoStack = [];
+    // Set while a snapshot is being put back, so restoring is not itself
+    // remembered as a change to undo.
+    this._travelling = false;
     // The last press: where it was, whether it moved, and what lay under it.
     // Not reactive - nothing renders from it.
     this._lastDown = null;
@@ -1410,6 +1472,7 @@ class ScCanvasEditor extends LitElement {
          back to fit by flex-shrink and there would be nothing to scroll. */
       .canvas-view > .canvas { margin: auto; flex: none; }
       .names { display: flex; align-items: center; gap: 2px; }
+      .names.history button { font-size: 18px; line-height: 1; padding: 3px 8px; }
       .names button { background: var(--card-background-color, #1c1c1c); border: 1px solid var(--divider-color,#444); color: var(--primary-text-color); border-radius: 4px; padding: 4px 7px; font-size: 13px; line-height: 1.1; cursor: pointer; }
       .names button[disabled] { opacity: 0.4; cursor: default; }
       /* A press on a zoom button is over the moment it happens, so those may
@@ -1432,6 +1495,8 @@ class ScCanvasEditor extends LitElement {
       .tools button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
       .tools button[disabled] { opacity: 0.4; cursor: default; }
       .tools .level { min-width: 46px; display: flex; align-items: center; justify-content: center; align-self: stretch; font-variant-numeric: tabular-nums; }
+      .tools button.icon { display: flex; align-items: center; justify-content: center; min-width: 34px; padding: 4px 6px; }
+      .tools button.icon svg { display: block; }
       .tools button.danger { color: var(--error-color, #f44336); }
       .tools button.danger:hover:not([disabled]) { background: var(--error-color, #f44336); color: #fff; }
       .tools .spacer { flex: 1; }
@@ -1608,8 +1673,67 @@ class ScCanvasEditor extends LitElement {
     return this.slot?.canvas || { ...DEFAULT_CANVAS, elements: [] };
   }
 
-  _commit(canvas) {
-    if (this.commitFn) this.commitFn('__merge__', { canvas });
+  _commit(canvas) { this._send('__merge__', { canvas }); }
+
+  /**
+   * Commit, remembering what it is being changed from.
+   *
+   * Every change this editor makes goes through here, including the ones its
+   * sub-editors make, so that the arrows above the canvas can walk back
+   * through them one at a time. The snapshot is taken before the commit
+   * because `this.slot` still holds the old config then - Home Assistant
+   * hands the new one back asynchronously, a render later.
+   */
+  _send(key, value) {
+    if (!this.commitFn) return;
+    if (!this._travelling) {
+      this._undoStack = [...this._undoStack, this._snapshot()].slice(-HISTORY_DEPTH);
+      // A new change is a new future, so whatever was undone is not it.
+      this._redoStack = [];
+    }
+    this.commitFn(key, value);
+  }
+
+  /** What this editor's undo is responsible for putting back. */
+  _snapshot() {
+    /** @type {Record<string, any>} */
+    const slot = {};
+    for (const key of HISTORY_KEYS) {
+      if (this.slot?.[key] !== undefined) slot[key] = structuredClone(this.slot[key]);
+    }
+    return { slot, grid: structuredClone(this.cardConfig?.grid_options ?? null) };
+  }
+
+  /** Put one snapshot back, as one commit. */
+  _restore(snap) {
+    const patch = restorePatch(this.slot || {}, snap.slot, HISTORY_KEYS);
+    const gridNow = this.cardConfig?.grid_options ?? null;
+    const gridDiffers = JSON.stringify(gridNow) !== JSON.stringify(snap.grid);
+    if (!patch && !gridDiffers) return false;
+
+    /** @type {[string, any][]} */
+    const writes = [];
+    if (gridDiffers) writes.push(['__card__', { grid_options: snap.grid || undefined }]);
+    if (patch) writes.push(['__merge__', patch]);
+    this._travelling = true;
+    try { this.commitFn('__batch__', writes); } finally { this._travelling = false; }
+    return true;
+  }
+
+  _undo() {
+    const snap = this._undoStack[this._undoStack.length - 1];
+    if (!snap) return;
+    const now = this._snapshot();
+    this._undoStack = this._undoStack.slice(0, -1);
+    if (this._restore(snap)) this._redoStack = [...this._redoStack, now].slice(-HISTORY_DEPTH);
+  }
+
+  _redo() {
+    const snap = this._redoStack[this._redoStack.length - 1];
+    if (!snap) return;
+    const now = this._snapshot();
+    this._redoStack = this._redoStack.slice(0, -1);
+    if (this._restore(snap)) this._undoStack = [...this._undoStack, now].slice(-HISTORY_DEPTH);
   }
 
   /**
@@ -1664,7 +1788,7 @@ class ScCanvasEditor extends LitElement {
     }]];
     const shaped = this._reshapedFor({ ...this.cardConfig, grid_options: grid });
     if (shaped) writes.push(['__merge__', { canvas: shaped }]);
-    this.commitFn('__batch__', writes);
+    this._send('__batch__', writes);
   }
 
   _setRows(rows) { this._setGrid({ rows }); }
@@ -1830,7 +1954,7 @@ class ScCanvasEditor extends LitElement {
     // The copies, not the originals: a copy is made to be put somewhere, and
     // what is selected is what the next drag moves.
     this._applySelection(made.ids);
-    this.commitFn('__merge__', { canvas: made.canvas, ...made.patch });
+    this._send('__merge__', { canvas: made.canvas, ...made.patch });
   }
 
   /**
@@ -1902,12 +2026,26 @@ class ScCanvasEditor extends LitElement {
    * and disappears with the selection - a button that comes and goes in a
    * fixed row moves every other button with it.
    */
+  /**
+   * Line the selection up on one edge, or through one middle.
+   *
+   * Beside the distribute buttons, because both are the same kind of thing:
+   * an arrangement of the elements that are selected, done to all of them at
+   * once.
+   *
+   * @param {'left'|'hcenter'|'right'|'top'|'vcenter'|'bottom'} edge
+   */
+  _align(edge) {
+    const out = alignElements(this._canvas, this._selection, edge);
+    if (out) this._commit(out);
+  }
+
   _distribute(axis) {
     const out = distributeElements(this._canvas, this._selection, axis);
     if (out) this._commit(out);
   }
 
-  /** How many of the selected elements a distribute could actually move. */
+  /** How many of the selected elements an arrangement could actually move. */
   get _distributable() {
     const els = this._canvas.elements;
     return this._selection.filter(id => {
@@ -2265,7 +2403,7 @@ class ScCanvasEditor extends LitElement {
     const made = addElement(this.slot, c, what, entry, at, aspect);
     if (!made) return;
     this._sel = made.id;
-    this.commitFn('__merge__', { canvas: made.canvas, ...made.patch });
+    this._send('__merge__', { canvas: made.canvas, ...made.patch });
   }
 
   /**
@@ -2519,7 +2657,9 @@ class ScCanvasEditor extends LitElement {
         <summary>${title}</summary>
         <div class="el-config-body">${body}</div>
       </details>`;
-    const props = { hass: this.hass, slot: this.slot, commitFn: this.commitFn };
+    // The sub-editor commits through this editor, so a gauge's own settings
+    // are steps the arrows above the canvas can walk back through too.
+    const props = { hass: this.hass, slot: this.slot, commitFn: (k, v) => this._send(k, v) };
 
     let m;
     if ((m = id.match(/^progressbar_(\d+)$/))) {
@@ -2664,6 +2804,18 @@ class ScCanvasEditor extends LitElement {
           <span class="hint" style="flex:1">${this._placing
             ? html`Click on the canvas to place the ${this._placingLabel}. Escape cancels.`
             : html`Later in the list draws on top. A gauge and a round bar stay square and fill their box.`}</span>
+          <div class="names history">
+            <button title=${this._undoStack.length
+                      ? 'Undo the last change to the canvas or its elements'
+                      : 'Nothing to undo yet'}
+                    ?disabled=${!this._undoStack.length}
+                    @click=${() => this._undo()}>↶</button>
+            <button title=${this._redoStack.length
+                      ? 'Do it again'
+                      : 'Nothing to redo'}
+                    ?disabled=${!this._redoStack.length}
+                    @click=${() => this._redo()}>↷</button>
+          </div>
           <div class="names">
             <button class=${this._names ? 'on' : ''}
                     title="Put each element's name on its box. Off, a box says its id - which is what the lists, the glass targets and the colour rules call it."
@@ -2721,6 +2873,19 @@ class ScCanvasEditor extends LitElement {
         </div>
 
         <div class="tools">
+          <div class="group">
+            ${[['left', 'Line up their left edges'],
+               ['hcenter', 'Line them up through one vertical middle'],
+               ['right', 'Line up their right edges'],
+               ['top', 'Line up their top edges'],
+               ['vcenter', 'Line them up through one horizontal middle'],
+               ['bottom', 'Line up their bottom edges']].map(([edge, what]) => html`
+              <button class="icon" title=${movers < 2
+                        ? 'Two selected elements that can move are needed to line anything up'
+                        : `${what}. The outermost of them stays where it is.`}
+                      ?disabled=${movers < 2}
+                      @click=${() => this._align(/** @type {any} */ (edge))}>${alignIcon(/** @type {any} */ (edge))}</button>`)}
+          </div>
           <div class="group">
             <button title=${movers < 3
                       ? 'Three selected elements that can move are needed to even out the gaps between them'
