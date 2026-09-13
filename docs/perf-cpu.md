@@ -1,6 +1,6 @@
 # Where the CPU goes
 
-Measured 2026-09-13 against a real dashboard (24 Supercards, 73 gauges, 9
+Measured 2026-09-13 against a real dashboard (24 cards, 73 gauges, 9
 progress bars, ~24 800 DOM nodes, 20 glass panes in view) on a 120 Hz display,
 Chrome 153, and against a synthetic reproducer on the Docker instance.
 
@@ -15,7 +15,7 @@ process, "renderer" the process for that tab. 100 % is one core.
 | as shipped | 63 % | 78 % | **141 %** |
 | only the fx-glass repaint animation removed | 50 % | 10 % | **60 %** |
 | every animation and transition disabled | 49 % | 12 % | 61 % |
-| all Supercards hidden (`visibility: hidden`) | 14 % | 33 % | 47 % |
+| all cards hidden (`visibility: hidden`) | 14 % | 33 % | 47 % |
 
 The second row is one line of CSS. It is worth ~80 points of a core, and it
 gets nearly all of what disabling *every* animation gets.
@@ -390,7 +390,7 @@ kept in front:
 
 Nodes 24,767 -> 9,252.
 
-Hiding every Supercard on that page leaves the renderer at 25.2 % and the GPU
+Hiding every card on that page leaves the renderer at 25.2 % and the GPU
 at 6.8 %. The renderer figure is now the dashboard's own - the card's share of
 the main thread has gone from about fifty points to nothing measurable. What is
 left is GPU, about 30 points of it, and it splits roughly evenly:
@@ -400,7 +400,7 @@ left is GPU, about 30 points of it, and it splits roughly evenly:
 | everything (new build) | 36.8 % |
 | bars hidden | 25.4 % |
 | gauges hidden | 25.8 % |
-| every Supercard hidden | 6.8 % |
+| every card hidden | 6.8 % |
 | needles frozen, everything else as is | 35.8 % |
 
 The needle's motion costs one GPU point, so moving it to the compositor did not
@@ -498,4 +498,4 @@ Alternating the Lovelace resource between the two, 30 s samples:
 The GPU figure is the one the bar change was aimed at, and it is the first time
 it has come down on this dashboard: the earlier rounds moved the renderer and
 left the GPU at 37 %. Both processes now sit near the floor this page has with
-every Supercard hidden.
+every card hidden.

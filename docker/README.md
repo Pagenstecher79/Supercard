@@ -93,4 +93,4 @@ some new directory cannot quietly land in a commit.
 `docker-compose.yml`, `prepare.mjs` and `reset.mjs` are adapted from
 [easy-floorplan](https://github.com/nicosandller/easy-floorplan) (MIT).
 See [LICENSE](LICENSE). The configuration under `config/` is written for
-Supercard.
+Gauge Studio.
