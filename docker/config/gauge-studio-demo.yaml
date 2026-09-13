@@ -179,8 +179,8 @@ views:
         entities:
           - input_boolean.value_generator
           - input_boolean.flaky_sensor_online
-          - script.supercard_stress
-          - script.supercard_known_state
+          - script.gauge_studio_stress
+          - script.gauge_studio_known_state
       - type: entities
         title: Raw inputs
         entities:
