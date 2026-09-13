@@ -21,6 +21,9 @@ homeassistant:
   currency: EUR
   country: DE
   time_zone: UTC
+  # The demo instruments live in their own file: one quantity per sensor, so a
+  # gauge built for volts is fed volts. See packages/demo_instruments.yaml.
+  packages: !include_dir_named packages
 
 # The card is loaded as a Lovelace *resource*, registered by docker/prepare.mjs
 # before the container starts - the same way a real install loads it, and the

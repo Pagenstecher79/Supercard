@@ -1,0 +1,294 @@
+# Values for the instruments the demo dashboard is built from.
+#
+# The showcase cards were configured for concrete quantities - mains voltage,
+# phase current, apparent power, power factor, air quality, link throughput -
+# and a gauge is only worth looking at when the number behind it belongs to its
+# scale. Binding a humidity reading to a 208..254 V dial makes the instrument
+# meaningless, so every quantity the cards draw gets its own source here.
+#
+# The three phases are built from the same clock, so voltage, current, power
+# factor and power stay consistent with each other - power really is U * I *
+# cos phi rather than an independent random walk that contradicts the other
+# three.
+#
+# Nothing here is random. A `| random` term redrawn every few seconds makes the
+# needle jump in a direction the previous sample does not predict, and seventy
+# instruments doing that at once is what read as flicker - not dropped frames
+# (the page held 120 fps throughout), but a value that will not stand still.
+# Texture comes from a second sine on a long, unrelated period instead, and
+# every carrier is slow enough that one tick moves the needle a few percent of
+# full scale at most.
+#
+# The triggers are deliberately on different periods. A single shared period
+# made every sensor change in the same instant, so all seventy-odd instruments
+# started their animation in one frame and then stood still until the next
+# tick - measured as bursts of ~45 state changes per 250 ms with nothing in
+# between, which reads as a pulse rather than as a living dashboard. Coprime
+# periods mean the groups only ever coincide once every few minutes.
+
+template:
+  # Load side: moves fastest, so it gets the shortest period.
+  - trigger:
+      - platform: time_pattern
+        seconds: "/2"
+    sensor:
+      - name: Demo current L1
+        unique_id: demo_current_l1
+        unit_of_measurement: "A"
+        device_class: current
+        state_class: measurement
+        state: "{{ [(12 + 9 * sin(now().timestamp() / 92 + 0) + 6 * sin(now().timestamp() / 29.2 + 0)) | round(2), 0.2] | max }}"
+      - name: Demo current L2
+        unique_id: demo_current_l2
+        unit_of_measurement: "A"
+        device_class: current
+        state_class: measurement
+        state: "{{ [(10 + 8 * sin(now().timestamp() / 92 + 2.1) + 5 * sin(now().timestamp() / 29.2 + 1.4)) | round(2), 0.2] | max }}"
+      - name: Demo current L3
+        unique_id: demo_current_l3
+        unit_of_measurement: "A"
+        device_class: current
+        state_class: measurement
+        state: "{{ [(14 + 7 * sin(now().timestamp() / 92 + 4.2) + 6 * sin(now().timestamp() / 29.2 + 2.8)) | round(2), 0.2] | max }}"
+      - name: Demo power L1
+        unique_id: demo_power_l1
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: '{{ ((231 + 3 * sin(now().timestamp() / 124 + 0)) * ([(12 + 9 * sin(now().timestamp() / 92 + 0) + 6 * sin(now().timestamp() / 29.2 + 0)), 0.2] | max) * (0.92 + 0.06 * sin(now().timestamp() / 76 + 0))) | round(0) }}'
+      - name: Demo power L2
+        unique_id: demo_power_l2
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: '{{ ((230 + 3 * sin(now().timestamp() / 124 + 2.1)) * ([(10 + 8 * sin(now().timestamp() / 92 + 2.1) + 5 * sin(now().timestamp() / 29.2 + 1.4)), 0.2] | max) * (0.9 + 0.08 * sin(now().timestamp() / 76 + 2.1))) | round(0) }}'
+      - name: Demo power L3
+        unique_id: demo_power_l3
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: '{{ ((232 + 3 * sin(now().timestamp() / 124 + 4.2)) * ([(14 + 7 * sin(now().timestamp() / 92 + 4.2) + 6 * sin(now().timestamp() / 29.2 + 2.8)), 0.2] | max) * (0.94 + 0.05 * sin(now().timestamp() / 76 + 4.2))) | round(0) }}'
+      - name: Demo socket power
+        unique_id: demo_socket_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: "{{ [(700 + 600 * sin(now().timestamp() / 164) + 40 * sin(now().timestamp() / 181 + 0.23)) | round(0), 0] | max }}"
+  # Mains side: stiffer than the load, and on its own clock.
+  - trigger:
+      - platform: time_pattern
+        seconds: "/3"
+    sensor:
+      - name: Demo voltage L1
+        unique_id: demo_voltage_l1
+        unit_of_measurement: "V"
+        device_class: voltage
+        state_class: measurement
+        state: "{{ (231 + 3 * sin(now().timestamp() / 124 + 0) + 0.8 * sin(now().timestamp() / 211 + 1.94)) | round(1) }}"
+      - name: Demo voltage L2
+        unique_id: demo_voltage_l2
+        unit_of_measurement: "V"
+        device_class: voltage
+        state_class: measurement
+        state: "{{ (230 + 3 * sin(now().timestamp() / 124 + 2.1) + 0.8 * sin(now().timestamp() / 257 + 4.34)) | round(1) }}"
+      - name: Demo voltage L3
+        unique_id: demo_voltage_l3
+        unit_of_measurement: "V"
+        device_class: voltage
+        state_class: measurement
+        state: "{{ (232 + 3 * sin(now().timestamp() / 124 + 4.2) + 0.8 * sin(now().timestamp() / 293 + 0.46)) | round(1) }}"
+      - name: Demo power factor L1
+        unique_id: demo_power_factor_l1
+        state_class: measurement
+        state: "{{ (0.92 + 0.06 * sin(now().timestamp() / 76 + 0)) | round(3) }}"
+      - name: Demo power factor L2
+        unique_id: demo_power_factor_l2
+        state_class: measurement
+        state: "{{ (0.9 + 0.08 * sin(now().timestamp() / 76 + 2.1)) | round(3) }}"
+      - name: Demo power factor L3
+        unique_id: demo_power_factor_l3
+        state_class: measurement
+        state: "{{ (0.94 + 0.05 * sin(now().timestamp() / 76 + 4.2)) | round(3) }}"
+  # Room climate: slow by nature, so a long period costs nothing.
+  - trigger:
+      - platform: time_pattern
+        seconds: "/7"
+    sensor:
+      - name: Demo temperature outdoor
+        unique_id: demo_temperature_outdoor
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: "{{ (9 + 11 * sin(now().timestamp() / 600 + 0) + 0.5 * sin(now().timestamp() / 331 + 2.86)) | round(1) }}"
+      - name: Demo temperature living
+        unique_id: demo_temperature_living
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: "{{ (22 + 2.5 * sin(now().timestamp() / 320 + 0) + 0.5 * sin(now().timestamp() / 379 + 5.26)) | round(1) }}"
+      - name: Demo temperature bath
+        unique_id: demo_temperature_bath
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: "{{ (24 + 4 * sin(now().timestamp() / 210 + 0) + 0.5 * sin(now().timestamp() / 113 + 1.37)) | round(1) }}"
+      - name: Demo temperature studio
+        unique_id: demo_temperature_studio
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: "{{ (21 + 3 * sin(now().timestamp() / 260 + 1.7) + 0.5 * sin(now().timestamp() / 149 + 3.77)) | round(1) }}"
+      - name: Demo humidity outdoor
+        unique_id: demo_humidity_outdoor
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        state: "{{ (68 + 18 * sin(now().timestamp() / 540 + 0) + 0.7 * sin(now().timestamp() / 181 + 6.17)) | round(1) }}"
+      - name: Demo humidity living
+        unique_id: demo_humidity_living
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        state: "{{ (46 + 8 * sin(now().timestamp() / 380 + 0) + 0.7 * sin(now().timestamp() / 211 + 2.29)) | round(1) }}"
+      - name: Demo humidity bath
+        unique_id: demo_humidity_bath
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        state: "{{ (62 + 22 * sin(now().timestamp() / 170 + 0) + 0.7 * sin(now().timestamp() / 257 + 4.68)) | round(1) }}"
+      - name: Demo humidity studio
+        unique_id: demo_humidity_studio
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        state: "{{ (44 + 9 * sin(now().timestamp() / 290 + 2.3) + 0.7 * sin(now().timestamp() / 293 + 0.8)) | round(1) }}"
+  # Air quality and host load.
+  - trigger:
+      - platform: time_pattern
+        seconds: "/5"
+    sensor:
+      - name: Demo carbon dioxide
+        unique_id: demo_co2
+        unit_of_measurement: "ppm"
+        device_class: carbon_dioxide
+        state_class: measurement
+        state: "{{ [(900 + 600 * sin(now().timestamp() / 388) + 180 * sin(now().timestamp() / 92) + 20 * sin(now().timestamp() / 211 + 2.63)) | round(0), 380] | max }}"
+      - name: Demo particulate matter 2.5
+        unique_id: demo_pm25
+        unit_of_measurement: "µg/m³"
+        device_class: pm25
+        state_class: measurement
+        state: "{{ [(14 + 9 * sin(now().timestamp() / 130) + 1.5 * sin(now().timestamp() / 331 + 3.2)) | round(1), 0] | max }}"
+      - name: Demo processor use
+        unique_id: demo_cpu_use
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: "{{ [[(35 + 28 * sin(now().timestamp() / 52) + 6 * sin(now().timestamp() / 379 + 5.6)) | round(1), 0] | max, 100] | min }}"
+      - name: Demo processor temperature
+        unique_id: demo_cpu_temp
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: "{{ (52 + 14 * sin(now().timestamp() / 188) + 1.5 * sin(now().timestamp() / 113 + 1.72)) | round(1) }}"
+      - name: Demo memory use
+        unique_id: demo_memory_use
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: "{{ [[(58 + 11 * sin(now().timestamp() / 210) + 2 * sin(now().timestamp() / 149 + 4.11)) | round(1), 0] | max, 100] | min }}"
+      - name: Demo disk use
+        unique_id: demo_disk_use
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: "{{ (71 + 3 * sin(now().timestamp() / 900)) | round(1) }}"
+  # Switch ports 1-4. Eight links at deliberately different
+  # magnitudes: an idle port beside a saturated one is what makes the
+  # per-gauge auto-range visible. RX and TX are separate attributes, the way
+  # the switch integration these dials were built against exposed them.
+  - trigger:
+      - platform: time_pattern
+        seconds: "/4"
+    sensor:
+      - name: Demo port 1 traffic
+        unique_id: demo_port_1_traffic
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((940000000 * (0.45 + 0.45 * sin(now().timestamp() / 76 + 0.8))) * (1 + 0.28 * sin(now().timestamp() / 149 + 2.4))) | round(0), 0] | max }}"
+        attributes:
+          rx_bps_live: "{{ [((940000000 * (0.45 + 0.45 * sin(now().timestamp() / 76 + 0.8))) * (1 + 0.28 * sin(now().timestamp() / 181 + 4.8))) | round(0), 0] | max }}"
+          tx_bps_live: "{{ [((169200000 * (0.45 + 0.45 * sin(now().timestamp() / 76 + 2.1))) * (1 + 0.28 * sin(now().timestamp() / 211 + 0.91))) | round(0), 0] | max }}"
+      - name: Demo port 2 traffic
+        unique_id: demo_port_2_traffic
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((320000000 * (0.45 + 0.45 * sin(now().timestamp() / 92 + 1.6))) * (1 + 0.28 * sin(now().timestamp() / 257 + 3.31))) | round(0), 0] | max }}"
+        attributes:
+          rx_bps_live: "{{ [((320000000 * (0.45 + 0.45 * sin(now().timestamp() / 92 + 1.6))) * (1 + 0.28 * sin(now().timestamp() / 293 + 5.71))) | round(0), 0] | max }}"
+          tx_bps_live: "{{ [((134400000 * (0.45 + 0.45 * sin(now().timestamp() / 92 + 2.9000000000000004))) * (1 + 0.28 * sin(now().timestamp() / 331 + 1.83))) | round(0), 0] | max }}"
+      - name: Demo port 3 traffic
+        unique_id: demo_port_3_traffic
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((96000000 * (0.45 + 0.45 * sin(now().timestamp() / 116 + 2.4))) * (1 + 0.28 * sin(now().timestamp() / 379 + 4.23))) | round(0), 0] | max }}"
+        attributes:
+          rx_bps_live: "{{ [((96000000 * (0.45 + 0.45 * sin(now().timestamp() / 116 + 2.4))) * (1 + 0.28 * sin(now().timestamp() / 113 + 0.34))) | round(0), 0] | max }}"
+          tx_bps_live: "{{ [((72000000 * (0.45 + 0.45 * sin(now().timestamp() / 116 + 3.7))) * (1 + 0.28 * sin(now().timestamp() / 149 + 2.74))) | round(0), 0] | max }}"
+      - name: Demo port 4 traffic
+        unique_id: demo_port_4_traffic
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((47000000 * (0.45 + 0.45 * sin(now().timestamp() / 124 + 3.2))) * (1 + 0.28 * sin(now().timestamp() / 181 + 5.14))) | round(0), 0] | max }}"
+        attributes:
+          rx_bps_live: "{{ [((47000000 * (0.45 + 0.45 * sin(now().timestamp() / 124 + 3.2))) * (1 + 0.28 * sin(now().timestamp() / 211 + 1.26))) | round(0), 0] | max }}"
+          tx_bps_live: "{{ [((14570000 * (0.45 + 0.45 * sin(now().timestamp() / 124 + 4.5))) * (1 + 0.28 * sin(now().timestamp() / 257 + 3.66))) | round(0), 0] | max }}"
+  # Switch ports 5-8.
+  - trigger:
+      - platform: time_pattern
+        seconds: "/6"
+    sensor:
+      - name: Demo port 5 traffic
+        unique_id: demo_port_5_traffic
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((12000000 * (0.45 + 0.45 * sin(now().timestamp() / 148 + 4.0))) * (1 + 0.28 * sin(now().timestamp() / 293 + 6.05))) | round(0), 0] | max }}"
+        attributes:
+          rx_bps_live: "{{ [((12000000 * (0.45 + 0.45 * sin(now().timestamp() / 148 + 4.0))) * (1 + 0.28 * sin(now().timestamp() / 331 + 2.17))) | round(0), 0] | max }}"
+          tx_bps_live: "{{ [((7200000 * (0.45 + 0.45 * sin(now().timestamp() / 148 + 5.3))) * (1 + 0.28 * sin(now().timestamp() / 379 + 4.57))) | round(0), 0] | max }}"
+      - name: Demo port 6 traffic
+        unique_id: demo_port_6_traffic
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((3200000 * (0.45 + 0.45 * sin(now().timestamp() / 164 + 4.8))) * (1 + 0.28 * sin(now().timestamp() / 113 + 0.69))) | round(0), 0] | max }}"
+        attributes:
+          rx_bps_live: "{{ [((3200000 * (0.45 + 0.45 * sin(now().timestamp() / 164 + 4.8))) * (1 + 0.28 * sin(now().timestamp() / 149 + 3.08))) | round(0), 0] | max }}"
+          tx_bps_live: "{{ [((800000 * (0.45 + 0.45 * sin(now().timestamp() / 164 + 6.1))) * (1 + 0.28 * sin(now().timestamp() / 181 + 5.48))) | round(0), 0] | max }}"
+      - name: Demo port 7 traffic
+        unique_id: demo_port_7_traffic
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((850000 * (0.45 + 0.45 * sin(now().timestamp() / 172 + 5.6))) * (1 + 0.28 * sin(now().timestamp() / 211 + 1.6))) | round(0), 0] | max }}"
+        attributes:
+          rx_bps_live: "{{ [((850000 * (0.45 + 0.45 * sin(now().timestamp() / 172 + 5.6))) * (1 + 0.28 * sin(now().timestamp() / 257 + 4.0))) | round(0), 0] | max }}"
+          tx_bps_live: "{{ [((765000 * (0.45 + 0.45 * sin(now().timestamp() / 172 + 6.8999999999999995))) * (1 + 0.28 * sin(now().timestamp() / 293 + 0.11))) | round(0), 0] | max }}"
+      - name: Demo port 8 traffic
+        unique_id: demo_port_8_traffic
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((24000 * (0.45 + 0.45 * sin(now().timestamp() / 188 + 6.4))) * (1 + 0.28 * sin(now().timestamp() / 331 + 2.51))) | round(0), 0] | max }}"
+        attributes:
+          rx_bps_live: "{{ [((24000 * (0.45 + 0.45 * sin(now().timestamp() / 188 + 6.4))) * (1 + 0.28 * sin(now().timestamp() / 379 + 4.91))) | round(0), 0] | max }}"
+          tx_bps_live: "{{ [((12000 * (0.45 + 0.45 * sin(now().timestamp() / 188 + 7.7))) * (1 + 0.28 * sin(now().timestamp() / 113 + 1.03))) | round(0), 0] | max }}"
+  # The WAN link, on the longest period of the set.
+  - trigger:
+      - platform: time_pattern
+        seconds: "/11"
+    sensor:
+      - name: Demo downstream
+        unique_id: demo_net_down
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((240000000 * (0.45 + 0.45 * sin(now().timestamp() / 116 + 0))) * (1 + 0.28 * sin(now().timestamp() / 149 + 3.43))) | round(0), 0] | max }}"
+      - name: Demo upstream
+        unique_id: demo_net_up
+        unit_of_measurement: "bit/s"
+        state_class: measurement
+        state: "{{ [((50000000 * (0.45 + 0.45 * sin(now().timestamp() / 148 + 1.1))) * (1 + 0.28 * sin(now().timestamp() / 181 + 5.83))) | round(0), 0] | max }}"

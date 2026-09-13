@@ -8,6 +8,8 @@
 !automations.yaml
 !scripts.yaml
 !supercard-demo.yaml
+!packages/
+!packages/*.yaml
 
 # For reference, what the ignore above is keeping out:
 #   .storage/              the auth store, the UI dashboards, config entries
