@@ -17,7 +17,7 @@ views:
     cards:
       - type: custom:gauge-studio-core
         entity: sensor.living_temperature
-        supercard:
+        gauge_studio:
           layout_shape: pill
           border_radius: 20
           card_height_responsive: true
@@ -50,7 +50,7 @@ views:
 
       - type: custom:gauge-studio-core
         entity: sensor.power_draw
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           # A gauge with thresholds, driven by the spiking power sensor: the
@@ -76,7 +76,7 @@ views:
 
       - type: custom:gauge-studio-core
         entity: sensor.energy_total
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           # Auto-range scaling: the value only ever grows, so the multiplier
           # and the tick labels have to keep agreeing as it crosses k and M.
@@ -93,7 +93,7 @@ views:
 
       - type: custom:gauge-studio-core
         entity: sensor.flaky_reading
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           # Bound to the sensor that can go `unavailable`, and to one whose
           # state is not a number at all. Both must degrade quietly - no NaN,
@@ -132,7 +132,7 @@ views:
         cards:
           - type: custom:gauge-studio-core
             entity: sensor.power_draw
-            supercard: &stress_bar
+            gauge_studio: &stress_bar
               layout_shape: rectangle
               border_radius: 8
               progressbar_active: true
@@ -148,25 +148,25 @@ views:
                   indicator_glass_effect: glass_gooey
           - type: custom:gauge-studio-core
             entity: sensor.power_draw
-            supercard: *stress_bar
+            gauge_studio: *stress_bar
           - type: custom:gauge-studio-core
             entity: sensor.power_draw
-            supercard: *stress_bar
+            gauge_studio: *stress_bar
           - type: custom:gauge-studio-core
             entity: sensor.power_draw
-            supercard: *stress_bar
+            gauge_studio: *stress_bar
           - type: custom:gauge-studio-core
             entity: sensor.power_draw
-            supercard: *stress_bar
+            gauge_studio: *stress_bar
           - type: custom:gauge-studio-core
             entity: sensor.power_draw
-            supercard: *stress_bar
+            gauge_studio: *stress_bar
           - type: custom:gauge-studio-core
             entity: sensor.power_draw
-            supercard: *stress_bar
+            gauge_studio: *stress_bar
           - type: custom:gauge-studio-core
             entity: sensor.power_draw
-            supercard: *stress_bar
+            gauge_studio: *stress_bar
 
   - title: Controls
     path: controls
@@ -225,7 +225,7 @@ views:
             entity: sensor.living_temperature
             grid_options:
               columns: 6
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 12
               hide_icon: true
@@ -438,7 +438,7 @@ views:
             grid_options:
               columns: 12
               rows: 3
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 29
               hide_entity_name: true
@@ -578,7 +578,7 @@ views:
         cards:
           - type: custom:gauge-studio-core
             entity: sensor.living_temperature
-            supercard:
+            gauge_studio:
               layout_active: true
               progressbar_active: true
               border_radius: 16
@@ -628,7 +628,7 @@ views:
               columns: 6
           - type: custom:gauge-studio-core
             entity: sensor.living_temperature
-            supercard:
+            gauge_studio:
               layout_active: true
               progressbar_active: true
               border_radius: 16
@@ -690,7 +690,7 @@ views:
         entity: input_number.battery_level
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -999,7 +999,7 @@ views:
         entity: sensor.power_consumption
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -1308,7 +1308,7 @@ views:
         entity: input_number.power_draw
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -1617,7 +1617,7 @@ views:
         entity: sensor.sun_next_midnight
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -1926,7 +1926,7 @@ views:
         entity: sensor.carbon_monoxide
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -2235,7 +2235,7 @@ views:
     path: perfbars
     cards:
       - type: custom:gauge-studio-core
-        supercard:
+        gauge_studio:
           progressbar_active: true
           layout_active: true
           progressbars:
@@ -2514,7 +2514,7 @@ views:
     path: heavy
     cards:
       - type: custom:gauge-studio-core
-        supercard:
+        gauge_studio:
           progressbar_active: true
           layout_active: true
           progressbars:
@@ -2790,7 +2790,7 @@ views:
         grid_options:
           columns: full
       - type: custom:gauge-studio-core
-        supercard:
+        gauge_studio:
           progressbar_active: true
           layout_active: true
           progressbars:
@@ -3066,7 +3066,7 @@ views:
         grid_options:
           columns: full
       - type: custom:gauge-studio-core
-        supercard:
+        gauge_studio:
           progressbar_active: true
           layout_active: true
           progressbars:
@@ -3342,7 +3342,7 @@ views:
         grid_options:
           columns: full
       - type: custom:gauge-studio-core
-        supercard:
+        gauge_studio:
           progressbar_active: true
           layout_active: true
           progressbars:
@@ -3618,7 +3618,7 @@ views:
         grid_options:
           columns: full
       - type: custom:gauge-studio-core
-        supercard:
+        gauge_studio:
           progressbar_active: true
           layout_active: true
           progressbars:
@@ -3894,7 +3894,7 @@ views:
         grid_options:
           columns: full
       - type: custom:gauge-studio-core
-        supercard:
+        gauge_studio:
           progressbar_active: true
           layout_active: true
           progressbars:
@@ -4170,7 +4170,7 @@ views:
         grid_options:
           columns: full
       - type: custom:gauge-studio-core
-        supercard:
+        gauge_studio:
           progressbar_active: true
           layout_active: true
           progressbars:
@@ -4446,7 +4446,7 @@ views:
         grid_options:
           columns: full
       - type: custom:gauge-studio-core
-        supercard:
+        gauge_studio:
           progressbar_active: true
           layout_active: true
           progressbars:
@@ -4725,7 +4725,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -5034,7 +5034,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -5343,7 +5343,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -5652,7 +5652,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -5961,7 +5961,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           border_radius: 12
           hide_icon: true
@@ -6273,7 +6273,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -6391,7 +6391,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -6509,7 +6509,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -6627,7 +6627,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -6745,7 +6745,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -6863,7 +6863,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -6984,7 +6984,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -7246,7 +7246,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -7508,7 +7508,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -7770,7 +7770,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -8032,7 +8032,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -8294,7 +8294,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -8556,7 +8556,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -8818,7 +8818,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -9080,7 +9080,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -9342,7 +9342,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -9604,7 +9604,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -9866,7 +9866,7 @@ views:
         entity: sensor.outside_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -10131,7 +10131,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -10255,7 +10255,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -10379,7 +10379,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -10503,7 +10503,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -10627,7 +10627,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -10751,7 +10751,7 @@ views:
         entity: sensor.living_temperature
         grid_options:
           columns: 6
-        supercard:
+        gauge_studio:
           layout_shape: rectangle
           hide_icon: true
           hide_entity_name: true
@@ -10884,7 +10884,7 @@ views:
             heading: Gauges
             heading_style: title
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               gauges:
                 - entity: sensor.demo_carbon_dioxide
                   gauge_attribute: ''
@@ -11101,7 +11101,7 @@ views:
               columns: 12
           - type: custom:gauge-studio-core
             entity: sensor.demo_temperature_living
-            supercard:
+            gauge_studio:
               icon_align_x: left
               icon_align_y: center
               icon_offset: 8
@@ -11392,7 +11392,7 @@ views:
               columns: 12
               rows: 3
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               border_radius: 35
               icon_offset_x: -8
               color_active: false
@@ -11791,7 +11791,7 @@ views:
             grid_options:
               columns: 12
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 35
               card_height: 120
@@ -12118,7 +12118,7 @@ views:
               columns: 12
               rows: 3
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 35
               card_height: 120
@@ -12536,7 +12536,7 @@ views:
               columns: 12
               rows: 3
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               border_radius: 35
               gauges:
                 - entity: sensor.demo_power_factor_l1
@@ -12773,7 +12773,7 @@ views:
             grid_options:
               columns: 12
               rows: 8
-            supercard:
+            gauge_studio:
               layout_active: true
               border_radius: 12
               border_radius_unit: '%'
@@ -12867,7 +12867,7 @@ views:
                   entity: sensor.demo_temperature_living
               gauge_active: true
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               border_radius: 35
               gauges:
                 - entity: sensor.demo_power_factor_l1
@@ -13099,7 +13099,7 @@ views:
               columns: 12
               rows: 3
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               gauges:
                 - entity: sensor.demo_carbon_dioxide
                   gauge_attribute: ''
@@ -13377,7 +13377,7 @@ views:
               columns: 12
               rows: 5
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 35
               card_height: 120
@@ -13704,7 +13704,7 @@ views:
               columns: 12
               rows: 3
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               gauges:
                 - entity: sensor.demo_carbon_dioxide
                   gauge_attribute: ''
@@ -13937,7 +13937,7 @@ views:
             heading: Instrument grids
             heading_style: title
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               gauge_active: true
               gauges:
                 - entity: sensor.demo_port_1_traffic
@@ -15999,7 +15999,7 @@ views:
             grid_options:
               columns: 12
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 35
               card_height: 120
@@ -16629,7 +16629,7 @@ views:
             grid_options:
               columns: 12
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               gauges:
                 - entity: sensor.demo_carbon_dioxide
                   gauge_attribute: ''
@@ -17356,7 +17356,7 @@ views:
               columns: 12
           - type: custom:gauge-studio-core
             entity: sensor.demo_temperature_living
-            supercard:
+            gauge_studio:
               border_radius: 35
               icon_align_x: left
               icon_align_y: center
@@ -17784,7 +17784,7 @@ views:
             grid_options:
               columns: 12
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 25
               card_height: 100
@@ -18117,7 +18117,7 @@ views:
               rows: 2
           - type: custom:gauge-studio-core
             entity: sensor.demo_temperature_living
-            supercard:
+            gauge_studio:
               icon_align_x: left
               icon_align_y: center
               icon_offset: 8
@@ -18353,7 +18353,7 @@ views:
               columns: 12
               rows: 3
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 32
               hide_entity_name: true
@@ -18765,7 +18765,7 @@ views:
             grid_options:
               columns: 12
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 35
               hide_entity_name: true
@@ -18973,7 +18973,7 @@ views:
               columns: 12
               rows: 8
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               entity: null
               layout_shape: rectangle
               border_radius: 35
@@ -19254,7 +19254,7 @@ views:
               rows: 3
           - type: custom:gauge-studio-core
             entity: sensor.demo_temperature_living
-            supercard:
+            gauge_studio:
               icon_align_x: left
               icon_align_y: center
               icon_offset: 8
@@ -19488,7 +19488,7 @@ views:
               columns: 12
               rows: 3
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               entity: null
               layout_shape: rectangle
               border_radius: 32
@@ -19764,7 +19764,7 @@ views:
               columns: 12
               rows: 4
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               entity: null
               layout_shape: rectangle
               border_radius: 35
@@ -20025,7 +20025,7 @@ views:
               columns: 6
               rows: 2
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               entity: null
               layout_shape: rectangle
               border_radius: 35
@@ -20272,7 +20272,7 @@ views:
               columns: 6
               rows: 2
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 35
               hide_entity_name: true
@@ -20484,7 +20484,7 @@ views:
           - type: heading
             heading: Bars and rings
           - type: custom:gauge-studio-core
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 32
               hide_entity_name: true
@@ -20895,7 +20895,7 @@ views:
               columns: 12
           - type: custom:gauge-studio-core
             entity: ''
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 30
               hide_entity_name: true
@@ -21265,7 +21265,7 @@ views:
               columns: 12
           - type: custom:gauge-studio-core
             entity: ''
-            supercard:
+            gauge_studio:
               layout_shape: rectangle
               border_radius: 30
               hide_entity_name: true
