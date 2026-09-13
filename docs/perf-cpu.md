@@ -482,3 +482,20 @@ The motion survives at the granularity a screen can show it: a 10 % move on a
 46 px bar draws 13 distinct states, about one per third of a pixel. Smaller
 moves draw fewer - a 1 % change on that bar is six tenths of a pixel and draws
 two - which is the step filter doing its job, not the animation failing.
+
+## The whole stack, on the dashboard that started this
+
+The 24-card dashboard (73 gauges, 9 bars) had never run anything newer than the
+released build, so this round compares that build against the branch with all
+four changes in it - gauge `shouldUpdate`, the merged colour runs, the conic
+ring, the needle on HTML layers, and the bars on the capped frame loop.
+Alternating the Lovelace resource between the two, 30 s samples:
+
+    v1.12.0      renderer 83.3 %   GPU 58.1 %   24 776 nodes
+    branch       renderer 22.2 %   GPU 18.4 %    9 243 nodes
+    v1.12.0      renderer 78.0 %   GPU 57.7 %   24 776 nodes
+
+The GPU figure is the one the bar change was aimed at, and it is the first time
+it has come down on this dashboard: the earlier rounds moved the renderer and
+left the GPU at 37 %. Both processes now sit near the floor this page has with
+every Supercard hidden.
