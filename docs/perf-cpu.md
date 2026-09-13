@@ -115,11 +115,43 @@ A bar cannot show more than it can draw: a segmented ring lights whole
 segments, a counting value shows so many decimals, a fill edge lands on a
 whole pixel. Skipping the writes between those steps takes it to **615/s**.
 
-Honest result: **that did not move the CPU** (140 %/50 % either way). The cost
-of an animating bar is paint, not JavaScript, on this machine. It is kept
-because it is 430 full component renders a second of provably invisible work,
-which will matter on hardware where the main thread is the bottleneck - but it
-is not the fix for the CPU number, and should not be sold as one.
+Honest result: **that did not move the CPU** (140 %/50 % either way), and
+neither did capping those writes at 30 a second (259 renders/s, same CPU). The
+cost of an animating bar is paint, not JavaScript. Both are kept because they
+are provably invisible work - 790 component renders a second of it - which will
+matter where the main thread is the bottleneck, but neither is the fix for the
+CPU number and neither should be sold as one.
+
+### What it really was: the fade under the sweep
+
+Every `.sc-seg-inner` carried `transition: background 150ms ease, box-shadow
+150ms ease`. So each segment that lights does not just change colour - it
+animates for 150 ms, and it does that while carrying two blurred halos. During
+a sweep segments light continuously, so there is always a transition running,
+and the ring repaints at the display's full rate no matter how few writes the
+JavaScript makes. That is why neither of the two changes above moved anything.
+
+Six rings, two value changes a second:
+
+| | GPU | renderer |
+|---|---|---|
+| as shipped | 140-150 % | 40-50 % |
+| glow off (transitions still on) | 90 % | 40 % |
+| glow at half radius | 140 % | 40 % |
+| glow only on the three leading segments | 150 % | 50 % |
+| `background` transition only, no `box-shadow` | 120 % | 30 % |
+| **no per-segment transition** | **30 %** | **20 %** |
+
+The radius does not matter and the number of glowing segments does not matter,
+because the segments that repaint are the ones at the edge of the sweep - and
+those are lit in every variant. What matters is whether they are *transitioning*.
+
+**The fix**: the fade is what a segment does when it lights on its own. While
+the ring is sweeping, the sequence of segments *is* the motion, and the fade is
+a second animation laid over it that nobody can pick out. `_animatePct` sets
+`data-sweeping` on the host for the duration, and `:host([data-sweeping])`
+drops the transition. Measured on the same twelve bars: **150 % / 40 % ->
+40 % / 20 %**. The glow, the colours and the sweep itself are untouched.
 
 ## 4. Still unexplained
 
