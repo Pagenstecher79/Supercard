@@ -455,3 +455,30 @@ line, the pill and the floating value, `stroke-dasharray` for the circle.
 Moving those onto the capped rAF path is the fix the numbers point at. It also
 means reproducing `--pb-bounce-ease` in JavaScript, which is why it is a
 separate piece of work rather than a tweak.
+
+### Everything a bar moves now moves on the capped loop
+
+The bar already had a frame loop with a 30 fps cap (`_animatePct`), but it only
+drove the colour sampling - the fill, the indicator line, the pill, the
+floating value and the circle's dash all moved by CSS transition, which runs at
+the display's rate no matter what. They now read the same frame value the loop
+produces, and carry no transition of their own. Keeping them on separate clocks
+was not an option: a pill at 120 fps beside a fill at 30 would visibly lead it.
+
+The loop's easing had to grow up for that. It was a fixed cubic bezier while
+CSS got the user's bounce curve, so the two disagreed; both now come from the
+same function, and `getBounceEase`, `--pb-anim-dur` and `--pb-bounce-ease` are
+gone with their last reader.
+
+On the 36-bar page, alternating builds:
+
+    before   GPU 63.3 %, 70.6 %, 66.6 %
+    after    GPU 23.4 %, 33.9 %, 42.8 %
+    floor     GPU 9.0 %
+
+Roughly halved, with the spread the GPU process always has here.
+
+The motion survives at the granularity a screen can show it: a 10 % move on a
+46 px bar draws 13 distinct states, about one per third of a pixel. Smaller
+moves draw fewer - a 1 % change on that bar is six tenths of a pixel and draws
+two - which is the step filter doing its job, not the animation failing.

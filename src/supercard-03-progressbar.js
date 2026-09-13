@@ -78,20 +78,16 @@ function isOpaqueColor(c) {
   return false;
 }
 
-function getBounceEase(intensity) {
-  if (!intensity || intensity <= 0) return 'cubic-bezier(0.4, 0, 0.2, 1)'; 
+// The curve a bar travels on: a plain ease, or a decaying bounce whose
+// intensity the user sets. It used to be handed to CSS as a linear() sampled
+// every 2 %; now the frame loop evaluates it, which is the curve those samples
+// were approximating.
+function bounceEaseFn(intensity) {
+  if (!intensity || intensity <= 0) return t => solveCubicBezier(t, 0.4, 0, 0.2, 1);
   const amount = intensity / 100;
-  const points = [];
-  for (let i = 0; i <= 100; i += 2) {
-    if (i === 100) { points.push(`1 100%`); continue; }
-    const t = i / 100;
-    const decay = Math.exp(-t * (8 - 4 * amount));
-    const wave = Math.cos(t * (10 + 10 * amount));
-    const val = 1 - decay * wave;
-    points.push(`${val.toFixed(4)} ${i}%`);
-  }
-  return `linear(${points.join(', ')})`;
+  return t => 1 - Math.exp(-t * (8 - 4 * amount)) * Math.cos(t * (10 + 10 * amount));
 }
+
 
 // ==========================================
 // 2. THE COMPONENT
@@ -224,6 +220,7 @@ class ScProgressbar extends LitElement {
   }
 
   _animatePct(to, durationMs) {
+    const ease = bounceEaseFn(safeFloat(this._get('bounce_intensity', 50), 50));
     if (this._animFrame) cancelAnimationFrame(this._animFrame);
     const sweepFlag = window.SC_SWEEP_FLAG ?? true;
     const from  = this._displayPct;
@@ -243,7 +240,7 @@ class ScProgressbar extends LitElement {
       // render, and the DOM is not ours to touch there.
       if (sweepFlag && !this.hasAttribute('data-sweeping')) this.toggleAttribute('data-sweeping', true);
       const t     = Math.min((now - start) / durationMs, 1);
-      const eased = solveCubicBezier(t, 0.2, 0, 0, 1);
+      const eased = ease(t);
       const next  = from + (to - from) * eased;
       if (t < 1) {
         // Only a value the bar can draw differently is worth a render.
@@ -336,7 +333,10 @@ class ScProgressbar extends LitElement {
     const pct = Math.max(0, Math.min(1, (rawVal - min) / range));
     const animDur = safeFloat(this._get('animation_duration', 0.4), 0.4);
 
-    const needsFrames = this._get('value_animated', false)
+    // Everything that moves with the value is drawn from this loop, so a bar
+    // with a duration needs frames whether or not anything else asks for them.
+    const needsFrames = animDur > 0
+      || this._get('value_animated', false)
       || this._get('use_gradient', false)
       || this._get('circular_segmented', false);
 
@@ -348,7 +348,13 @@ class ScProgressbar extends LitElement {
     const renderPct = this._isInitialized ? (needsFrames ? this._displayPct : pct) : 0;
     const originPct = Math.max(0, Math.min(1, (originVal - min) / range));
     
-    const targetPct = this._isInitialized ? pct : originPct;
+    // A CSS transition always runs at the display's rate, and on a 120 Hz
+    // screen that is where the bars' whole GPU cost came from - the same
+    // motion at 30 fps costs a third of it, and nobody can see the difference
+    // on a fill that takes seconds to travel. So the positions follow the
+    // frame loop, which is capped, and carry no transition of their own.
+    // See docs/perf-cpu.md.
+    const targetPct = this._isInitialized ? renderPct : originPct;
     
     const p1Target = Math.min(originPct, targetPct);
     const p2Target = Math.max(originPct, targetPct);
@@ -399,7 +405,7 @@ class ScProgressbar extends LitElement {
       ? `inset(0 calc((1 - ${p2Target}) * 100%) 0 calc(${p1Target} * 100%))`
       : `inset(calc((1 - ${p2Target}) * 100%) 0 calc(${p1Target} * 100%) 0)`;
     
-    const fillStyle = `clip-path: ${fillClipPath}; background: ${fillColor}; transition: clip-path var(--pb-anim-dur) var(--pb-bounce-ease), background 0.1s linear;`;
+    const fillStyle = `clip-path: ${fillClipPath}; background: ${fillColor}; transition: background 0.1s linear;`;
     
     // --- NEW: Hoist global card-edge indent logic ---
     const rc = this.rootConfig || {};
@@ -433,8 +439,8 @@ class ScProgressbar extends LitElement {
       const indThick = parseDim(this._get('indicator_thickness', 2), `2${u}`, u);
       
       const lineStyle = isHoriz 
-        ? `position:absolute; top:0; bottom:0; width:${indThick}; background:${indColor}; left:calc(${targetPct} * 100%); transform:translateX(-50%) translateZ(0); z-index:${ELM_FLOAT}; transition: left var(--pb-anim-dur) var(--pb-bounce-ease);`
-        : `position:absolute; left:0; right:0; height:${indThick}; background:${indColor}; bottom:calc(${targetPct} * 100%); transform:translateY(50%) translateZ(0); z-index:${ELM_FLOAT}; transition: bottom var(--pb-anim-dur) var(--pb-bounce-ease);`;
+        ? `position:absolute; top:0; bottom:0; width:${indThick}; background:${indColor}; left:calc(${targetPct} * 100%); transform:translateX(-50%) translateZ(0); z-index:${ELM_FLOAT};`
+        : `position:absolute; left:0; right:0; height:${indThick}; background:${indColor}; bottom:calc(${targetPct} * 100%); transform:translateY(50%) translateZ(0); z-index:${ELM_FLOAT};`;
       
       let realPillHtml = '';
       if (this._get('indicator_value', false)) {
@@ -495,8 +501,8 @@ class ScProgressbar extends LitElement {
          }
 
          const pPosStyle = isHoriz 
-           ? `left: clamp(${pClampMin}, calc(${targetPct} * 100%), calc(100% - ${pClampMax})); top: 50%; transform: translate(-50%, -50%) rotate(${pRot}deg) translateZ(0); will-change: left, transform; transition: left var(--pb-anim-dur) var(--pb-bounce-ease), background 0.1s linear, color 0.1s linear;` 
-           : `bottom: clamp(${pClampBase}, calc(${targetPct} * 100%), calc(100% - ${pClampBase})); left: 50%; transform: translate(-50%, 50%) rotate(${pRot}deg) translateZ(0); will-change: bottom, transform; transition: bottom var(--pb-anim-dur) var(--pb-bounce-ease), background 0.1s linear, color 0.1s linear;`;
+           ? `left: clamp(${pClampMin}, calc(${targetPct} * 100%), calc(100% - ${pClampMax})); top: 50%; transform: translate(-50%, -50%) rotate(${pRot}deg) translateZ(0); will-change: left, transform; transition: background 0.1s linear, color 0.1s linear;` 
+           : `bottom: clamp(${pClampBase}, calc(${targetPct} * 100%), calc(100% - ${pClampBase})); left: 50%; transform: translate(-50%, 50%) rotate(${pRot}deg) translateZ(0); will-change: bottom, transform; transition: background 0.1s linear, color 0.1s linear;`;
 
          // 1. The real layer
          realPillHtml = html`
@@ -636,7 +642,7 @@ class ScProgressbar extends LitElement {
             </defs>
             <circle cx="50" cy="50" r="${r}" fill="none" stroke="${bgColorRaw}" stroke-opacity="${bgOpacity/100}" stroke-width="${sw}" stroke-dasharray="${dashLength} ${gapLength}" stroke-dashoffset="0" stroke-linecap="round" style="z-index: ${ELM_STATIC}; filter: ${bgFilter};" transform="${svgTransform}"></circle>
             ${progLength > 0 ? svg`
-              <circle cx="50" cy="50" r="${r}" fill="none" stroke="${(this._get('use_gradient', false) && !this._get('gradient_as_solid', false)) ? `url(#${this._uniqueId})` : exactHexColor}" stroke-width="${sw}" stroke-dasharray="${progLength} ${c}" stroke-dashoffset="0" stroke-linecap="round" style="transition: stroke-dasharray var(--pb-anim-dur) var(--pb-bounce-ease), stroke 0.1s linear; z-index: ${ELM_DYNAMIC}; filter: ${circleFilter};" transform="${svgTransform}"></circle>
+              <circle cx="50" cy="50" r="${r}" fill="none" stroke="${(this._get('use_gradient', false) && !this._get('gradient_as_solid', false)) ? `url(#${this._uniqueId})` : exactHexColor}" stroke-width="${sw}" stroke-dasharray="${progLength} ${c}" stroke-dashoffset="0" stroke-linecap="round" style="transition: stroke 0.1s linear; z-index: ${ELM_DYNAMIC}; filter: ${circleFilter};" transform="${svgTransform}"></circle>
             ` : ''}
           </svg>
         `;
@@ -940,7 +946,7 @@ class ScProgressbar extends LitElement {
           }
           
           floatingValueHtml = html`
-            <div style="${isHoriz ? `position:absolute; top:50%; left:clamp(${fvClampMin}, calc(${targetPct} * 100%), calc(100% - (${fvClampMax}))); transform: translate(-50%, -50%) translateZ(0); z-index:${ELM_FLOAT}; display:flex; align-items:center; justify-content:center; pointer-events:none; transition: left var(--pb-anim-dur) var(--pb-bounce-ease);` : `position:absolute; left:50%; bottom:clamp(${fvClampBase}, calc(${targetPct} * 100%), calc(100% - (${fvClampBase}))); transform: translate(-50%, 50%) translateZ(0); z-index:${ELM_FLOAT}; display:flex; align-items:center; justify-content:center; pointer-events:none; transition: bottom var(--pb-anim-dur) var(--pb-bounce-ease);`}">
+            <div style="${isHoriz ? `position:absolute; top:50%; left:clamp(${fvClampMin}, calc(${targetPct} * 100%), calc(100% - (${fvClampMax}))); transform: translate(-50%, -50%) translateZ(0); z-index:${ELM_FLOAT}; display:flex; align-items:center; justify-content:center; pointer-events:none;` : `position:absolute; left:50%; bottom:clamp(${fvClampBase}, calc(${targetPct} * 100%), calc(100% - (${fvClampBase}))); transform: translate(-50%, 50%) translateZ(0); z-index:${ELM_FLOAT}; display:flex; align-items:center; justify-content:center; pointer-events:none;`}">
               <span style="${spanStyle}">${displayValue}</span>
             </div>`;
         } else {
@@ -963,13 +969,10 @@ class ScProgressbar extends LitElement {
       valueHtml = circWrapper;
     }
 
-    const bounceInt = safeFloat(this._get('bounce_intensity', 50), 50);
-    const bounceEase = getBounceEase(bounceInt);
-
-    const hostCSS = `width: ${w}; height: ${h}; --pb-radius: ${radius}; --pb-bg-color: ${bgColor}; --pb-bounce-ease: ${bounceEase};`;
+    const hostCSS = `width: ${w}; height: ${h}; --pb-radius: ${radius}; --pb-bg-color: ${bgColor};`;
 
     return html`
-      <style>:host { ${hostCSS} --pb-anim-dur: ${animDur}s; }</style>
+      <style>:host { ${hostCSS} }</style>
       
       ${isGooey ? html`
       <svg style="position: absolute; width: 0; height: 0;" aria-hidden="true">
@@ -995,7 +998,7 @@ class ScProgressbar extends LitElement {
           <div class="sc-pb-ticks" style="z-index:${ELM_DYNAMIC + 50}; ${ticksStyle}">${tickElementsEmptyArr}</div>
           ${tickLabelsEmptyHtml}
           
-          <div style="position:absolute; inset:0; z-index:${ELM_DYNAMIC + 55}; clip-path: ${fillClipPath}; transition: clip-path var(--pb-anim-dur) var(--pb-bounce-ease); pointer-events:none;">
+          <div style="position:absolute; inset:0; z-index:${ELM_DYNAMIC + 55}; clip-path: ${fillClipPath}; pointer-events:none;">
             <div class="sc-pb-subticks" style="position:absolute; inset:0;">${subtickElementsFilledArr}</div>
             <div class="sc-pb-ticks" style="position:absolute; inset:0; ${ticksStyle}">${tickElementsFilledArr}</div>
             ${tickLabelsFilledHtml}
