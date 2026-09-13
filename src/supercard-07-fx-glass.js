@@ -874,6 +874,15 @@ function update({ hass, config }) {
         `;
       }
 
+      // A pane that carries `backdrop-filter` costs the GPU about 2.5 % of a
+      // core for as long as it is on screen, whether or not anything moves -
+      // measured with sixteen of them on a frozen page: 50 % of a core, 10 %
+      // with the declaration gone. So it is only worth writing when it shows:
+      // a zero blur is the property at full price for no picture, and behind
+      // an opaque pane there is nothing to see blurred.
+      const opaquePane = opacity >= 1 && !(glare > 0);
+      const blursBackdrop = blur > 0 && !opaquePane;
+
       // --- 7. CSS generation ---
       // EXPERIMENT (perf/cpu-investigation): the pane below used to carry
       // `animation: sc-glass-awake-<id> 0.5s infinite alternate`, an opacity
@@ -918,8 +927,9 @@ function update({ hass, config }) {
           transform: translateZ(0) !important;
           -webkit-transform: translateZ(0) !important;
 
+          ${blursBackdrop ? `
           -webkit-backdrop-filter: blur(${u(blur)}) !important;
-          backdrop-filter: blur(${u(blur)}) !important;
+          backdrop-filter: blur(${u(blur)}) !important;` : ''}
           ${maskCSS}
         }
 

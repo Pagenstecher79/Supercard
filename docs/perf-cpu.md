@@ -153,13 +153,40 @@ a second animation laid over it that nobody can pick out. `_animatePct` sets
 drops the transition. Measured on the same twelve bars: **150 % / 40 % ->
 40 % / 20 %**. The glow, the colours and the sweep itself are untouched.
 
-## 4. Still unexplained
+## 4. What the glass costs when nothing happens
 
-With the animation gone the GPU process still sits at 50 %, against 14 % with
-the cards hidden. That is ~36 points from static card content - layer count is
-the first suspect: 190 elements in view carry a non-`auto` `will-change`, and
-fx-glass adds `translateZ(0)` and `backface-visibility: hidden` to every
-pattern's children.
+With the repaint animation gone the GPU process still sat at 50 %, against 10 %
+with the glass CSS removed. Measured with the cards **frozen** - `shouldUpdate`
+forced to `false`, zero renders, zero running animations, a completely static
+page:
+
+| | GPU |
+|---|---|
+| 16 glass panes | 50 % |
+| 8 panes | 30 % |
+| 4 panes | 10 % (the floor) |
+| 16 panes, `backdrop-filter` removed, everything else kept | 10 % |
+| 16 panes, `backdrop-filter: blur(0px)` | 30 % |
+| 16 panes, `will-change: auto` forced everywhere | 50 % |
+| 16 panes, `translateZ(0)` removed | 50 % |
+| 16 panes, masks removed | 50 % |
+
+So it is not the layer hints, not the compositing hacks and not the masks:
+**a pane carrying `backdrop-filter` costs the GPU about 2.5 % of a core for as
+long as it is on screen, even when the page is frozen.** Twenty panes on a
+dashboard is half a core, permanently, for a static picture. That matches the
+real dashboard exactly: 20 panes in view, 50 % GPU with every animation off.
+
+A zero blur costs nearly the same as a real one - the property, not the radius,
+is what puts the pane on the expensive path.
+
+**The fix**: write `backdrop-filter` only when it shows. A blur of zero is the
+property at full price for no picture, and behind a pane that is fully opaque
+there is nothing to see blurred. Both are now gated.
+
+What is left is a real cost for a real effect, and it is worth saying plainly
+in the editor: every glass pattern on screen costs the GPU whether or not
+anything moves, so twenty of them is a different dashboard from four.
 
 ## The reproducer
 
