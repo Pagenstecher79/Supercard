@@ -28,6 +28,8 @@
  * Pure, so it is testable and so the editor could preview the same pill.
  */
 
+import { suspendable } from './glass-suspend.js';
+
 /** The effects that carry a displacement map. */
 export const LIQUID_EFFECTS = Object.freeze(['glass_liquid', 'glass_liquid_heavy']);
 
@@ -103,7 +105,9 @@ export function liquidPillCSS(effect, filterId) {
         '0 4px 12px rgba(0,0,0,0.45)',
       ];
 
-  return (lens ? 'backdrop-filter: ' + lens + '; -webkit-backdrop-filter: ' + lens + '; ' : '')
+  const lensCSS = suspendable(lens);
+
+  return (lensCSS ? 'backdrop-filter: ' + lensCSS + '; -webkit-backdrop-filter: ' + lensCSS + '; ' : '')
     + 'background-image: ' + dome + '; '
     + 'box-shadow: ' + rim.join(', ') + '; '
     + 'border: none; text-shadow: 0 1px 2px rgba(0,0,0,0.55);';
