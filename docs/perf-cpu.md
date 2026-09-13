@@ -377,3 +377,34 @@ Same picture either way: 144 gauges across both gauge types, both pointer
 shapes, the 3d effect, all three shadow modes, offset pivots and two scales,
 3,696 geometry points, square box and one forced to 118x57 - **zero**
 difference, not a fraction of a per mille.
+
+### On the dashboard that started this
+
+Alternating against the installed v1.12.0, 30 s a sample, the browser window
+kept in front:
+
+| | renderer | gpu |
+|---|---|---|
+| v1.12.0 | 74.6 %, 86.1 % | 60.7 %, 64.6 % |
+| rotation on a div | 22.6 %, 27.4 % | 36.8 %, 36.8 % |
+
+Nodes 24,767 -> 9,252.
+
+Hiding every Supercard on that page leaves the renderer at 25.2 % and the GPU
+at 6.8 %. The renderer figure is now the dashboard's own - the card's share of
+the main thread has gone from about fifty points to nothing measurable. What is
+left is GPU, about 30 points of it, and it splits roughly evenly:
+
+| | gpu |
+|---|---|
+| everything (new build) | 36.8 % |
+| bars hidden | 25.4 % |
+| gauges hidden | 25.8 % |
+| every Supercard hidden | 6.8 % |
+| needles frozen, everything else as is | 35.8 % |
+
+The needle's motion costs one GPU point, so moving it to the compositor did not
+just relocate the bill. The bars' eleven points are no longer the backdrop
+filter either - switching that off now changes nothing (36.4 %), and switching
+off every filter in them buys three points. Both halves are static painting,
+which is where the next pass goes.
