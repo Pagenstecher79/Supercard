@@ -15,7 +15,7 @@ views:
     path: cards
     icon: mdi:gauge
     cards:
-      - type: custom:supercard-core
+      - type: custom:gauge-studio-core
         entity: sensor.living_temperature
         supercard:
           layout_shape: pill
@@ -48,7 +48,7 @@ views:
               label_text: Humidity
               show_value: true
 
-      - type: custom:supercard-core
+      - type: custom:gauge-studio-core
         entity: sensor.power_draw
         supercard:
           layout_shape: rectangle
@@ -74,7 +74,7 @@ views:
                 - value: 90
                   color: "#f44336"
 
-      - type: custom:supercard-core
+      - type: custom:gauge-studio-core
         entity: sensor.energy_total
         supercard:
           layout_shape: rectangle
@@ -91,7 +91,7 @@ views:
               show_multiplier_label: true
               show_tick_labels: true
 
-      - type: custom:supercard-core
+      - type: custom:gauge-studio-core
         entity: sensor.flaky_reading
         supercard:
           layout_shape: rectangle
@@ -130,7 +130,7 @@ views:
         columns: 4
         square: false
         cards:
-          - type: custom:supercard-core
+          - type: custom:gauge-studio-core
             entity: sensor.power_draw
             supercard: &stress_bar
               layout_shape: rectangle
@@ -146,25 +146,25 @@ views:
                   show_indicator: true
                   indicator_value: true
                   indicator_glass_effect: glass_gooey
-          - type: custom:supercard-core
+          - type: custom:gauge-studio-core
             entity: sensor.power_draw
             supercard: *stress_bar
-          - type: custom:supercard-core
+          - type: custom:gauge-studio-core
             entity: sensor.power_draw
             supercard: *stress_bar
-          - type: custom:supercard-core
+          - type: custom:gauge-studio-core
             entity: sensor.power_draw
             supercard: *stress_bar
-          - type: custom:supercard-core
+          - type: custom:gauge-studio-core
             entity: sensor.power_draw
             supercard: *stress_bar
-          - type: custom:supercard-core
+          - type: custom:gauge-studio-core
             entity: sensor.power_draw
             supercard: *stress_bar
-          - type: custom:supercard-core
+          - type: custom:gauge-studio-core
             entity: sensor.power_draw
             supercard: *stress_bar
-          - type: custom:supercard-core
+          - type: custom:gauge-studio-core
             entity: sensor.power_draw
             supercard: *stress_bar
 
