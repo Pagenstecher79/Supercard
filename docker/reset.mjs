@@ -28,7 +28,7 @@ const keep = new Set([
   "configuration.yaml",
   "automations.yaml",
   "scripts.yaml",
-  "supercard-demo.yaml",
+  "gauge-studio-demo.yaml",
 ]);
 
 let removed = 0;

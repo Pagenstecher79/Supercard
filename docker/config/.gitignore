@@ -7,7 +7,7 @@
 !configuration.yaml
 !automations.yaml
 !scripts.yaml
-!supercard-demo.yaml
+!gauge-studio-demo.yaml
 !packages/
 !packages/*.yaml
 
