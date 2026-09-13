@@ -280,3 +280,131 @@ same build ranged from 6 % to 28 % - so nothing is claimed about it.
 
 The gradient is non-interactive (`pointer-events: none`): a foreignObject
 covers the whole box even where the mask hides it, and taps belong to the card.
+
+## Where the renderer time actually goes
+
+Measured on a real dashboard - 24 cards, 73 gauges, 9 bars, 24,776 nodes - by
+hiding one thing at a time (`content-visibility: hidden`, or a stylesheet
+injected into the shadow root) and sampling the tab's renderer process and the
+GPU process for 20 s each, with a control sample between every probe. Controls
+drifted between 88 % and 97 %, so only differences against an adjacent control
+mean anything.
+
+| what was switched off | renderer | gpu |
+|---|---|---|
+| nothing (control) | 88-97 % | 61-65 % |
+| the needle's transform transition | **20 %** | 64 % |
+| the gauges entirely | 20 % | 57 % |
+| the bars entirely | 76 % | **35 %** |
+| backdrop-filter inside the bars | 86 % | 54 % |
+| every filter inside the bars | 92 % | 53 % |
+
+Two separate stories.
+
+**The gauges own the renderer, and it is entirely the needle.** Switching off
+the transform transition costs exactly as much as deleting all 73 gauges - 20 %
+either way. The card's own JavaScript is not involved: an instrumented
+requestAnimationFrame accounted for 1.4 ms per second across the whole page.
+An SVG transform is not composited, so each of the ~26 needles in flight at any
+moment repaints its gauge on the main thread, every frame, at 120 Hz.
+
+Two fixes that do not work, both measured: `will-change: transform` on the
+needle group made it worse (89 % -> 94 %), and driving the rotation through the
+Web Animations API instead of a CSS transition did not get it composited either
+- 73 needles animating that way cost 150 %.
+
+What does work is taking the needle out of the SVG. 73 HTML elements, absolutely
+positioned over the gauges and rotated by a CSS animation, run continuously for
+**21 %** - against 150 % for the same 73 inside the SVG, and 89 % for the 26
+that animate naturally there. An HTML transform is composited; an SVG one is
+not.
+
+**The bars own the GPU.** Hiding the nine of them takes the GPU from 61 % to
+35 %, and leaves the renderer where it was. Roughly a third of that is
+`backdrop-filter` (three panes, ~3 points each, in line with the earlier
+measurement of ~2.5 % per pane) and roughly a third is the SVG filters. The
+remainder, and the bars' share of the renderer, still needs its own pass.
+
+### What the needle rebuild actually bought
+
+Measured on the same dashboard, alternating between the installed v1.12.0 and a
+build with the needle in its own HTML layers, 30 s per sample:
+
+| | renderer | gpu |
+|---|---|---|
+| v1.12.0 | 75.3 %, 79.0 % | 61.9 %, 62.2 % |
+| needle in HTML layers | 52.0 %, 49.5 % | 34.6 %, 32.7 % |
+
+Nodes on that page fall from 24,776 to 8,983.
+
+It is a real and repeatable win, and it is **half** of what the ablation
+predicted. Freezing the needle in the new build still drops the renderer from
+49.5 % to 15.7 %, so the moving needle still costs some 34 points even out in
+the HTML flow - against the one point the bare-div probe cost. Four guesses at
+why, all measured and all wrong:
+
+| probe | renderer |
+|---|---|
+| new build, needles moving | 49.5 % |
+| pointer shadows hidden | 50.7 % |
+| one rotating layer per gauge instead of two | 53.6 % |
+| overflow: hidden on the layers | 62.9 % |
+| will-change: transform on the layers | 84.0 % |
+
+So it is neither the shadow's SVG filter, nor the number of rotating layers,
+nor the unbounded paint area, and asking for promotion outright makes it far
+worse. The difference from the probe that cost nothing is that these layers are
+SVG elements the size of the whole gauge, stacked over the gauge's own SVG,
+where the probe was a small opaque div. That is where the next pass starts.
+
+### The rotation has to be on a div, not on the svg
+
+Moving the needle out of the gauge's SVG was only half the win because the
+rotation was still applied to an outer `<svg>` element. Wrapping each layer in
+a plain `<div>` and rotating that instead - the svg inside unchanged - is what
+the bare-div probe was really measuring.
+
+On a page built for this - 72 gauges on four sensors that change every second,
+with a 3 s needle animation, so the needles are in flight essentially all the
+time:
+
+| build | renderer, needles moving | needles frozen | the needle's share |
+|---|---|---|---|
+| rotation on the svg | 25.9 %, 29.6 % | 5.0 % | ~23 |
+| rotation on a div | 11.0 %, 15.0 % | 4.8 % | ~8 |
+
+Same picture either way: 144 gauges across both gauge types, both pointer
+shapes, the 3d effect, all three shadow modes, offset pivots and two scales,
+3,696 geometry points, square box and one forced to 118x57 - **zero**
+difference, not a fraction of a per mille.
+
+### On the dashboard that started this
+
+Alternating against the installed v1.12.0, 30 s a sample, the browser window
+kept in front:
+
+| | renderer | gpu |
+|---|---|---|
+| v1.12.0 | 74.6 %, 86.1 % | 60.7 %, 64.6 % |
+| rotation on a div | 22.6 %, 27.4 % | 36.8 %, 36.8 % |
+
+Nodes 24,767 -> 9,252.
+
+Hiding every Supercard on that page leaves the renderer at 25.2 % and the GPU
+at 6.8 %. The renderer figure is now the dashboard's own - the card's share of
+the main thread has gone from about fifty points to nothing measurable. What is
+left is GPU, about 30 points of it, and it splits roughly evenly:
+
+| | gpu |
+|---|---|
+| everything (new build) | 36.8 % |
+| bars hidden | 25.4 % |
+| gauges hidden | 25.8 % |
+| every Supercard hidden | 6.8 % |
+| needles frozen, everything else as is | 35.8 % |
+
+The needle's motion costs one GPU point, so moving it to the compositor did not
+just relocate the bill. The bars' eleven points are no longer the backdrop
+filter either - switching that off now changes nothing (36.4 %), and switching
+off every filter in them buys three points. Both halves are static painting,
+which is where the next pass goes.
