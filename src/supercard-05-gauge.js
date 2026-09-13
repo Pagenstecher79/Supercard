@@ -84,7 +84,7 @@ class ScGauge extends LitElement {
       .sc-gauge-wrap { container-type: size; }
       .sc-gauge-layer { position: absolute; inset: 0; margin: auto;
                         width: 100cqmin; height: 100cqmin;
-                        overflow: visible; display: block; pointer-events: none; }
+                        pointer-events: none; }
 
       /* --- SUPERCARD LAYER MAPPING --- */
       .layer-elm-base    { z-index: 700; }
@@ -869,11 +869,13 @@ class ScGauge extends LitElement {
     // square that viewBox fills - which is what makes a percentage origin
     // land exactly on the pivot.
     const layer = (originX, originY, rotate, content) => html`
-      <svg class="sc-gauge-layer" viewBox="0 0 ${this.SIZE} ${this.SIZE}"
+      <div class="sc-gauge-layer"
            style="transform-origin: ${(originX / this.SIZE * 100).toFixed(4)}% ${(originY / this.SIZE * 100).toFixed(4)}%;${
              rotate ? ` transform: rotate(${renderAngle}deg); transition: transform ${this._isInitialized ? dur : 0}s ${easingCurve};` : ''}">
-        ${content}
-      </svg>`;
+        <svg viewBox="0 0 ${this.SIZE} ${this.SIZE}" style="width:100%;height:100%;overflow:visible;display:block;">
+          ${content}
+        </svg>
+      </div>`;
 
     const is3d = this._get('pointer_3d_effect', false);
     const pivotX = this.CENTER + safeFloat(this._get('pivot_offset_x',0),0);

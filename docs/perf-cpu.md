@@ -356,3 +356,24 @@ nor the unbounded paint area, and asking for promotion outright makes it far
 worse. The difference from the probe that cost nothing is that these layers are
 SVG elements the size of the whole gauge, stacked over the gauge's own SVG,
 where the probe was a small opaque div. That is where the next pass starts.
+
+### The rotation has to be on a div, not on the svg
+
+Moving the needle out of the gauge's SVG was only half the win because the
+rotation was still applied to an outer `<svg>` element. Wrapping each layer in
+a plain `<div>` and rotating that instead - the svg inside unchanged - is what
+the bare-div probe was really measuring.
+
+On a page built for this - 72 gauges on four sensors that change every second,
+with a 3 s needle animation, so the needles are in flight essentially all the
+time:
+
+| build | renderer, needles moving | needles frozen | the needle's share |
+|---|---|---|---|
+| rotation on the svg | 25.9 %, 29.6 % | 5.0 % | ~23 |
+| rotation on a div | 11.0 %, 15.0 % | 4.8 % | ~8 |
+
+Same picture either way: 144 gauges across both gauge types, both pointer
+shapes, the 3d effect, all three shadow modes, offset pivots and two scales,
+3,696 geometry points, square box and one forced to 118x57 - **zero**
+difference, not a fraction of a per mille.
