@@ -643,7 +643,12 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
     return `[slot="${id}"]`;
   }
 
-  function update({ hass, config }) {
+  // EXPERIMENT ONLY - a runtime switch so the three variants can be measured
+// against each other in one build: window.SC_AWAKE = 'on' | 'stepped' | 'off'.
+// This goes away with the fix; it is not a setting.
+
+function update({ hass, config }) {
+    const SC_AWAKE_MODE = window.SC_AWAKE || 'on';
     let patterns = Array.isArray(config.fx_glass_patterns) ? config.fx_glass_patterns : [];
     if (patterns.length === 0 && config.fx_glass && config.fx_glass.enabled) {
       patterns = [{ target: 'main', padding_unit: 'px', ...config.fx_glass }];
@@ -870,6 +875,13 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
       }
 
       // --- 7. CSS generation ---
+      // EXPERIMENT (perf/cpu-investigation): the pane below used to carry
+      // `animation: sc-glass-awake-<id> 0.5s infinite alternate`, an opacity
+      // nudge whose only purpose was to keep the pane repainting. On a
+      // backdrop-filtered layer that means re-sampling and re-blurring the
+      // backdrop on every single frame, for every glass pattern on the card.
+      // Measured on a real dashboard: 141% of a core at rest, 60% with this
+      // one line gone.
       const repaintAnim = `sc-glass-awake-${pat.id}-${Math.random().toString(36).substring(2,7)}`;
 
       styleStr += `
@@ -902,7 +914,9 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
           box-shadow: ${mainShadow} !important;
           ${faseCSS}
 
-          animation: ${repaintAnim} 0.5s infinite alternate !important;
+          ${SC_AWAKE_MODE === 'off' ? '' : SC_AWAKE_MODE === 'stepped'
+            ? `animation: ${repaintAnim} 0.5s infinite alternate steps(1) !important;`
+            : `animation: ${repaintAnim} 0.5s infinite alternate !important;`}
           transform: translateZ(0) !important;
           -webkit-transform: translateZ(0) !important;
 
