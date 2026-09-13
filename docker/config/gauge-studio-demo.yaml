@@ -206,13 +206,14 @@ views:
   # meant to be edited by hand: change them in Home Assistant and export
   # again.
   #
-  # One view is deliberately absent. `playground` is a scratch view that was
-  # pasted over from a real installation, and it still names that
-  # installation's entities - room sensors, a power meter, a switch whose id
-  # carries a LAN address. None of that belongs in a public repository, and
-  # none of those entities exist here anyway, so the view would seed as a
-  # wall of "Entity not available". Rebind it to demo_* entities first if it
-  # should be seeded too.
+  # This file and the instance now hold the same eleven views. A twelfth,
+  # `playground`, used to exist and has been deleted: it had been pasted over
+  # from a real installation and still named that installation's entities -
+  # room sensors, a power meter, a switch whose id carried a LAN address -
+  # none of which exist here, so it rendered as a wall of "Entity not
+  # available". That is the hazard to remember when copying a view in from a
+  # working dashboard: rebind every element to a demo_* entity before the
+  # view is exported, or it carries someone's home into a public repository.
 
   - title: Canvas16
     path: canvas16
