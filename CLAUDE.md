@@ -239,6 +239,15 @@ gated:
 - `filter: url(#sc-goo-filter)` re-rasterises the whole fill layer every frame.
   Only apply it when there is actually a pill to merge into the fill.
 
+A lens - `backdrop-filter: url(#...)` over an `feDisplacementMap` - is not a
+third expensive thing. Measured on the demo at 120 Hz: 16 refracting gauge
+panes cost 119.5 fps against 119.8 with no glass at all, and 12 bars with
+refracting pills cost nothing against the same bars with a flat dark pill.
+What does cost is *stacking* it on a blur: 16 panes doing both fell to 117.2
+fps with a p99 of 16.6 ms, because the pane then re-samples the backdrop
+twice. The gate is the same one the blur already has - an opaque pane bends
+nothing, so it gets no filter.
+
 Before claiming a rendering change is faster, measure it. Frame budget is
 1000/refresh-rate ms - 8.3 ms on a 120 Hz display, not 16.6.
 

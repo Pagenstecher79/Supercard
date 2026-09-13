@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLiquidEffect, lensScale, liquidPillCSS, liquidPadding, LENS_MAP_X, LENS_MAP_Y, LIQUID_EFFECTS } from './pill-glass.js';
+import { isLiquidEffect, pillLensFraction, liquidPillCSS, liquidPadding, LENS_MAP_X, LENS_MAP_Y, LIQUID_EFFECTS } from './pill-glass.js';
 
 describe('isLiquidEffect', () => {
   it('knows the two effects that carry a displacement map', () => {
@@ -15,29 +15,17 @@ describe('isLiquidEffect', () => {
   });
 });
 
-describe('lensScale', () => {
-  it('follows the font size the pill is built from', () => {
-    expect(lensScale('10px', 'glass_liquid')).toBe(16);
-    expect(lensScale('13px', 'glass_liquid')).toBe(21);
-  });
-
-  it('reads a bare number as pixels, the way the pill does', () => {
-    expect(lensScale('10', 'glass_liquid')).toBe(lensScale('10px', 'glass_liquid'));
-    expect(lensScale(10, 'glass_liquid')).toBe(lensScale('10px', 'glass_liquid'));
+describe('pillLensFraction', () => {
+  it('is a share of the pill, not a length, so the font size cannot blow it up', () => {
+    expect(pillLensFraction('glass_liquid')).toBe(0.09);
   });
 
   it('bends further for the thick variant', () => {
-    expect(lensScale('13px', 'glass_liquid_heavy')).toBeGreaterThan(lensScale('13px', 'glass_liquid'));
+    expect(pillLensFraction('glass_liquid_heavy')).toBeGreaterThan(pillLensFraction('glass_liquid'));
   });
 
-  it('never turns a tiny pill inside out, nor a huge one into a funhouse mirror', () => {
-    expect(lensScale('2px', 'glass_liquid')).toBe(8);
-    expect(lensScale('200px', 'glass_liquid')).toBe(30);
-  });
-
-  it('falls back to a middling scale when the size is not pixels', () => {
-    for (const size of ['80%', '2cqmin', '1.2em', '', undefined, null])
-      expect(lensScale(size, 'glass_liquid')).toBe(18);
+  it('is nothing for an effect that does not bend anything', () => {
+    for (const e of ['none', 'glass_dark', undefined, null, 12]) expect(pillLensFraction(e)).toBe(0);
   });
 });
 
