@@ -5,7 +5,7 @@ npm run ha          # build, register the card, start Home Assistant
 ```
 
 Then open <http://localhost:8123> and finish the onboarding once (any account
-— it lives only in `docker/config`, which is gitignored). The **Supercard
+— it lives only in `docker/config`, which is gitignored). The **Gauge Studio
 Demo** dashboard appears in the sidebar.
 
 Requires Docker. There is no other automated way to run the card in a real

@@ -79,7 +79,7 @@ const resourceFile = join(storageDir, "lovelace_resources");
 const URL_PATH = "/local/gauge-studio.js";
 const distCardFile = join(here, "..", "dist", "gauge-studio.js");
 const cacheBust = existsSync(distCardFile) ? String(Math.trunc(statSync(distCardFile).mtimeMs)) : String(Date.now());
-const RESOURCE_ID = "supercarddevresource01";
+const RESOURCE_ID = "gaugestudiodevresource01";
 
 // The URL carries a hash of the bundle, because Home Assistant serves /local/
 // with `Cache-Control: public, max-age=2678400` -- a month. At a fixed URL the
@@ -169,7 +169,7 @@ if (existing?.url === desiredResourceUrl) {
 }
 
 // ---------------------------------------------------------------------------
-// Seed the Supercard Demo dashboard, in storage mode so it is editable.
+// Seed the Gauge Studio Demo dashboard, in storage mode so it is editable.
 //
 // The demo wants to be two contradictory things: in git, so it can be
 // reviewed and so a fresh clone gets real cards, and editable in the UI,
@@ -187,8 +187,8 @@ if (existing?.url === desiredResourceUrl) {
 // ha:reseed` overwrites it from the yaml again when you want the committed
 // plan back, and `npm run ha:reset` clears it along with everything else.
 
-const DASH_ID = "supercard_demo";
-const DASH_URL = "supercard-demo";
+const DASH_ID = "gauge_studio_demo";
+const DASH_URL = "gauge-studio-demo";
 const dashboardsFile = join(storageDir, "lovelace_dashboards");
 const dashConfigFile = join(storageDir, `lovelace.${DASH_ID}`);
 const reseed = process.argv.includes("--reseed");
@@ -213,7 +213,7 @@ if (existsSync(dashboardsFile)) {
 if (!dashboards.data.items.some((item) => item?.id === DASH_ID)) {
   dashboards.data.items.push({
     id: DASH_ID,
-    title: "Supercard Demo",
+    title: "Gauge Studio Demo",
     url_path: DASH_URL,
     icon: "mdi:gauge",
     mode: "storage",
@@ -222,7 +222,7 @@ if (!dashboards.data.items.some((item) => item?.id === DASH_ID)) {
   });
   mkdirSync(storageDir, { recursive: true });
   writeFileSync(dashboardsFile, JSON.stringify(dashboards, null, 2));
-  console.log("Registered the Supercard Demo dashboard.");
+  console.log("Registered the Gauge Studio Demo dashboard.");
 }
 
 if (!existsSync(dashConfigFile) || reseed) {
@@ -259,9 +259,9 @@ if (!existsSync(dashConfigFile) || reseed) {
   );
   console.log(
     reseed
-      ? "Reseeded the Supercard Demo dashboard from gauge-studio-demo.yaml (UI edits discarded)."
-      : "Seeded the Supercard Demo dashboard from gauge-studio-demo.yaml.",
+      ? "Reseeded the Gauge Studio Demo dashboard from gauge-studio-demo.yaml (UI edits discarded)."
+      : "Seeded the Gauge Studio Demo dashboard from gauge-studio-demo.yaml.",
   );
 } else {
-  console.log("Supercard Demo dashboard already exists; keeping your edits (npm run ha:reseed to reset it).");
+  console.log("Gauge Studio Demo dashboard already exists; keeping your edits (npm run ha:reseed to reset it).");
 }

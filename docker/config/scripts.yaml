@@ -1,6 +1,6 @@
 # Things worth doing on demand rather than on a timer.
 
-supercard_stress:
+gauge_studio_stress:
   alias: "Dev: stress the renderer"
   description: >-
     Two hundred value changes as fast as Home Assistant will take them, across
@@ -31,7 +31,7 @@ supercard_stress:
               milliseconds: 50
   mode: single
 
-supercard_known_state:
+gauge_studio_known_state:
   alias: "Dev: park every value at a known figure"
   description: >-
     A fixed starting point, for a screenshot or a before/after comparison.

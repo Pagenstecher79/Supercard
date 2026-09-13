@@ -9,7 +9,7 @@
 # All of them gate on input_boolean.value_generator, so turning that off
 # freezes the instance for a screenshot or a side-by-side comparison.
 
-- id: supercard_dev_drift
+- id: gauge_studio_dev_drift
   alias: "Dev: drift the slow readings"
   description: >-
     Temperature, humidity and battery move the way real ones do - a fraction of
@@ -46,7 +46,7 @@
           {% set v = states('input_number.battery_level') | float(63) %}
           {{ [[v + (range(-1, 2) | random), 0] | max, 100] | min | round(0) }}
 
-- id: supercard_dev_spikes
+- id: gauge_studio_dev_spikes
   alias: "Dev: spike the power draw"
   description: >-
     Power jumps rather than drifts - an appliance switching on is a large step
@@ -67,7 +67,7 @@
       data:
         value: "{{ range(0, 3500) | random }}"
 
-- id: supercard_dev_energy
+- id: gauge_studio_dev_energy
   alias: "Dev: accumulate energy"
   description: >-
     Only ever increases, so the gauge's auto-range scaling has to relabel
