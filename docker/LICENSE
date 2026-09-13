@@ -3,7 +3,7 @@ reset.mjs - is adapted from the easy-floorplan project:
 
     https://github.com/nicosandller/easy-floorplan
 
-Its configuration (config/) is written for Supercard and is not from there.
+Its configuration (config/) is written for Gauge Studio and is not from there.
 
 easy-floorplan is MIT licensed, and the notice below is reproduced as that
 licence requires.

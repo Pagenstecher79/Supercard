@@ -1,6 +1,6 @@
 # The canvas layout model
 
-A design for replacing Supercard's three-level layout with a single canvas on
+A design for replacing the card's three-level layout with a single canvas on
 which gauges, progress bars and labels are placed freely or on a grid.
 
 **Nothing here is built yet.** This is the model and the migration, written
@@ -171,7 +171,7 @@ understand, and a z-index field invites two elements claiming the same layer.
 ### Rendering: HTML, not SVG
 
 easy-floorplan draws its canvas as one SVG with a `viewBox`, because it draws
-shapes. Supercard places existing custom elements, so the canvas stays HTML:
+shapes. The card places existing custom elements, so the canvas stays HTML:
 
 ```html
 <div class="sc-canvas" style="aspect-ratio: 400 / 200; container-type: size">
@@ -422,7 +422,7 @@ writes `gauge_0`. Changing that means migrating saved cards, so it stays.
 
 ### Verified against real configurations
 
-The arithmetic in `src/canvas-model.js` was run against 30 Supercards from a
+The arithmetic in `src/canvas-model.js` was run against 30 cards from a
 live dashboard, and its output compared with the boxes the current renderer
 actually produced in the browser:
 
@@ -466,7 +466,7 @@ the answer. A row/cell card keeps reporting the fixed `3` it always has: its
 rows are percentages *of* a height, so it has no intrinsic height to offer and
 `auto` would collapse it to nothing. `reportedRows()` is that one rule.
 
-Supercard reported `rows: 3` for every card before this. That is the whole
+The card reported `rows: 3` for every card before this. That is the whole
 reason the layout tab offered nothing but a row count: the card had asked for
 a fixed height, and got one.
 
