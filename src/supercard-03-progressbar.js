@@ -1,6 +1,7 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { squareBarOnCanvas } from "./canvas-model.js";
 import { lightParams, reliefPattern, reliefShadow, reliefLayers } from "./glass-light.js";
+import { isLiquidEffect, lensScale, liquidPillCSS, liquidPadding, LENS_MAP_X, LENS_MAP_Y } from "./pill-glass.js";
 
 const SC = window.SupercardUtils;
 
@@ -8,6 +9,10 @@ const SC = window.SupercardUtils;
 // 1. HELPER FUNCTIONS
 // ==========================================
 const { safeFloat, hexToRgb, rgbToHex, sampleGradient } = window.SupercardUtils;
+
+// Scoped by the component's shadow root, the same way the goo filter is: one
+// pill per bar, so one id per shadow tree is all that is ever needed.
+const LENS_FILTER_ID = 'sc-pill-lens';
 
 const parseDim = (v, fallback, unit = 'px') => {
   if (v === undefined || v === null || v === '') return fallback;
@@ -433,6 +438,11 @@ class ScProgressbar extends LitElement {
     // nothing to merge, so it would be paid for an effect nobody can see.
     const isGooey = glassEffect === 'glass_gooey'
       && showInd && this._get('indicator_value', false);
+    // The displacement map is the same kind of bargain as the goo filter: it
+    // re-samples the backdrop on every frame the pill moves, and there is no
+    // backdrop to bend when the pill's own background is opaque. The flag is
+    // set where that is known, in the pill itself.
+    let lensScalePx = 0;
 
     if (showInd) {
       const indColor = this._get('indicator_color', '#ffffff');
@@ -477,6 +487,12 @@ class ScProgressbar extends LitElement {
            glassCSS = `${blurCSS(6)}border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 4px 10px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.4);`;
          } else if (glassEffect === 'glass_lens') {
            glassCSS = `${blurCSS(4)}border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: inset 0 -4px 8px rgba(0,0,0,0.4), inset 0 4px 8px rgba(255,255,255,0.8), 0 4px 12px rgba(0,0,0,0.4);`;
+         } else if (isLiquidEffect(glassEffect)) {
+           // No blur of our own: a lens that also frosts its backdrop reads as
+           // frosted, and the bending is the point. `bgIsOpaque` still governs
+           // the filter, for the same reason it governs every other blur here.
+           if (!bgIsOpaque) lensScalePx = lensScale(this._get('indicator_value_font_size', 10), glassEffect);
+           glassCSS = liquidPillCSS(glassEffect, lensScalePx ? LENS_FILTER_ID : '');
          } else if (glassEffect === 'glass_dark') {
            glassCSS = `${darkBlurCSS}background: rgba(0,0,0,${pOp / 100}) !important; border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 0 4px 8px rgba(0,0,0,0.5); color: #ffffff !important;`;
          } else {
@@ -487,8 +503,13 @@ class ScProgressbar extends LitElement {
          const pRot = (this._get('indicator_value_rotation', 'auto') === 'auto') ? (isHoriz ? -90 : 0) : parseInt(this._get('indicator_value_rotation'));
          const isVertRot = Math.abs(pRot) === 90;
          
+         // A liquid pill stands further off the text than a flat one, and the
+         // clamp that keeps it inside the bar has to know by how much or the
+         // rim hangs over the end at 100 %.
+         const pad = liquidPadding(glassEffect);
+
          // NEW: Dynamic width calculation based on text length so the pill never overflows
-         const halfWidth = `calc(${pSize} * (0.8 + ${indDisplayValue.length} * 0.3))`;
+         const halfWidth = `calc(${pSize} * (0.8 + ${indDisplayValue.length} * 0.3 + ${pad.clampEm}))`;
          const halfHeight = `calc(${pSize} * 1.1)`;
          const pClampBase = isHoriz ? (isVertRot ? halfHeight : halfWidth) : (isVertRot ? halfWidth : halfHeight);
          
@@ -506,14 +527,14 @@ class ScProgressbar extends LitElement {
 
          // 1. The real layer
          realPillHtml = html`
-            <div style="position:absolute; z-index:${ELM_FLOAT + 50}; background:${finalBg}; color:${pCol}; font-size:${pSize}; padding:0.3em 0.8em; border-radius:100px; font-weight:bold; display:flex; align-items:center; justify-content:center; ${glassCSS} ${pPosStyle}">
+            <div style="position:absolute; z-index:${ELM_FLOAT + 50}; background:${finalBg}; color:${pCol}; font-size:${pSize}; padding:${pad.padding}; border-radius:100px; font-weight:bold; display:flex; align-items:center; justify-content:center; ${glassCSS} ${pPosStyle}">
               ${indDisplayValue}
             </div>`;
 
          // 2. The goo clone
          if (isGooey) {
             indicatorGooeyHtml = html`
-              <div style="position:absolute; z-index:${ELM_DYNAMIC}; background:${exactHexColor}; color:transparent; font-size:${pSize}; padding:0.3em 0.8em; border-radius:100px; display:flex; pointer-events:none; ${pPosStyle}">
+              <div style="position:absolute; z-index:${ELM_DYNAMIC}; background:${exactHexColor}; color:transparent; font-size:${pSize}; padding:${pad.padding}; border-radius:100px; display:flex; pointer-events:none; ${pPosStyle}">
                 ${indDisplayValue}
               </div>`;
          }
@@ -974,6 +995,26 @@ class ScProgressbar extends LitElement {
     return html`
       <style>:host { ${hostCSS} }</style>
       
+      ${lensScalePx ? html`
+      <svg style="position: absolute; width: 0; height: 0;" aria-hidden="true">
+        <defs>
+          <!-- Two ramps, one per axis, composited into a single map: the red
+               channel moves the backdrop horizontally, the green vertically.
+               Both are flat between 22 % and 78 %, so only the rim bends and
+               the value stays readable through the middle of the pill.
+               The region is oversized because a displaced pixel may come from
+               outside the pill's own box. -->
+          <filter id="${LENS_FILTER_ID}" color-interpolation-filters="sRGB"
+                  x="-35%" y="-35%" width="170%" height="170%">
+            <feImage result="lensX" preserveAspectRatio="none" href=${LENS_MAP_X}></feImage>
+            <feImage result="lensY" preserveAspectRatio="none" href=${LENS_MAP_Y}></feImage>
+            <feComposite in="lensX" in2="lensY" operator="arithmetic" k2="1" k3="1" result="lensMap"></feComposite>
+            <feDisplacementMap in="SourceGraphic" in2="lensMap" scale="${lensScalePx}"
+                               xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+          </filter>
+        </defs>
+      </svg>` : ''}
+
       ${isGooey ? html`
       <svg style="position: absolute; width: 0; height: 0;" aria-hidden="true">
         <defs>
@@ -1185,7 +1226,9 @@ const STYLE_FIELDS = [
     { value: 'glass_clean', label: 'Clean frost (Apple style)' },
     { value: 'glass_clear', label: 'Clear 3D glass' },
     { value: 'glass_lens', label: 'Convex lens (magnifier)' },
-    { value: 'glass_dark', label: 'Dark tinted glass' }
+    { value: 'glass_dark', label: 'Dark tinted glass' },
+    { value: 'glass_liquid', label: 'Liquid glass (refracts the bar)' },
+    { value: 'glass_liquid_heavy', label: 'Liquid glass, thick (more refraction)' }
   ], condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
   { id: 'indicator_value_color', label: 'Pill text color',     type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value && cfg.indicator_value_adaptive_mode === 'none' },
   { id: 'indicator_value_font_size', label: 'Pill font size (CSS text)', type: 'text', placeholder: '10', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
