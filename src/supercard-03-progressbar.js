@@ -101,6 +101,11 @@ const ELM_STATIC  = 800;
 const ELM_DYNAMIC = 900; 
 const ELM_FLOAT   = 1000; 
 
+// EXPERIMENT ONLY (perf/cpu-investigation): window.SC_FRAME_SKIP = false turns
+// the frame skipping off so the two can be measured against each other in one
+// build. Goes away with the fix.
+const SC_FRAME_SKIP_DEFAULT = true;
+
 class ScProgressbar extends LitElement {
   static get properties() {
     return {
@@ -164,16 +169,62 @@ class ScProgressbar extends LitElement {
 
   _get(k, d) { return this.config[k] ?? d; }
 
+  /**
+   * The smallest change in the animated percentage this bar can actually
+   * show, as a fraction of its range.
+   *
+   * `_displayPct` is reactive state, so every value written to it re-renders
+   * the whole component - the fill, every segment, the pill, the labels. At
+   * 120 Hz that is 120 full renders a second per bar for an animation the eye
+   * cannot follow that finely: a segmented ring only ever lights whole
+   * segments, a counting value only ever shows so many decimals, and a fill
+   * edge can only land on a whole pixel. Writing between those steps redraws
+   * the bar without changing a thing on screen.
+   *
+   * The step is the finest of whichever of those the bar is doing, so the
+   * motion is exactly what it was - the frames that are dropped are the ones
+   * that drew the same picture twice.
+   */
+  _visibleStep() {
+    const steps = [];
+    if (this._get('circular_segmented', false)) {
+      const n = parseInt(this._get('circular_segment_count', 40));
+      if (n > 0) steps.push(1 / n);
+    }
+    if (this._get('value_animated', false)) {
+      const min = safeFloat(this._get('min', 0), 0);
+      const max = safeFloat(this._get('max', 100), 100);
+      const range = Math.abs(max - min) || 1;
+      const decimals = parseInt(this._get('value_decimals', 0)) || 0;
+      steps.push(Math.pow(10, -decimals) / range);
+    }
+    if (this._get('use_gradient', false)) {
+      // A gradient is sampled along the bar, so its finest visible step is a
+      // device pixel of the axis it runs along.
+      const px = Math.max(1, Math.round(
+        /^circular/.test(this._get('orientation', 'horizontal'))
+          ? Math.min(this.offsetWidth, this.offsetHeight) * Math.PI
+          : (this._get('orientation', 'horizontal') === 'horizontal' ? this.offsetWidth : this.offsetHeight)));
+      steps.push(1 / px);
+    }
+    return steps.length ? Math.min(...steps) : 0;
+  }
+
   _animatePct(to, durationMs) {
     if (this._animFrame) cancelAnimationFrame(this._animFrame);
     const from  = this._displayPct;
     const start = performance.now();
+    const step  = (window.SC_FRAME_SKIP ?? SC_FRAME_SKIP_DEFAULT) ? this._visibleStep() : 0;
+    let   shown = this._displayPct;
     const tick  = (now) => {
       const t     = Math.min((now - start) / durationMs, 1);
       const eased = solveCubicBezier(t, 0.2, 0, 0, 1);
-      this._displayPct = from + (to - from) * eased;
-      if (t < 1) this._animFrame = requestAnimationFrame(tick);
-      else { this._displayPct = to; this._animFrame = null; }
+      const next  = from + (to - from) * eased;
+      if (t < 1) {
+        // Only a value the bar can draw differently is worth a render.
+        if (Math.abs(next - shown) >= step) { shown = next; this._displayPct = next; }
+        this._animFrame = requestAnimationFrame(tick);
+      } else { this._displayPct = to; this._animFrame = null; }
     };
     this._animFrame = requestAnimationFrame(tick);
   }

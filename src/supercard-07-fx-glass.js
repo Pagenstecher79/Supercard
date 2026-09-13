@@ -648,7 +648,7 @@ Object.assign(window.SupercardModules['fx_glass'], (() => {
 // This goes away with the fix; it is not a setting.
 
 function update({ hass, config }) {
-    const SC_AWAKE_MODE = window.SC_AWAKE || 'on';
+    const SC_AWAKE_MODE = window.SC_AWAKE || 'demand';
     let patterns = Array.isArray(config.fx_glass_patterns) ? config.fx_glass_patterns : [];
     if (patterns.length === 0 && config.fx_glass && config.fx_glass.enabled) {
       patterns = [{ target: 'main', padding_unit: 'px', ...config.fx_glass }];
@@ -914,9 +914,7 @@ function update({ hass, config }) {
           box-shadow: ${mainShadow} !important;
           ${faseCSS}
 
-          ${SC_AWAKE_MODE === 'off' ? '' : SC_AWAKE_MODE === 'stepped'
-            ? `animation: ${repaintAnim} 0.5s infinite alternate steps(1) !important;`
-            : `animation: ${repaintAnim} 0.5s infinite alternate !important;`}
+          ${SC_AWAKE_MODE === 'on' ? `animation: ${repaintAnim} 0.5s infinite alternate !important;` : ''}
           transform: translateZ(0) !important;
           -webkit-transform: translateZ(0) !important;
 
@@ -924,9 +922,33 @@ function update({ hass, config }) {
           backdrop-filter: blur(${u(blur)}) !important;
           ${maskCSS}
         }
+
+        ${SC_AWAKE_MODE === 'demand' ? `
+        /* The nudge, once per render instead of once per frame. The card
+           flips this class in onAfterRender, which only runs when something
+           the card draws has actually changed - so an idle card costs
+           nothing, and a changing one still gets its backdrop re-sampled. */
+        :host(.sc-awake-alt) ${selector}::after { opacity: 0.999 !important; }
+        ` : ''}
       `;
     });
     return { htmlOverlay: `<style>${styleStr}</style>` };
+  }
+
+  /**
+   * Flip the nudge class after a render that changed something.
+   *
+   * `backdrop-filter` samples what is behind the pane when the pane paints,
+   * and a pane that never paints can hold a stale sample. The card used to
+   * buy that with an infinite animation, which re-blurred the backdrop on
+   * every frame for as long as the dashboard was open - 80 % of a core on a
+   * real one. This does the same job on the only occasions it can matter:
+   * the card re-rendered.
+   */
+  function onAfterRender(shadow) {
+    const host = shadow?.host;
+    if (!host) return;
+    host.classList.toggle('sc-awake-alt');
   }
 
   function renderCustomBlock(commitFn, hass, slot) {
@@ -935,5 +957,5 @@ function update({ hass, config }) {
 
   function editorFields() { return []; }
 
-  return /** @type {SupercardModule} */ ({ update, renderCustomBlock, editorFields });
+  return /** @type {SupercardModule} */ ({ update, onAfterRender, renderCustomBlock, editorFields });
 })());

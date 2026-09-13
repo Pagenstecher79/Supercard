@@ -39,6 +39,19 @@ backdrop - the most expensive thing on the page - and `infinite` means every
 frame, 120 times a second, for every pattern on the card, forever, whether or
 not anything under the glass has changed.
 
+### The fix: nudge on render, not on every frame
+
+The pane only needs a repaint when what is behind it changed - and the card
+already knows when that is, because that is when it re-renders. fx-glass now
+implements `onAfterRender`, which flips a class on the card host, and the
+generated CSS moves the pane's opacity by a thousandth on that class. One
+repaint per change; an idle dashboard costs nothing.
+
+Verified on the reproducer: with the animation gone, four glassed gauges show
+exactly the same needle as the four unglassed ones beside them after a value
+change (`blur: 0.5` so the backdrop is legible), and the bevel, ring and
+frosted interior are unchanged.
+
 **`steps(1)` does not help.** Measured on the reproducer: `on` 60 % GPU,
 `steps(1)` 60 %, removed 50 %. The compositor keeps the layer live either way,
 so the fix has to be removal, with the repaint driven by the change that needs
@@ -75,7 +88,40 @@ it is not being animated.
 This is what makes scrolling expensive, and it is why the glass animation above
 was so costly on this dashboard in particular.
 
-## 3. Still unexplained
+## 3. What an animating card costs
+
+Twelve bars on a canvas, two value changes a second, sensor driven from the
+page (reproducer view `perfbars`):
+
+| | GPU | renderer |
+|---|---|---|
+| 6 segmented circular + 6 gradient linear | 140 % | 50 % |
+| only the 6 gradient linear (segmented hidden) | 20 % | 40 % |
+| only the 6 segmented circular | 140 % | 50 % |
+| the same 6 segmented, segment `box-shadow` off | 80 % | 40 % |
+
+So the animation that costs is the **segmented circular bar**: ~20 % of a core
+each while moving, and nearly half of that is the segments' box-shadows -
+the same shadows that make a static repaint expensive in §2. Linear and
+gradient bars are cheap.
+
+### Frames that draw the same picture
+
+`_animatePct` writes `_displayPct` - reactive state - on every frame, so the
+whole component re-renders 120 times a second while a value moves. Twelve bars
+at two changes a second: **1 049 component renders a second**.
+
+A bar cannot show more than it can draw: a segmented ring lights whole
+segments, a counting value shows so many decimals, a fill edge lands on a
+whole pixel. Skipping the writes between those steps takes it to **615/s**.
+
+Honest result: **that did not move the CPU** (140 %/50 % either way). The cost
+of an animating bar is paint, not JavaScript, on this machine. It is kept
+because it is 430 full component renders a second of provably invisible work,
+which will matter on hardware where the main thread is the bottleneck - but it
+is not the fix for the CPU number, and should not be sold as one.
+
+## 4. Still unexplained
 
 With the animation gone the GPU process still sits at 50 %, against 14 % with
 the cards hidden. That is ~36 points from static card content - layer count is
