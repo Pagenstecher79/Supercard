@@ -1,7 +1,8 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { squareBarOnCanvas } from "./canvas-model.js";
 import { lightParams, reliefPattern, reliefShadow, reliefLayers } from "./glass-light.js";
-import { isLiquidEffect, lensScale, liquidPillCSS, liquidPadding, LENS_MAP_X, LENS_MAP_Y } from "./pill-glass.js";
+import { isLiquidEffect, pillLensFraction, liquidPillCSS, liquidPadding, LENS_MAP_X, LENS_MAP_Y } from "./pill-glass.js";
+import { applyLensGeometry } from "./glass-lens.js";
 
 const SC = window.SupercardUtils;
 
@@ -147,6 +148,10 @@ class ScProgressbar extends LitElement {
 
   updated(changedProps) {
     super.updated(changedProps);
+    // The lens maps are pixel lengths of a pill whose width follows its own
+    // text, so they can only be written once the pill has been laid out - and
+    // again whenever it has been laid out differently.
+    applyLensGeometry(this.shadowRoot);
     if (changedProps.has('config') || changedProps.has('rootConfig')) {
       this._checkEdges();
     }
@@ -442,7 +447,7 @@ class ScProgressbar extends LitElement {
     // re-samples the backdrop on every frame the pill moves, and there is no
     // backdrop to bend when the pill's own background is opaque. The flag is
     // set where that is known, in the pill itself.
-    let lensScalePx = 0;
+    let lensFraction = 0;
 
     if (showInd) {
       const indColor = this._get('indicator_color', '#ffffff');
@@ -491,8 +496,8 @@ class ScProgressbar extends LitElement {
            // No blur of our own: a lens that also frosts its backdrop reads as
            // frosted, and the bending is the point. `bgIsOpaque` still governs
            // the filter, for the same reason it governs every other blur here.
-           if (!bgIsOpaque) lensScalePx = lensScale(this._get('indicator_value_font_size', 10), glassEffect);
-           glassCSS = liquidPillCSS(glassEffect, lensScalePx ? LENS_FILTER_ID : '');
+           if (!bgIsOpaque) lensFraction = pillLensFraction(glassEffect);
+           glassCSS = liquidPillCSS(glassEffect, lensFraction ? LENS_FILTER_ID : '');
          } else if (glassEffect === 'glass_dark') {
            glassCSS = `${darkBlurCSS}background: rgba(0,0,0,${pOp / 100}) !important; border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 0 4px 8px rgba(0,0,0,0.5); color: #ffffff !important;`;
          } else {
@@ -527,7 +532,7 @@ class ScProgressbar extends LitElement {
 
          // 1. The real layer
          realPillHtml = html`
-            <div style="position:absolute; z-index:${ELM_FLOAT + 50}; background:${finalBg}; color:${pCol}; font-size:${pSize}; padding:${pad.padding}; border-radius:100px; font-weight:bold; display:flex; align-items:center; justify-content:center; ${glassCSS} ${pPosStyle}">
+            <div class="sc-pb-pill" style="position:absolute; z-index:${ELM_FLOAT + 50}; background:${finalBg}; color:${pCol}; font-size:${pSize}; padding:${pad.padding}; border-radius:100px; font-weight:bold; display:flex; align-items:center; justify-content:center; ${glassCSS} ${pPosStyle}">
               ${indDisplayValue}
             </div>`;
 
@@ -995,7 +1000,7 @@ class ScProgressbar extends LitElement {
     return html`
       <style>:host { ${hostCSS} }</style>
       
-      ${lensScalePx ? html`
+      ${lensFraction ? html`
       <svg style="position: absolute; width: 0; height: 0;" aria-hidden="true">
         <defs>
           <!-- Two ramps, one per axis, composited into a single map: the red
@@ -1003,13 +1008,18 @@ class ScProgressbar extends LitElement {
                Both are flat between 22 % and 78 %, so only the rim bends and
                the value stays readable through the middle of the pill.
                The region is oversized because a displaced pixel may come from
-               outside the pill's own box. -->
+               outside the pill's own box - which is exactly why the maps
+               carry data-sc-lens-for instead of filling it: an feImage with
+               no geometry stretches its ramp over the whole 170 %, leaving
+               the rim - the only part that bends - in the outer 2 % of the
+               pill. applyLensGeometry pins them to the measured pill. -->
           <filter id="${LENS_FILTER_ID}" color-interpolation-filters="sRGB"
+                  data-sc-lens="${lensFraction}" data-sc-lens-for=".sc-pb-pill"
                   x="-35%" y="-35%" width="170%" height="170%">
             <feImage result="lensX" preserveAspectRatio="none" href=${LENS_MAP_X}></feImage>
             <feImage result="lensY" preserveAspectRatio="none" href=${LENS_MAP_Y}></feImage>
             <feComposite in="lensX" in2="lensY" operator="arithmetic" k2="1" k3="1" result="lensMap"></feComposite>
-            <feDisplacementMap in="SourceGraphic" in2="lensMap" scale="${lensScalePx}"
+            <feDisplacementMap in="SourceGraphic" in2="lensMap" scale="0"
                                xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
           </filter>
         </defs>

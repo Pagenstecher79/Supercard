@@ -1,3 +1,5 @@
+import { lensMap } from './glass-lens.js';
+
 /**
  * The indicator pill's glass, as numbers and as one CSS string per effect.
  *
@@ -39,25 +41,20 @@ export function isLiquidEffect(effect) {
 }
 
 /**
- * How far the rim bends what is behind it, in pixels.
+ * How far the rim bends what is behind it, as a share of the pill's short
+ * side.
  *
- * The displacement map is stretched over the filter region, so it already
- * follows the pill's shape - but `scale` is a length, and a length that suits
- * a 20 px pill turns a 9 px one inside out. It is tied to the font size
- * because that is what the pill is sized from, and clamped because a pill
- * given a font size in per cent or container units yields no pixels at all.
+ * A share rather than a length, because the pill is sized from its font and
+ * a shift that suits a 20 px pill turns a 9 px one inside out. The pill is
+ * measured after layout and the share turned into pixels there - see
+ * `applyLensGeometry` in `glass-lens.js`.
  *
- * @param {string | number | undefined} fontSize the pill's CSS font size
  * @param {string} effect
- * @returns {number}
+ * @returns {number} 0 for an effect that does not bend anything
  */
-export function lensScale(fontSize, effect) {
-  const raw = String(fontSize ?? '').trim();
-  const inPixels = typeof fontSize === 'number' || /^[\d.]+(px)?$/i.test(raw);
-  const px = typeof fontSize === 'number' ? fontSize : parseFloat(raw);
-  const base = inPixels && Number.isFinite(px) ? px * 1.6 : 18;
-  const heavy = effect === 'glass_liquid_heavy' ? 1.4 : 1;
-  return Math.round(Math.min(30, Math.max(8, base)) * heavy);
+export function pillLensFraction(effect) {
+  if (!isLiquidEffect(effect)) return 0;
+  return effect === 'glass_liquid_heavy' ? 0.13 : 0.09;
 }
 
 /**
@@ -132,44 +129,12 @@ export function liquidPadding(effect) {
 }
 
 /**
- * One axis of the displacement map, as a data URI.
+ * The two halves of the pill's lens map.
  *
- * `feDisplacementMap` reads a shift out of two channels of an image: 128 is
- * "leave this pixel alone", 255 and 0 are the extremes in either direction.
- * One image per axis, because a single gradient cannot carry two independent
- * ramps - they are added back together by an `feComposite`, which is why each
- * one keeps to its own channel and leaves the other at zero.
- *
- * Flat between 22 % and 78 %: a ramp across the whole pill magnifies
- * everything behind it, including the value, and glass only bends at its
- * edge.
- *
- * @param {'x' | 'y'} axis
- * @returns {string}
+ * Shared with the glass panes, which bend their backdrop the same way and for
+ * the same reason - see `glass-lens.js` for what the channels mean and why
+ * the middle of the map is flat. The pill takes the box shape: it is a
+ * rounded rectangle, however round its ends are.
  */
-function displacementRamp(axis) {
-  const horizontal = axis === 'x';
-  const channel = horizontal
-    ? ['rgb(255,0,0)', 'rgb(128,0,0)', 'rgb(0,0,0)']
-    : ['rgb(0,255,0)', 'rgb(0,128,0)', 'rgb(0,0,0)'];
-  const direction = horizontal ? 'x1="0" x2="1"' : 'x1="0" y1="0" x2="0" y2="1"';
-  const flatFrom = horizontal ? '0.22' : '0.28';
-  const flatTo = horizontal ? '0.78' : '0.72';
-
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40">'
-    + '<defs><linearGradient id="r" ' + direction + '>'
-    + '<stop offset="0" stop-color="' + channel[0] + '"/>'
-    + '<stop offset="' + flatFrom + '" stop-color="' + channel[1] + '"/>'
-    + '<stop offset="' + flatTo + '" stop-color="' + channel[1] + '"/>'
-    + '<stop offset="1" stop-color="' + channel[2] + '"/>'
-    + '</linearGradient></defs>'
-    + '<rect width="100" height="40" fill="url(#r)"/></svg>';
-
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-}
-
-/** The horizontal half of the lens map. */
-export const LENS_MAP_X = displacementRamp('x');
-
-/** The vertical half of the lens map. */
-export const LENS_MAP_Y = displacementRamp('y');
+export const LENS_MAP_X = lensMap('box', 'x');
+export const LENS_MAP_Y = lensMap('box', 'y');

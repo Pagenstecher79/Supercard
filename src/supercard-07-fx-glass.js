@@ -1,6 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { DEAD_PATTERN_TARGETS } from "./config-cleanup.js";
 import { lightParams, bevelShadow, px, isRoundTarget, isReliefTarget, boxRingMask, isCircleRadius } from "./glass-light.js";
+import { lensScaleFraction, lensFilterMarkup, applyLensGeometry } from "./glass-lens.js";
 
 const SC = window.SupercardUtils;
 
@@ -310,6 +311,9 @@ function glassBody(pat, set, setMany, slot) {
   <div class="row"><label>Convex 3D shine (%)</label>
     <input type="range" min="0" max="100" style="width:60%" .value=${pat.glare ?? 0} @input=${e => { set('glare', parseInt(e.target.value)); }}>
   </div>
+  <div class="row"><label>Edge refraction (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">Bends what is behind the edge, the way real glass does. With blur at 0 this is clear glass: what is underneath stays readable and only the rim curls. Not shown by Safari or Firefox, which draw the pane without it.</span></label>
+    <input type="range" min="0" max="100" style="width:60%" .value=${pat.refraction ?? 0} @input=${e => { set('refraction', parseInt(e.target.value)); }}>
+  </div>
 
   <div class="section-title">💧 Glass & Blur</div>
   <div class="row"><label>Blur strength (px)</label>
@@ -379,6 +383,7 @@ function defaultPattern(target) {
     id: Date.now(), enabled: true, target, blur: 10, opacity: 10, padding: 0, padding_unit: 'px',
     border_radius: '', border_radius_unit: 'px', force_square: false, zoom: 1, glare: 0,
     bg_rgb: '#ffffff', shadow_style: 'liquid', light_brightness: 0.4, bevel_width: 2, glass_thickness: 5,
+    refraction: 0,
     shadow_angle: 90, shadow_distance: 1,
     manual_override: false,
     ring_effect: false, use_custom_ring_width: false, ring_width: 5, ring_center_opacity: 0
@@ -656,6 +661,7 @@ function update({ hass, config }) {
     if (patterns.length === 0) return {};
 
     let styleStr = '';
+    let lensDefs = '';
 
     patterns.forEach(pat => {
       if (!pat.enabled || pat.target === 'none' || NO_GLASS.has(pat.target)) return;
@@ -883,6 +889,23 @@ function update({ hass, config }) {
       const opaquePane = opacity >= 1 && !(glare > 0);
       const blursBackdrop = blur > 0 && !opaquePane;
 
+      // The lens is the same bargain as the blur, and behind an opaque pane
+      // it buys the same nothing. It is not the same *picture*, though: a
+      // blur hides what is under the glass and a lens does not, so a pane
+      // with refraction and no blur is clear glass over readable content -
+      // the one look the frosted pane could never give.
+      const lensFraction = opaquePane ? 0 : lensScaleFraction(pat.refraction);
+      const lensId = `sc-glass-lens-${pat.id}`;
+      if (lensFraction) {
+        // A gauge's glass is a disc and bends at its ring; everything else is
+        // a box, however rounded, and bends at its rim. `isCircleRadius`
+        // catches a surface someone has made round by hand.
+        const shape = isRoundTarget(pat.target) || isCircleRadius(borderRadius) ? 'disc' : 'box';
+        lensDefs += lensFilterMarkup(lensId, shape, lensFraction, selector);
+      }
+      const backdropCSS = [blursBackdrop ? `blur(${u(blur)})` : '', lensFraction ? `url(#${lensId})` : '']
+        .filter(Boolean).join(' ');
+
       // --- 7. CSS generation ---
       // EXPERIMENT (perf/cpu-investigation): the pane below used to carry
       // `animation: sc-glass-awake-<id> 0.5s infinite alternate`, an opacity
@@ -927,9 +950,9 @@ function update({ hass, config }) {
           transform: translateZ(0) !important;
           -webkit-transform: translateZ(0) !important;
 
-          ${blursBackdrop ? `
-          -webkit-backdrop-filter: blur(${u(blur)}) !important;
-          backdrop-filter: blur(${u(blur)}) !important;` : ''}
+          ${backdropCSS ? `
+          -webkit-backdrop-filter: ${backdropCSS} !important;
+          backdrop-filter: ${backdropCSS} !important;` : ''}
           ${maskCSS}
         }
 
@@ -943,7 +966,10 @@ function update({ hass, config }) {
         ` : ''}
       `;
     });
-    return { htmlOverlay: `<style>${styleStr}</style>` };
+    // The filters ride along with the styles, in the same overlay: a
+    // `url(#...)` in a backdrop-filter resolves within the tree the styled
+    // element lives in, and that is this one.
+    return { htmlOverlay: `<style>${styleStr}</style>${lensDefs ? `<svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs>${lensDefs}</defs></svg>` : ''}` };
   }
 
   /**
@@ -964,7 +990,13 @@ function update({ hass, config }) {
    */
   const awakeSheets = new WeakMap();
   function onAfterRender(shadow) {
-    if (!shadow || typeof CSSStyleSheet === 'undefined') return;
+    if (!shadow) return;
+    // A lens is measured, not declared: its maps and its displacement are in
+    // pixels of a pane whose size only exists once the card has been laid
+    // out. This is the first moment that is true, and every later render is
+    // also the first moment it is true again after a resize.
+    applyLensGeometry(shadow);
+    if (typeof CSSStyleSheet === 'undefined') return;
     let entry = awakeSheets.get(shadow);
     if (!entry) {
       try {
