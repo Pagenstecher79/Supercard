@@ -4,84 +4,113 @@
  * `backdrop-filter: blur()` softens a backdrop; it does not bend one, and
  * bending is what separates glass from frosted plastic. An SVG
  * `feDisplacementMap` bends it: the filter reads a shift out of two channels
- * of an image, 128 meaning "leave this pixel where it is" and 0 and 255 the
- * extremes either way.
+ * of one image, 128 meaning "leave this pixel where it is" and 0 and 255 the
+ * extremes either way. Red carries the horizontal shift, green the vertical,
+ * so a single image does both axes and the filter is one primitive plus one
+ * fetch.
  *
- * One image per axis, because a single gradient cannot carry two independent
- * ramps. Each keeps to its own channel and leaves the other at zero, so an
- * `feComposite` in arithmetic mode adds them back into one map rather than
- * mixing them.
+ * The field is drawn, not described. A gradient can only ramp along a line or
+ * out from a point; the shape that actually reads as a thick pane is a
+ * superellipse - almost flat across the middle, then rising hard at the rim -
+ * and no gradient draws one. A few thousand pixels of `ImageData` do, once
+ * per profile for the lifetime of the page.
  *
- * Two shapes, because the card has two:
+ * Two profiles:
  *
- * - `box` ramps from edge to edge and is flat across the middle. A ramp over
- *   the whole surface magnifies everything behind it, the value and the
- *   labels included; flat in the middle, the content stays readable and only
- *   the rim bends, which is where a lens actually bends light.
- * - `disc` pushes outward from the centre and is masked to the outer ring, so
- *   a gauge's dial reads straight while its edge curls like a watch glass.
+ * - `dome` is the pane: the shift points inward and grows with
+ *   `|x|^6 + |y|^6`, so the middle magnifies imperceptibly and the rim
+ *   gathers the backdrop the way a thick edge does. Content under the middle
+ *   stays readable; the edge is where the glass announces itself.
+ * - `disc` is the gauge: the shift is radial and confined to the outer ring,
+ *   so the dial reads straight while its edge curls like a watch glass.
  *
- * Pure: every export is a string or a number derived from its arguments.
+ * The map is deliberately tiny. The field is smooth, `feImage` scales it to
+ * the pane with bilinear filtering, and sampling a smooth function at 64x64
+ * costs the same as at 512x512 once it is stretched. (The shader this profile
+ * was taken from spends 81 texture fetches per pixel on a two-pixel blur; the
+ * lesson is the one that saves.)
+ *
+ * `lensField` is pure and testable; everything that needs a canvas sits in
+ * `lensMapUri`, which caches its two results.
  */
 
-/** Where the flat middle of a box map starts and ends, per axis. */
-const BOX_FLAT = { x: [0.22, 0.78], y: [0.28, 0.72] };
-
-/** Where a disc map starts bending, as a share of the radius. */
-const DISC_RING_FROM = 0.55;
-
-const CHANNELS = {
-  x: { from: 'rgb(255,0,0)', neutral: 'rgb(128,0,0)', to: 'rgb(0,0,0)', axis: 'x1="0" x2="1"' },
-  y: { from: 'rgb(0,255,0)', neutral: 'rgb(0,128,0)', to: 'rgb(0,0,0)', axis: 'x1="0" y1="0" x2="0" y2="1"' },
-};
-
-const asDataUri = (svg) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-
-function boxMap(axis) {
-  const c = CHANNELS[axis];
-  const [flatFrom, flatTo] = BOX_FLAT[axis];
-  return asDataUri(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
-    + '<defs><linearGradient id="r" ' + c.axis + '>'
-    + '<stop offset="0" stop-color="' + c.from + '"/>'
-    + '<stop offset="' + flatFrom + '" stop-color="' + c.neutral + '"/>'
-    + '<stop offset="' + flatTo + '" stop-color="' + c.neutral + '"/>'
-    + '<stop offset="1" stop-color="' + c.to + '"/>'
-    + '</linearGradient></defs>'
-    + '<rect width="100" height="100" fill="url(#r)"/></svg>');
-}
-
-function discMap(axis) {
-  const c = CHANNELS[axis];
-  // The ramp runs the full width and a radial mask keeps it to the ring, so
-  // the shift points away from the centre everywhere on that ring. Masked-out
-  // pixels have to fall back to the neutral rectangle underneath rather than
-  // to transparency: a transparent pixel reads as zero, which is a shift of
-  // half the scale in one direction - the whole dial sliding sideways.
-  return asDataUri(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
-    + '<defs><linearGradient id="r" ' + c.axis + '>'
-    + '<stop offset="0" stop-color="' + c.from + '"/>'
-    + '<stop offset="1" stop-color="' + c.to + '"/>'
-    + '</linearGradient>'
-    + '<radialGradient id="m">'
-    + '<stop offset="' + DISC_RING_FROM + '" stop-color="black"/>'
-    + '<stop offset="1" stop-color="white"/>'
-    + '</radialGradient>'
-    + '<mask id="ring"><rect width="100" height="100" fill="url(#m)"/></mask></defs>'
-    + '<rect width="100" height="100" fill="' + c.neutral + '"/>'
-    + '<rect width="100" height="100" fill="url(#r)" mask="url(#ring)"/></svg>');
-}
+/** How many pixels across each map is drawn. A smooth field needs no more. */
+const MAP_SIZE = 64;
 
 /**
- * The map for one axis of one shape.
- *
- * @param {'box' | 'disc'} shape
- * @param {'x' | 'y'} axis
- * @returns {string} a data URI for `feImage`
+ * The profiles, as the two numbers that separate them: the exponent of the
+ * superellipse the shift follows, and where - as a share of the radius - the
+ * shift is allowed to start. A ring of 0 means the whole surface takes part.
  */
-export function lensMap(shape, axis) {
-  return shape === 'disc' ? discMap(axis) : boxMap(axis);
+const PROFILES = {
+  dome: { power: 6, ringFrom: 0 },
+  disc: { power: 2, ringFrom: 0.55 },
+};
+
+/**
+ * One displacement map, as raw RGBA bytes.
+ *
+ * The shift always points at the centre of the pane: a pixel of backdrop is
+ * fetched from nearer the middle than where it lands, which is magnification,
+ * which is what a lens does. Strength is what the profile decides.
+ *
+ * @param {'dome' | 'disc'} profile
+ * @param {number} [size] edge length in pixels
+ * @returns {Uint8ClampedArray} `size * size * 4` bytes, RGBA
+ */
+export function lensField(profile, size = MAP_SIZE) {
+  const { power, ringFrom } = PROFILES[profile] || PROFILES.dome;
+  const out = new Uint8ClampedArray(size * size * 4);
+  for (let j = 0; j < size; j++) {
+    // Sample pixel centres, or the two edge columns sit half a pixel short of
+    // the rim and the strongest part of the field never gets drawn.
+    const py = ((j + 0.5) / size) * 2 - 1;
+    for (let i = 0; i < size; i++) {
+      const px = ((i + 0.5) / size) * 2 - 1;
+      let amount;
+      if (ringFrom) {
+        const r = Math.sqrt(px * px + py * py);
+        amount = Math.min(1, Math.max(0, (r - ringFrom) / (1 - ringFrom)));
+      } else {
+        amount = Math.min(1, Math.pow(Math.abs(px), power) + Math.pow(Math.abs(py), power));
+      }
+      const k = (i + j * size) * 4;
+      out[k] = 128 - px * amount * 127;
+      out[k + 1] = 128 - py * amount * 127;
+      out[k + 2] = 0;
+      out[k + 3] = 255;
+    }
+  }
+  return out;
+}
+
+const mapCache = new Map();
+
+/**
+ * The map for a profile, as a data URI `feImage` can load.
+ *
+ * Cached: the field never changes, and every pane on a dashboard that uses
+ * the same profile uses the same bytes.
+ *
+ * @param {'dome' | 'disc'} profile
+ * @returns {string} empty where there is no canvas to draw on
+ */
+export function lensMapUri(profile) {
+  const key = profile === 'disc' ? 'disc' : 'dome';
+  if (mapCache.has(key)) return mapCache.get(key);
+  let uri = '';
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = MAP_SIZE;
+    canvas.height = MAP_SIZE;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(MAP_SIZE, MAP_SIZE);
+    img.data.set(lensField(key));
+    ctx.putImageData(img, 0, 0);
+    uri = canvas.toDataURL('image/png');
+  } catch (_) { uri = ''; }
+  mapCache.set(key, uri);
+  return uri;
 }
 
 /**
@@ -113,37 +142,70 @@ export function lensScaleFraction(refraction) {
 /**
  * The filter, as SVG markup ready to drop into the card's overlay.
  *
- * The maps and the displacement are left without geometry on purpose: both
+ * The map and the displacement are left without geometry on purpose: both
  * need the pane's size in pixels, and a pane is a layout result. The markup
  * carries the share and the selector of the element it belongs to instead,
  * and `lensGeometry` fills the numbers in once that element has been laid
  * out - see `applyLensGeometry`.
  *
  * @param {string} id the filter's id, unique per pattern
- * @param {'box' | 'disc'} shape
+ * @param {'dome' | 'disc'} profile
  * @param {number} fraction from `lensScaleFraction`
  * @param {string} forSelector the CSS selector of the element the pane sits on
+ * @param {string} [pseudo] the pseudo-element the pane is drawn as, where it
+ *   is one - a pane painted as an `::after` has no box of its own to measure
  * @returns {string}
  */
-export function lensFilterMarkup(id, shape, fraction, forSelector) {
-  if (!fraction) return '';
+export function lensFilterMarkup(id, profile, fraction, forSelector, pseudo) {
+  const map = fraction ? lensMapUri(profile) : '';
+  if (!map) return '';
   // The region is oversized because a displaced pixel can come from outside
-  // the pane's own box - at the rim, that is the entire point. The maps
-  // themselves must still be pinned to the box: an `feImage` with no
-  // geometry fills the whole oversized region instead, which stretches the
-  // ramp to 170 % and squeezes the rim - the only part that bends - into the
-  // outer 2 % of the pane, where nobody can see it.
+  // the pane's own box - at the rim, that is the entire point. The map
+  // itself must still be pinned to the box: an `feImage` with no geometry
+  // fills the whole oversized region instead, which stretches the field to
+  // 170 % and squeezes the rim - the only part that bends - into the outer
+  // 2 % of the pane, where nobody can see it.
   return '<filter id="' + id + '" color-interpolation-filters="sRGB"'
     + ' data-sc-lens="' + fraction + '" data-sc-lens-for="' + escapeAttr(forSelector) + '"'
-    + ' data-sc-lens-pseudo="::after"'
+    + (pseudo ? ' data-sc-lens-pseudo="' + escapeAttr(pseudo) + '"' : '')
     + ' x="-35%" y="-35%" width="170%" height="170%">'
-    + '<feImage result="lx" preserveAspectRatio="none" href="' + lensMap(shape, 'x') + '"/>'
-    + '<feImage result="ly" preserveAspectRatio="none" href="' + lensMap(shape, 'y') + '"/>'
-    + '<feComposite in="lx" in2="ly" operator="arithmetic" k2="1" k3="1" result="lmap"/>'
+    + '<feImage result="lmap" preserveAspectRatio="none" href="' + map + '"/>'
     + '<feDisplacementMap in="SourceGraphic" in2="lmap" scale="0"'
     + ' xChannelSelector="R" yChannelSelector="G"/>'
     + '</filter>';
 }
+
+/**
+ * The same filter as a live SVG element, for a renderer that builds its
+ * markup with lit rather than by string.
+ *
+ * lit accepts a DOM node as a value, so the filter can be handed to a
+ * template without a second copy of the markup and without pulling in the
+ * `unsafe-svg` directive - which would come from npm while the rest of lit
+ * comes from the CDN, and two lit instances in one bundle is a worse trade
+ * than a parse.
+ *
+ * Memoised on the markup: a renderer calls this on every render, and the
+ * result only changes when the filter does.
+ *
+ * @returns {Element | null} null where there is nothing to bend, or no DOM
+ */
+export function lensFilterElement(id, profile, fraction, forSelector, pseudo) {
+  const markup = lensFilterMarkup(id, profile, fraction, forSelector, pseudo);
+  if (!markup) return null;
+  if (elementCache.has(markup)) return elementCache.get(markup);
+  let el = null;
+  try {
+    const doc = new DOMParser().parseFromString(
+      '<svg xmlns="http://www.w3.org/2000/svg">' + markup + '</svg>', 'image/svg+xml');
+    el = doc.documentElement.firstElementChild;
+    if (el) el = document.importNode(el, true);
+  } catch (_) { el = null; }
+  elementCache.set(markup, el);
+  return el;
+}
+
+const elementCache = new Map();
 
 const escapeAttr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 

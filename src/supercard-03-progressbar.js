@@ -1,8 +1,8 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { squareBarOnCanvas } from "./canvas-model.js";
 import { lightParams, reliefPattern, reliefShadow, reliefLayers } from "./glass-light.js";
-import { isLiquidEffect, pillLensFraction, liquidPillCSS, liquidPadding, LENS_MAP_X, LENS_MAP_Y } from "./pill-glass.js";
-import { applyLensGeometry } from "./glass-lens.js";
+import { isLiquidEffect, pillLensFraction, liquidPillCSS, liquidPadding } from "./pill-glass.js";
+import { applyLensGeometry, lensFilterElement } from "./glass-lens.js";
 
 const SC = window.SupercardUtils;
 
@@ -1002,27 +1002,7 @@ class ScProgressbar extends LitElement {
       
       ${lensFraction ? html`
       <svg style="position: absolute; width: 0; height: 0;" aria-hidden="true">
-        <defs>
-          <!-- Two ramps, one per axis, composited into a single map: the red
-               channel moves the backdrop horizontally, the green vertically.
-               Both are flat between 22 % and 78 %, so only the rim bends and
-               the value stays readable through the middle of the pill.
-               The region is oversized because a displaced pixel may come from
-               outside the pill's own box - which is exactly why the maps
-               carry data-sc-lens-for instead of filling it: an feImage with
-               no geometry stretches its ramp over the whole 170 %, leaving
-               the rim - the only part that bends - in the outer 2 % of the
-               pill. applyLensGeometry pins them to the measured pill. -->
-          <filter id="${LENS_FILTER_ID}" color-interpolation-filters="sRGB"
-                  data-sc-lens="${lensFraction}" data-sc-lens-for=".sc-pb-pill"
-                  x="-35%" y="-35%" width="170%" height="170%">
-            <feImage result="lensX" preserveAspectRatio="none" href=${LENS_MAP_X}></feImage>
-            <feImage result="lensY" preserveAspectRatio="none" href=${LENS_MAP_Y}></feImage>
-            <feComposite in="lensX" in2="lensY" operator="arithmetic" k2="1" k3="1" result="lensMap"></feComposite>
-            <feDisplacementMap in="SourceGraphic" in2="lensMap" scale="0"
-                               xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
-          </filter>
-        </defs>
+        <defs>${lensFilterElement(LENS_FILTER_ID, 'dome', lensFraction, '.sc-pb-pill')}</defs>
       </svg>` : ''}
 
       ${isGooey ? html`

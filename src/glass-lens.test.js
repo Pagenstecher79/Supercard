@@ -1,102 +1,87 @@
 import { describe, it, expect } from 'vitest';
-import { lensMap, lensScaleFraction, lensFilterMarkup, lensGeometry, applyLensGeometry } from './glass-lens.js';
+import { lensField, lensScaleFraction, lensFilterMarkup, lensGeometry, applyLensGeometry } from './glass-lens.js';
 
-const decoded = (shape, axis) => decodeURIComponent(lensMap(shape, axis));
+/** The map is square; this reads one pixel out of it. */
+const at = (field, size, i, j) => {
+  const k = (i + j * size) * 4;
+  return { r: field[k], g: field[k + 1], b: field[k + 2], a: field[k + 3] };
+};
 
-describe('lensScaleFraction', () => {
-  it('is nothing at all for a pattern that does not refract', () => {
-    for (const v of [0, '0', undefined, null, '', -5, NaN]) expect(lensScaleFraction(v)).toBe(0);
+describe('lensField', () => {
+  const SIZE = 64;
+
+  it('leaves the middle of a pane alone, so what is under it stays readable', () => {
+    const f = lensField('dome', SIZE);
+    const mid = at(f, SIZE, SIZE / 2, SIZE / 2);
+    expect(Math.abs(mid.r - 128)).toBeLessThanOrEqual(1);
+    expect(Math.abs(mid.g - 128)).toBeLessThanOrEqual(1);
   });
 
-  it('reads the slider as a share of the pane, not as pixels', () => {
-    expect(lensScaleFraction(100)).toBe(0.12);
-    expect(lensScaleFraction(50)).toBe(0.06);
-    expect(lensScaleFraction('40')).toBe(0.05);
+  it('points the shift inward, which is what magnifies', () => {
+    // A pixel near the left rim has to fetch its backdrop from further right.
+    const f = lensField('dome', SIZE);
+    expect(at(f, SIZE, 0, SIZE / 2).r).toBeGreaterThan(200);
+    expect(at(f, SIZE, SIZE - 1, SIZE / 2).r).toBeLessThan(56);
+    expect(at(f, SIZE, SIZE / 2, 0).g).toBeGreaterThan(200);
+    expect(at(f, SIZE, SIZE / 2, SIZE - 1).g).toBeLessThan(56);
   });
 
-  it('does not let a pane past a lens and into a fisheye', () => {
-    expect(lensScaleFraction(500)).toBe(0.12);
+  it('rises late, the way a thick rim does', () => {
+    // Half way out, a sixth power is still almost nothing.
+    const f = lensField('dome', SIZE);
+    const quarter = at(f, SIZE, SIZE / 4, SIZE / 2);
+    expect(Math.abs(quarter.r - 128)).toBeLessThan(6);
   });
-});
 
-describe('the maps', () => {
-  it('keep one channel each, so compositing adds instead of mixing', () => {
-    for (const shape of ['box', 'disc']) {
-      expect(decoded(shape, 'x')).toContain('rgb(255,0,0)');
-      expect(decoded(shape, 'x')).not.toContain('rgb(0,255,0)');
-      expect(decoded(shape, 'y')).toContain('rgb(0,255,0)');
-      expect(decoded(shape, 'y')).not.toContain('rgb(255,0,0)');
+  it('keeps a disc flat inside its ring and bends it outside', () => {
+    const f = lensField('disc', SIZE);
+    expect(Math.abs(at(f, SIZE, SIZE / 2 + 4, SIZE / 2).r - 128)).toBeLessThanOrEqual(1);
+    expect(at(f, SIZE, 1, SIZE / 2).r).toBeGreaterThan(180);
+  });
+
+  it('samples pixel centres, so the rim itself is in the map', () => {
+    // Sampling corners instead would leave the strongest half-pixel unmapped.
+    const f = lensField('dome', 2);
+    expect(at(f, 2, 0, 0).r).toBeGreaterThan(128);
+    expect(at(f, 2, 1, 1).r).toBeLessThan(128);
+  });
+
+  it('is opaque, and leaves blue out of it', () => {
+    const f = lensField('dome', 8);
+    for (let k = 0; k < 8 * 8; k++) {
+      expect(f[k * 4 + 2]).toBe(0);
+      expect(f[k * 4 + 3]).toBe(255);
     }
   });
 
-  it('leave the middle of a box flat, so what is under the pane stays put', () => {
-    expect(decoded('box', 'x')).toContain('offset="0.22" stop-color="rgb(128,0,0)"');
-    expect(decoded('box', 'x')).toContain('offset="0.78" stop-color="rgb(128,0,0)"');
-    expect(decoded('box', 'y')).toContain('offset="0.28" stop-color="rgb(0,128,0)"');
+  it('fills exactly the buffer it promises', () => {
+    expect(lensField('dome', 16).length).toBe(16 * 16 * 4);
+    expect(lensField('disc', 16).length).toBe(16 * 16 * 4);
   });
 
-  it('bend a disc only in its outer ring', () => {
-    const x = decoded('disc', 'x');
-    expect(x).toContain('radialGradient');
-    expect(x).toContain('offset="0.55" stop-color="black"');
-    expect(x).toContain('mask="url(#ring)"');
+  it('falls back to the pane profile rather than throwing on a name it does not know', () => {
+    expect(Array.from(lensField('nonsense', 8))).toEqual(Array.from(lensField('dome', 8)));
   });
 
-  it('lay the disc ramp over a neutral rectangle, or the masked-out pixels shift', () => {
-    // A masked-out pixel is transparent, and transparent reads as 0 - half
-    // the scale in one direction, which would slide the whole dial sideways.
-    const x = decoded('disc', 'x');
-    expect(x.indexOf('fill="rgb(128,0,0)"')).toBeLessThan(x.indexOf('mask="url(#ring)"'));
-  });
-
-  it('escape the fragment marker that would cut a data URI short', () => {
-    for (const shape of ['box', 'disc']) {
-      expect(lensMap(shape, 'x')).not.toContain('#');
-      expect(lensMap(shape, 'y')).not.toContain('#');
-    }
-  });
-
-  it('differ by shape', () => {
-    expect(lensMap('box', 'x')).not.toEqual(lensMap('disc', 'x'));
+  it('differs by profile', () => {
+    expect(Array.from(lensField('dome', 16))).not.toEqual(Array.from(lensField('disc', 16)));
   });
 });
 
 describe('lensFilterMarkup', () => {
   it('is empty when there is nothing to bend', () => {
-    expect(lensFilterMarkup('id', 'box', 0, 'ha-card')).toBe('');
+    expect(lensFilterMarkup('id', 'dome', 0, 'ha-card')).toBe('');
   });
 
-  it('leaves the shift at zero until a pane has been measured', () => {
-    const f = lensFilterMarkup('sc-glass-lens-7', 'box', 0.06, 'ha-card');
-    expect(f).toContain('scale="0"');
-    expect(f).toContain('data-sc-lens="0.06"');
-    expect(f).toContain('data-sc-lens-for="ha-card"');
-    expect(f).toContain('id="sc-glass-lens-7"');
+  it('names a pseudo-element only where the pane is one', () => {
+    // The filter itself cannot tell; whoever draws the pane can.
+    expect(lensFilterMarkup('id', 'dome', 0.06, '.pill', '')).not.toContain('data-sc-lens-pseudo');
   });
 
-  it('does not resolve the shift against the box diagonal', () => {
-    // `objectBoundingBox` would, and a 492x69 bar and a 54px gauge would then
-    // mean five different things by the same slider.
-    expect(lensFilterMarkup('id', 'box', 0.06, 'ha-card')).not.toContain('objectBoundingBox');
-  });
-
-  it('pins both maps to the pane, or the ramp stretches over the whole region', () => {
-    const f = lensFilterMarkup('id', 'box', 0.1, 'ha-card');
-    expect(f.match(/<feImage[^>]*>/g).length).toBe(2);
-  });
-
-  it('escapes a selector that would break out of the attribute', () => {
-    expect(lensFilterMarkup('id', 'box', 0.1, 'sc-x[part~="a"]')).toContain('&quot;a&quot;');
-  });
-
-  it('reaches outside the pane, because a bent pixel comes from there', () => {
-    const f = lensFilterMarkup('id', 'disc', 0.1, 'ha-card');
-    expect(f).toContain('x="-35%"');
-    expect(f).toContain('width="170%"');
-  });
-
-  it('adds the two axes rather than blending them', () => {
-    expect(lensFilterMarkup('id', 'box', 0.1, 'ha-card')).toContain('operator="arithmetic" k2="1" k3="1"');
+  it('is empty where there is no canvas to draw the map on', () => {
+    // Node has none. A filter referencing a map that failed to draw would
+    // leave `backdrop-filter: url(#...)` pointing at nothing.
+    expect(lensFilterMarkup('id', 'dome', 0.06, 'ha-card')).toBe('');
   });
 });
 

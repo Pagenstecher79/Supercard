@@ -1,4 +1,3 @@
-import { lensMap } from './glass-lens.js';
 
 /**
  * The indicator pill's glass, as numbers and as one CSS string per effect.
@@ -127,14 +126,3 @@ export function liquidPadding(effect) {
   if (effect === 'glass_liquid') return { padding: '0.42em 0.95em', clampEm: 0.15 };
   return { padding: '0.3em 0.8em', clampEm: 0 };
 }
-
-/**
- * The two halves of the pill's lens map.
- *
- * Shared with the glass panes, which bend their backdrop the same way and for
- * the same reason - see `glass-lens.js` for what the channels mean and why
- * the middle of the map is flat. The pill takes the box shape: it is a
- * rounded rectangle, however round its ends are.
- */
-export const LENS_MAP_X = lensMap('box', 'x');
-export const LENS_MAP_Y = lensMap('box', 'y');

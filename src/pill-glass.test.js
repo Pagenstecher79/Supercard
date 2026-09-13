@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLiquidEffect, pillLensFraction, liquidPillCSS, liquidPadding, LENS_MAP_X, LENS_MAP_Y, LIQUID_EFFECTS } from './pill-glass.js';
+import { isLiquidEffect, pillLensFraction, liquidPillCSS, liquidPadding, LIQUID_EFFECTS } from './pill-glass.js';
 
 describe('isLiquidEffect', () => {
   it('knows the two effects that carry a displacement map', () => {
@@ -67,25 +67,5 @@ describe('liquidPadding', () => {
     for (const e of LIQUID_EFFECTS) expect(liquidPadding(e).clampEm).toBeGreaterThan(0);
     expect(liquidPadding('glass_liquid_heavy').clampEm)
       .toBeGreaterThan(liquidPadding('glass_liquid').clampEm);
-  });
-});
-
-describe('the displacement maps', () => {
-  it('keep to one channel each, so compositing them adds rather than mixes', () => {
-    expect(decodeURIComponent(LENS_MAP_X)).toContain('rgb(255,0,0)');
-    expect(decodeURIComponent(LENS_MAP_X)).not.toContain('rgb(0,255,0)');
-    expect(decodeURIComponent(LENS_MAP_Y)).toContain('rgb(0,255,0)');
-    expect(decodeURIComponent(LENS_MAP_Y)).not.toContain('rgb(255,0,0)');
-  });
-
-  it('are flat across the middle and steep only at the rim', () => {
-    const x = decodeURIComponent(LENS_MAP_X);
-    expect(x).toContain('offset="0.22" stop-color="rgb(128,0,0)"');
-    expect(x).toContain('offset="0.78" stop-color="rgb(128,0,0)"');
-  });
-
-  it('escape the fragment marker, which would otherwise cut the data URI short', () => {
-    expect(LENS_MAP_X).not.toContain('#');
-    expect(LENS_MAP_X).toContain('%23r');
   });
 });
