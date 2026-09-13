@@ -408,3 +408,50 @@ just relocate the bill. The bars' eleven points are no longer the backdrop
 filter either - switching that off now changes nothing (36.4 %), and switching
 off every filter in them buys three points. Both halves are static painting,
 which is where the next pass goes.
+## The bars: it is the frame rate, not the property
+
+Measured on a page of 36 bars built to match a real one - vertical, gradient as
+solid, eleven ticks, a glass indicator pill, a 3 s animation - on a 120 Hz
+display. The bars alone: renderer 17 %, GPU 63-71 %.
+
+| what was switched off | gpu |
+|---|---|
+| nothing | 63.3 %, 70.6 % |
+| the liquid layer | 65.1 % |
+| every transition and animation in the bars | 16.1 % |
+| every transition (animations kept) | 15.5 % |
+| all transitions except clip-path | 69.0 % |
+| the bars entirely | 9.0 % |
+
+So the bars' whole GPU cost is the fill's `clip-path` transition. The obvious
+conclusion - clip-path is not a composited property, use transform - is wrong,
+and the probes say so:
+
+| 36 fills animated continuously with | gpu |
+|---|---|
+| transform (clip-path still applied) | 54.1 % |
+| transform, clip-path removed | 54.7 % |
+| opacity | 50.7 % |
+| opacity, on 9 of the 36 bars | 43.8 % |
+
+A composited property is barely cheaper, and a quarter of the bars costs nearly
+as much as all of them. What actually decides it is how often the page
+composites. Driving the same clip-path from JavaScript, changing only the rate:
+
+| | gpu |
+|---|---|
+| 120 fps | 61.8 % |
+| 30 fps | 34.3 % |
+| not animating | 15.5 % |
+
+Against a floor of 15.5, that is 46 points at 120 fps and 19 at 30. A bar
+crawling to a new value over three seconds does not need a fresh frame every
+8 ms, and nobody can see the difference - but a CSS transition always runs at
+display rate, so the cap the rAF path already has (`SC_ANIM_FPS_CAP`) never
+applies to it. Everything that moves in a bar moves by CSS transition:
+`clip-path` for the fill and the overlay, `left`/`bottom` for the indicator
+line, the pill and the floating value, `stroke-dasharray` for the circle.
+
+Moving those onto the capped rAF path is the fix the numbers point at. It also
+means reproducing `--pb-bounce-ease` in JavaScript, which is why it is a
+separate piece of work rather than a tweak.
