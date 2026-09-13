@@ -248,10 +248,6 @@ class ScGauge extends LitElement {
       segs = Math.max(1, baseSegs * (resMap[resMode] ?? 24));
     }
     
-    // One path per *colour run*, not per subdivision step. A 306-step ring in
-    // a single colour is one arc; a gradient still merges every run of steps
-    // that round to the same rgb. Same pixels, a fraction of the nodes.
-    const paths = [];
     const colors = [];
     for (let i = 0; i < segs; i++) {
       const p1=i/segs, p2=(i+1)/segs, vSeg=data.min+p1*range;
@@ -278,26 +274,67 @@ class ScGauge extends LitElement {
       colors.push(`rgb(${rgb.join(',')})`);
     }
 
+    // Runs of one colour, not one path per subdivision step.
+    const runs = [];
     for (let i = 0; i < segs; ) {
       let j = i + 1;
       while (j < segs && colors[j] === colors[i]) j++;
-      const a1 = startAngle + (i / segs) * totalAngle;
-      const a2 = startAngle + (j / segs) * totalAngle;
+      runs.push({ from: i / segs, to: j / segs, c: colors[i] });
+      i = j;
+    }
+
+    const arc = (a1, a2, colour) => {
       // Kept to half circles: a single arc spanning 360 degrees would start and
       // end on the same point and draw nothing, and one over 180 would need the
       // large-arc flag. Two or three sub-arcs avoid both.
       const parts = Math.max(1, Math.ceil(Math.abs(a2 - a1) / 180));
+      const out = [];
       for (let k = 0; k < parts; k++) {
         const b1 = a1 + (a2 - a1) * (k / parts);
         const b2 = a1 + (a2 - a1) * ((k + 1) / parts);
         const c1 = polarToCart(this.CENTER, this.CENTER, radius, b1);
         const c2 = polarToCart(this.CENTER, this.CENTER, radius, b2);
-        paths.push(svg`<path class="layer-elm-base" d="M${c1.x.toFixed(3)},${c1.y.toFixed(3)} A${radius},${radius},0,0,1,${c2.x.toFixed(3)},${c2.y.toFixed(3)}" stroke="${colors[i]}" stroke-width="${stroke}" fill="none" stroke-linecap="butt"/>`);
+        out.push(`M${c1.x.toFixed(3)},${c1.y.toFixed(3)} A${radius},${radius},0,0,1,${c2.x.toFixed(3)},${c2.y.toFixed(3)}`);
       }
-      i = j;
+      return colour
+        ? svg`<path class="layer-elm-base" d="${out.join(' ')}" stroke="${colour}" stroke-width="${stroke}" fill="none" stroke-linecap="butt"/>`
+        : out.join(' ');
+    };
+
+    // A ring of one colour is one stroked arc; there is nothing to interpolate
+    // and a gradient would only cost a mask.
+    if (runs.length === 1) {
+      return svg`<g class="g-ring">${arc(startAngle, startAngle + totalAngle, runs[0].c)}</g>`;
     }
-    return svg`<g class="g-ring">${paths}</g>`;
+
+    // Everything else is a conic gradient behind a mask shaped like the ring:
+    // one node instead of one per colour. SVG has no angular gradient, so the
+    // gradient is a CSS one painted into a foreignObject.
+    //
+    // Every band stays flat, as a pair of stops sharing an angle. At coarse
+    // resolutions the banding is the point, and at fine ones the bands are a
+    // step or two of rgb apart anyway - so reproducing them costs a second
+    // stop per run and buys an image identical to the one the paths drew.
+    // polarToCart measures from three o'clock, a conic gradient from twelve.
+    // Both run clockwise, which is the only direction a gauge is drawn in.
+    const base = ((startAngle + 90) % 360 + 360) % 360;
+    const gradStops = [];
+    for (const run of runs) {
+      gradStops.push(`${run.c} ${(run.from * totalAngle).toFixed(3)}deg`,
+                     `${run.c} ${(run.to * totalAngle).toFixed(3)}deg`);
+    }
+
+    // The id only has to be unique inside this gauge's shadow root.
+    return svg`<g class="g-ring">
+      <defs><mask id="scRingMask" maskUnits="userSpaceOnUse" x="0" y="0" width="${this.CENTER * 2}" height="${this.CENTER * 2}">
+        <path d="${arc(startAngle, startAngle + totalAngle)}" stroke="#fff" stroke-width="${stroke}" fill="none" stroke-linecap="butt"/>
+      </mask></defs>
+      <foreignObject class="layer-elm-base" x="0" y="0" width="${this.CENTER * 2}" height="${this.CENTER * 2}" mask="url(#scRingMask)" style="pointer-events:none">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;pointer-events:none;background:conic-gradient(from ${base.toFixed(3)}deg, ${gradStops.join(', ')})"></div>
+      </foreignObject>
+    </g>`;
   }
+
 
   /**
    * The entity ids this gauge draws from: whatever its config names, plus the

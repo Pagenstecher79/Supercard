@@ -246,3 +246,37 @@ colours over its 306 steps, so run merging cannot go below that. Getting a ring
 down to a single node needs a different mechanism - a CSS `conic-gradient` in a
 `foreignObject`, masked to the ring - which is a rewrite of ring rendering, not
 a tweak.
+
+### One node per ring
+
+Merging runs still leaves one path per colour, and a smooth gradient has
+hundreds. SVG has no angular gradient, so the ring is now a CSS
+`conic-gradient` painted into a `foreignObject` and masked by a single stroked
+arc - the same arc the paths described, at the same radius, width and sweep.
+Every band the paths drew flat stays flat, as a pair of gradient stops sharing
+an angle, so a coarse resolution keeps its banding and a fine one keeps its
+ramp. A ring of one colour is still one stroked arc: there is nothing to
+interpolate and a gradient would only cost a mask.
+
+The comparison: 364 gauges over both gauge types, six start angles, four
+gradient presets, both gradient modes, all seven resolutions, and varying
+stroke widths and scales. Every one of the 109,346 bands the old build drew was
+sampled at its midpoint and compared against the colour the gradient puts
+there, alongside the mask's radius, stroke width, start angle and sweep.
+
+    nodes            113,972 -> 6,446
+    bands differing  0 of 109,346
+    max channel delta 0
+
+On the stress page, against the build before this work started:
+
+    nodes                        26,025 -> 1,942
+    re-render of all 80 gauges   11.6 ms -> 5.5 ms
+    long tasks                   10.6 ms/s -> 4.6 ms/s
+    renderer cpu                 ~19 % -> ~14 %
+
+The GPU process refused to give a usable number - repeated 20 s samples of the
+same build ranged from 6 % to 28 % - so nothing is claimed about it.
+
+The gradient is non-interactive (`pointer-events: none`): a foreignObject
+covers the whole box even where the mask hides it, and taps belong to the card.
