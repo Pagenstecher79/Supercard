@@ -101,6 +101,12 @@ const ELM_STATIC  = 800;
 const ELM_DYNAMIC = 900; 
 const ELM_FLOAT   = 1000; 
 
+// EXPERIMENT ONLY (perf/cpu-investigation): window.SC_FRAME_SKIP = false turns
+// the frame skipping off so the two can be measured against each other in one
+// build. Goes away with the fix.
+const SC_FRAME_SKIP_DEFAULT = true;
+const SC_ANIM_FPS_CAP = 30;
+
 class ScProgressbar extends LitElement {
   static get properties() {
     return {
@@ -123,12 +129,18 @@ class ScProgressbar extends LitElement {
     this._animFrame  = null;
     this._isAtLeftEdge = false;
     this._isAtRightEdge = false;
+    this._boxW = 0;
+    this._boxH = 0;
   }
 
   firstUpdated() {
     setTimeout(() => { this._isInitialized = true; }, 50);
     this._checkEdges();
-    this._resizeObs = new ResizeObserver(() => this._checkEdges());
+    this._resizeObs = new ResizeObserver(entries => {
+      const box = entries[0]?.contentRect;
+      if (box) { this._boxW = box.width; this._boxH = box.height; }
+      this._checkEdges();
+    });
     this._resizeObs.observe(this);
   }
 
@@ -164,16 +176,85 @@ class ScProgressbar extends LitElement {
 
   _get(k, d) { return this.config[k] ?? d; }
 
+  /**
+   * The smallest change in the animated percentage this bar can actually
+   * show, as a fraction of its range.
+   *
+   * `_displayPct` is reactive state, so every value written to it re-renders
+   * the whole component - the fill, every segment, the pill, the labels. At
+   * 120 Hz that is 120 full renders a second per bar for an animation the eye
+   * cannot follow that finely: a segmented ring only ever lights whole
+   * segments, a counting value only ever shows so many decimals, and a fill
+   * edge can only land on a whole pixel. Writing between those steps redraws
+   * the bar without changing a thing on screen.
+   *
+   * The step is the finest of whichever of those the bar is doing, so the
+   * motion is exactly what it was - the frames that are dropped are the ones
+   * that drew the same picture twice.
+   */
+  _visibleStep() {
+    const steps = [];
+    if (this._get('circular_segmented', false)) {
+      const n = parseInt(this._get('circular_segment_count', 40));
+      if (n > 0) steps.push(1 / n);
+    }
+    if (this._get('value_animated', false)) {
+      const min = safeFloat(this._get('min', 0), 0);
+      const max = safeFloat(this._get('max', 100), 100);
+      const range = Math.abs(max - min) || 1;
+      const decimals = parseInt(this._get('value_decimals', 0)) || 0;
+      steps.push(Math.pow(10, -decimals) / range);
+    }
+    if (this._get('use_gradient', false) && this._boxW > 0 && this._boxH > 0) {
+      // A gradient is sampled along the bar, so its finest visible step is a
+      // device pixel of the axis it runs along.
+      //
+      // The size comes from the ResizeObserver, never from `offsetWidth`:
+      // this runs inside `render()`, and a layout read there is a forced
+      // synchronous layout of the whole page per animating bar. On a
+      // dashboard of two dozen cards that is not slow, it is a hung tab.
+      const orientation = this._get('orientation', 'horizontal');
+      const px = Math.max(1, Math.round(
+        /^circular/.test(orientation)
+          ? Math.min(this._boxW, this._boxH) * Math.PI
+          : (orientation === 'horizontal' ? this._boxW : this._boxH)));
+      steps.push(1 / px);
+    }
+    return steps.length ? Math.min(...steps) : 0;
+  }
+
   _animatePct(to, durationMs) {
     if (this._animFrame) cancelAnimationFrame(this._animFrame);
+    const sweepFlag = window.SC_SWEEP_FLAG ?? true;
     const from  = this._displayPct;
     const start = performance.now();
+    const step  = (window.SC_FRAME_SKIP ?? SC_FRAME_SKIP_DEFAULT) ? this._visibleStep() : 0;
+    // The steps this animation draws are discrete - a segment lights, a digit
+    // ticks over, a fill edge moves a pixel - and nobody reads them at 120 Hz.
+    // Each one costs a repaint of the whole element, and on a segmented ring
+    // that repaint is the most expensive thing the card does, so the rate is
+    // capped where the eye stops telling the difference rather than at
+    // whatever the display happens to run at.
+    const minGap = 1000 / (window.SC_MAX_FPS ?? SC_ANIM_FPS_CAP);
+    let   shown = this._displayPct;
+    let   last  = 0;
     const tick  = (now) => {
+      // Set from the frame, not from render(): `_animatePct` is called during
+      // render, and the DOM is not ours to touch there.
+      if (sweepFlag && !this.hasAttribute('data-sweeping')) this.toggleAttribute('data-sweeping', true);
       const t     = Math.min((now - start) / durationMs, 1);
       const eased = solveCubicBezier(t, 0.2, 0, 0, 1);
-      this._displayPct = from + (to - from) * eased;
-      if (t < 1) this._animFrame = requestAnimationFrame(tick);
-      else { this._displayPct = to; this._animFrame = null; }
+      const next  = from + (to - from) * eased;
+      if (t < 1) {
+        // Only a value the bar can draw differently is worth a render.
+        if (Math.abs(next - shown) >= step && now - last >= minGap) {
+          shown = next; last = now; this._displayPct = next;
+        }
+        this._animFrame = requestAnimationFrame(tick);
+      } else {
+        this._displayPct = to; this._animFrame = null;
+        this.toggleAttribute('data-sweeping', false);
+      }
     };
     this._animFrame = requestAnimationFrame(tick);
   }
@@ -222,6 +303,14 @@ class ScProgressbar extends LitElement {
         position: absolute; top: 0; left: 50%; transform: translateX(-50%);
         border-radius: 999rem;
         transition: background 150ms ease, box-shadow 150ms ease;
+      }
+      /* A segment fades when it lights on its own. While the ring is
+         sweeping, the sequence is the motion and the fade is only a second
+         animation laid over it - one that re-rasters forty shadowed segments
+         on every frame for as long as it runs. Measured on six rings at two
+         value changes a second: 140 % of a core with it, 30 % without. */
+      :host([data-sweeping]) .sc-seg-inner {
+        transition: none;
       }
 
       .sc-pb-ticks { position: absolute; inset: 0; pointer-events: none; opacity: var(--pb-tick-opacity, 1); z-index: ${ELM_DYNAMIC + 50}; }

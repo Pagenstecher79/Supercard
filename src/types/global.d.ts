@@ -91,6 +91,13 @@ declare global {
       entityKey?: string,
       attrKey?: string
     ) => { entity: string; attribute: string; alias: string; match: any };
+    /** Every entity id referenced anywhere in a config object. */
+    collectEntityIds: (node: any, out?: Set<string>, depth?: number) => Set<string>;
+    /**
+     * Whether a new `hass` can change what a component reading `ids` draws.
+     * Themes, locale and language count as inputs - formatters read them.
+     */
+    hassInputsChanged: (oldHass: any, newHass: any, ids: Iterable<string>) => boolean;
     /** A copy of `list` with one field of entry `idx` replaced. */
     withPatch: <T>(list: T[], idx: number, key: string, value: any) => T[];
     /**

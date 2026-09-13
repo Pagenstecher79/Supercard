@@ -437,16 +437,6 @@ Object.assign(window.SupercardUtils, (() => {
     details.inner-section summary::-webkit-details-marker { display: none; }
   `;
 
-  return /** @type {SupercardUtilsApi} */ ({
-    safeFloat, hexToRgb, rgbToHex, toRgb, resolveVar, sampleGradient,
-    getAvailableElements, listElements, elementLabel, showsElement, elementPartSelector,
-    resolveAlias, withPatch, gaugeIsResponsive, onCanvas, cardIsPill, cardRadius,
-    editorStyles, formStyles
-  });
-})());
-
-const SC_UTILS = window.SupercardUtils;
-
 // Entity ids referenced anywhere in a card config. Used by shouldUpdate to tell
 // a relevant hass update apart from the ones HA fires for every other entity.
 const SC_ENTITY_ID_RE = /^[a-z_]+\.[a-z0-9_]+$/;
@@ -461,6 +451,45 @@ function collectEntityIds(node, out = new Set(), depth = 0) {
   }
   return out;
 }
+
+
+/**
+ * Whether a new `hass` can change what a component that reads `ids` draws.
+ *
+ * Home Assistant replaces the whole `hass` object on every state change in
+ * the instance, so without this a card of sixteen gauges re-renders all
+ * sixteen because one of them ticked - and on a dashboard of two dozen such
+ * cards that is most of the work the page does.
+ *
+ * Themes, locale and language are in here because a formatter reads them and
+ * nothing else would notice they changed.
+ *
+ * @param {any} oldHass
+ * @param {any} newHass
+ * @param {Iterable<string>} ids
+ * @returns {boolean}
+ */
+function hassInputsChanged(oldHass, newHass, ids) {
+  if (!oldHass || !newHass) return true;
+  if (oldHass.themes !== newHass.themes
+    || oldHass.locale !== newHass.locale
+    || oldHass.language !== newHass.language) return true;
+  for (const id of ids) {
+    if (oldHass.states[id] !== newHass.states[id]) return true;
+  }
+  return false;
+}
+
+  return /** @type {SupercardUtilsApi} */ ({
+    safeFloat, hexToRgb, rgbToHex, toRgb, resolveVar, sampleGradient,
+    getAvailableElements, listElements, elementLabel, showsElement, elementPartSelector,
+    resolveAlias, withPatch, gaugeIsResponsive, onCanvas, cardIsPill, cardRadius,
+    collectEntityIds, hassInputsChanged,
+    editorStyles, formStyles
+  });
+})());
+
+const SC_UTILS = window.SupercardUtils;
 
 class SupercardCore extends LitElement {
   static get properties() {
@@ -499,7 +528,7 @@ class SupercardCore extends LitElement {
   _relevantEntityIds() {
     if (this._entityIdSource !== this.config) {
       this._entityIdSource = this.config;
-      this._entityIds = collectEntityIds(this.config);
+      this._entityIds = SC_UTILS.collectEntityIds(this.config);
     }
     return this._entityIds;
   }
@@ -507,12 +536,7 @@ class SupercardCore extends LitElement {
   shouldUpdate(changedProps) {
     if (!this.hasUpdated) return true;
     if (changedProps.size > 1 || !changedProps.has('hass')) return true;
-    const oldHass = changedProps.get('hass');
-    if (!oldHass || !this.hass) return true;
-    for (const id of this._relevantEntityIds()) {
-      if (oldHass.states[id] !== this.hass.states[id]) return true;
-    }
-    return false;
+    return SC_UTILS.hassInputsChanged(changedProps.get('hass'), this.hass, this._relevantEntityIds());
   }
 
   getCardSize() { return 3; }
