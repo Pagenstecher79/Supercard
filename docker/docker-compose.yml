@@ -17,7 +17,7 @@
 # cannot show up in a page that instantiates the components directly.
 services:
   homeassistant:
-    container_name: supercard-ha
+    container_name: gauge-studio-ha
     image: ghcr.io/home-assistant/home-assistant:stable
     restart: unless-stopped
     ports:

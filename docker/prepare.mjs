@@ -49,20 +49,20 @@ try {
   // are worth describing accurately.
   const raw = execFileSync(
     "docker",
-    ["inspect", "supercard-ha", "--format", "{{.State.Status}}\n{{range .Mounts}}{{.Source}}\n{{end}}"],
+    ["inspect", "gauge-studio-ha", "--format", "{{.State.Status}}\n{{range .Mounts}}{{.Source}}\n{{end}}"],
     { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
   );
   const [state, ...mounts] = raw.split("\n").map((line) => line.trim());
   const configMount = mounts.find((line) => line.endsWith("/config"));
   if (configMount && resolve(configMount) !== resolve(join(here, "config"))) {
     console.error(
-      `\nA container named supercard-ha already exists (${state}), mounting\n` +
+      `\nA container named gauge-studio-ha already exists (${state}), mounting\n` +
         `  ${configMount}\n` +
         `which is not this checkout's\n  ${join(here, "config")}\n\n` +
         `It belongs to a different worktree, and the container name is fixed, so\n` +
         `starting from here would either fail on the name or adopt that instance and\n` +
         `leave you editing files it never reads. Clear it first:\n\n` +
-        `  docker rm -f supercard-ha\n\n` +
+        `  docker rm -f gauge-studio-ha\n\n` +
         `That removes only the container. Its config and history are on a bind mount\n` +
         `in the other checkout and survive.\n`,
     );
@@ -241,7 +241,7 @@ if (!existsSync(dashConfigFile) || reseed) {
     process.exit(1);
   }
   const seed = /** @type {{ views: unknown[] }} */ (
-    yaml.load(readFileSync(join(here, "config", "supercard-demo.yaml"), "utf8"))
+    yaml.load(readFileSync(join(here, "config", "gauge-studio-demo.yaml"), "utf8"))
   );
   mkdirSync(storageDir, { recursive: true });
   writeFileSync(
@@ -259,8 +259,8 @@ if (!existsSync(dashConfigFile) || reseed) {
   );
   console.log(
     reseed
-      ? "Reseeded the Supercard Demo dashboard from supercard-demo.yaml (UI edits discarded)."
-      : "Seeded the Supercard Demo dashboard from supercard-demo.yaml.",
+      ? "Reseeded the Supercard Demo dashboard from gauge-studio-demo.yaml (UI edits discarded)."
+      : "Seeded the Supercard Demo dashboard from gauge-studio-demo.yaml.",
   );
 } else {
   console.log("Supercard Demo dashboard already exists; keeping your edits (npm run ha:reseed to reset it).");

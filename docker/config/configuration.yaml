@@ -1,9 +1,9 @@
-# Home Assistant config for the Supercard development instance.
+# Home Assistant config for the Gauge Studio development instance.
 #
 # Everything here exists to make the card testable against a real HA. Nothing
 # here is a recommendation for a real home.
 #
-# Supercard draws numbers: gauges, progress bars and labels bound to numeric
+# Gauge Studio draws numbers: gauges, progress bars and labels bound to numeric
 # sensors. So what this instance has to provide is numbers that *move* - a
 # static demo cannot show pointer physics, bar easing, threshold colour
 # changes or the animation smoothness the card is judged on. The automations
@@ -13,7 +13,7 @@
 default_config:
 
 homeassistant:
-  name: Supercard Dev
+  name: Gauge Studio Dev
   latitude: 52.520008
   longitude: 13.404954
   elevation: 34
@@ -36,7 +36,7 @@ lovelace:
   # including the card's own visual editor, which is most of what this project
   # is. The Supercard Demo dashboard is not declared here: a dashboard declared
   # in YAML is a yaml-mode dashboard, and Home Assistant refuses to edit those.
-  # docker/prepare.mjs seeds it as a storage dashboard from supercard-demo.yaml
+  # docker/prepare.mjs seeds it as a storage dashboard from gauge-studio-demo.yaml
   # instead, so the demo still lives in git.
   mode: storage
 

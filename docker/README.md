@@ -71,7 +71,7 @@ it is hard to reach by waiting. The frame budget is 1000/refresh-rate ms:
 | `npm run ha` | build, register, start (foreground) |
 | `npm run ha:logs` | follow the container log |
 | `npm run ha:down` | stop the container, keep the instance |
-| `npm run ha:reseed` | rewrite the demo dashboard from `config/supercard-demo.yaml`, discarding UI edits |
+| `npm run ha:reseed` | rewrite the demo dashboard from `config/gauge-studio-demo.yaml`, discarding UI edits |
 | `npm run ha:reset` | wipe the instance — account, dashboards, recorder database. The next `npm run ha` starts at onboarding |
 
 Your UI edits to the demo dashboard survive restarts; only `ha:reseed` and
