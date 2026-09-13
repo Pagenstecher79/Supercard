@@ -4,8 +4,8 @@ export default defineConfig({
   build: {
     lib: {
       entry: './src/index.js',
-      name: 'Supercard',
-      fileName: 'supercard',
+      name: 'GaugeStudio',
+      fileName: 'gauge-studio',
       formats: ['es']
     },
     outDir: 'dist',

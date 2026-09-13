@@ -33,7 +33,7 @@ services:
       - TZ=UTC
     volumes:
       - ./config:/config
-      # The built card, served at /local/supercard.js. Read-only
+      # The built card, served at /local/gauge-studio.js. Read-only
       # because the build writes it and HA has no business touching it: with
       # `npm run watch` running, a save rebuilds dist/ and the file under
       # /config/www changes underneath HA the same instant.

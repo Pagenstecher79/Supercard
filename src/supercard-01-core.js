@@ -807,7 +807,7 @@ class SupercardCore extends LitElement {
 
     // FIX: The critical change! Optional chaining (?.) protects against crashes when stateObj is null.
     const uom = stateObj?.attributes?.unit_of_measurement ? ' ' + stateObj.attributes.unit_of_measurement : '';
-    const headerText = slot.entity_name_override || stateObj?.attributes?.friendly_name || entityId || 'Supercard';
+    const headerText = slot.entity_name_override || stateObj?.attributes?.friendly_name || entityId || 'Unnamed card';
     const iconId = stateObj?.attributes?.icon || 'mdi:bookmark';
 
     combinedStyles += `border-radius: ${SC_UTILS.cardRadius(slot) ?? '12px'}; `;
@@ -867,12 +867,12 @@ class SupercardCore extends LitElement {
   }
 }
 
-if (!customElements.get('supercard-core')) customElements.define('supercard-core', SupercardCore);
+if (!customElements.get('gauge-studio-core')) customElements.define('gauge-studio-core', SupercardCore);
 
 window.customCards = window.customCards || [];
-if (!window.customCards.find(c => c.type === 'supercard-core')) {
+if (!window.customCards.find(c => c.type === 'gauge-studio-core')) {
   window.customCards.push({
-    type: 'supercard-core', name: 'Supercard', description: 'Modular LitElement Supercard for Home Assistant', preview: false, documentationURL: ''
+    type: 'gauge-studio-core', name: 'Gauge, Progressbar, Custom Card Studio', description: 'Gauges and progress bars for your dashboard, arranged and configured in the card editor', preview: false, documentationURL: ''
   });
 }
 

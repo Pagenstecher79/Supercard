@@ -1,4 +1,4 @@
-# Supercard
+# Gauge, Progressbar, Custom Card Studio
 
 A custom Lovelace card for Home Assistant: gauges and progress bars, arranged in
 a grid, configured entirely in the visual card editor.
@@ -8,7 +8,7 @@ Vanilla JS + LitElement, no framework, no transpile step beyond Vite's bundling.
 ## Commands
 
 ```bash
-npm run build      # src/index.js -> dist/supercard.js (Vite lib mode)
+npm run build      # src/index.js -> dist/gauge-studio.js (Vite lib mode)
 npm run watch      # same, rebuilding on change
 npm run typecheck  # tsc -p jsconfig.json --noEmit   (NOT `npx tsc`, see below)
 npm run ha         # real Home Assistant in Docker (docker/README.md)
@@ -19,12 +19,18 @@ as a Lovelace resource and a demo dashboard seeded - see `docker/README.md`.
 Use it for anything a synthetic page cannot show: the editor running inside
 HA's config dialog, a commit surviving the round trip through HA storage, drag
 and drop, `unavailable` entities, and whether an animation is actually smooth.
-Without Docker, copy `dist/supercard.js` over the installed file on an
-instance (HACS puts it at `/hacsfiles/Supercard/supercard.js`) and
-hard-refresh - and delete any `supercard.js.gz` sitting next to it, because
+Without Docker, copy `dist/gauge-studio.js` over the installed file on an
+instance (HACS puts it at `/hacsfiles/gauge-studio/gauge-studio.js`) and
+hard-refresh - and delete any `gauge-studio.js.gz` sitting next to it, because
 Home Assistant serves the compressed sibling in preference and the instance
 will keep running the old build however often you reload. Do not add a second
 resource entry for a test build either, see the registration note below.
+
+A hard refresh is not always enough on its own: Home Assistant registers a
+service worker on `/`, which can keep serving the previous bundle for the
+resource URL it already has. The cure is to repoint the existing resource to
+the same file under a new query string (`/local/gauge-studio.js?v=2`) - still
+one resource entry, just a URL the worker has never seen.
 
 `package.json`'s `"version"` is **not** the version of record and has read
 `1.0.0` across every release so far. The version is the git tag: `hacs.json`
@@ -185,7 +191,7 @@ it; all three call sites pass it.
 if (!customElements.get('sc-thing')) customElements.define('sc-thing', ScThing);
 ```
 
-Two builds of Supercard cannot coexist on one page - the first one loaded wins.
+Two builds of the card cannot coexist on one page - the first one loaded wins.
 To test a build, repoint the existing Home Assistant resource entry rather than
 adding a second one.
 
@@ -267,7 +273,7 @@ not.
 ## Releasing
 
 **HACS installs from tags, not from `main`.** Pushing a `v*.*.*` tag fires
-`.github/workflows/release.yml`, which builds `dist/supercard.js` and publishes
+`.github/workflows/release.yml`, which builds `dist/gauge-studio.js` and publishes
 a GitHub release - live, immediately, to everyone who has the card installed.
 
 Never commit, push, or tag on your own initiative. Build locally, report what

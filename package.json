@@ -1,9 +1,9 @@
 {
-  "name": "supercard",
+  "name": "gauge-studio",
   "version": "1.0.0",
   "description": "Custom Lovelace card for Home Assistant",
   "type": "module",
-  "main": "dist/supercard.js",
+  "main": "dist/gauge-studio.js",
   "scripts": {
     "build": "vite build",
     "watch": "vite build --watch",
@@ -21,17 +21,17 @@
     "lovelace",
     "custom-card",
     "hacs",
-    "supercard"
+    "gauge-studio"
   ],
   "license": "MIT",
   "author": "Pagenstecher79",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Pagenstecher79/Supercard.git"
+    "url": "https://github.com/Pagenstecher79/gauge-studio.git"
   },
-  "homepage": "https://github.com/Pagenstecher79/Supercard",
+  "homepage": "https://github.com/Pagenstecher79/gauge-studio",
   "bugs": {
-    "url": "https://github.com/Pagenstecher79/Supercard/issues"
+    "url": "https://github.com/Pagenstecher79/gauge-studio/issues"
   },
   "dependencies": {
     "custom-card-helpers": "^1.9.0",

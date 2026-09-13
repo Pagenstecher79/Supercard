@@ -7,10 +7,10 @@
 // extra_module_url`, and it does put the file in the app shell -- but as a
 // bare, unawaited dynamic import:
 //
-//     <script>import("/local/supercard.js");</script>
+//     <script>import("/local/gauge-studio.js");</script>
 //
 // Nothing coordinates that with the Lovelace renderer, so a dashboard can
-// render before the module has defined <supercard-core>, and Home
+// render before the module has defined <gauge-studio-core>, and Home
 // Assistant draws a "Configuration error" card instead of the plan. It is a
 // race, so it comes and goes with cache state and machine speed, which is
 // worse than a clean failure.
@@ -76,8 +76,8 @@ try {
 
 const storageDir = join(here, "config", ".storage");
 const resourceFile = join(storageDir, "lovelace_resources");
-const URL_PATH = "/local/supercard.js";
-const distCardFile = join(here, "..", "dist", "supercard.js");
+const URL_PATH = "/local/gauge-studio.js";
+const distCardFile = join(here, "..", "dist", "gauge-studio.js");
 const cacheBust = existsSync(distCardFile) ? String(Math.trunc(statSync(distCardFile).mtimeMs)) : String(Date.now());
 const RESOURCE_ID = "supercarddevresource01";
 
@@ -91,7 +91,7 @@ const RESOURCE_ID = "supercarddevresource01";
 // its own `?hacstag=`, and it is why a real install picks up an update on a
 // plain reload. `npm run watch` still rebuilds behind a URL that was already
 // registered, so that loop keeps needing a hard refresh (see docker/README).
-const bundle = resolve(here, "..", "dist", "supercard.js");
+const bundle = resolve(here, "..", "dist", "gauge-studio.js");
 const version = existsSync(bundle)
   ? createHash("sha256").update(readFileSync(bundle)).digest("hex").slice(0, 12)
   : null;
@@ -132,7 +132,7 @@ if (existsSync(resourceFile)) {
 // Match on the path, not the whole URL: the point is to *replace* the entry
 // this script wrote last time, whatever version it pointed at. Appending a
 // second one would leave the frontend loading both, and two modules defining
-// <supercard-core> means the second registration throws.
+// <gauge-studio-core> means the second registration throws.
 const existing = store.data.items.find((item) => item?.url?.split("?")[0] === URL_PATH);
 const desiredResourceUrl = resourceUrlFromBuild;
 if (existing?.url === desiredResourceUrl) {
