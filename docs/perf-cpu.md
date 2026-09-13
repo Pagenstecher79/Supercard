@@ -199,3 +199,28 @@ instrument, not a setting, and goes away with the fix.
 Find the renderer process for a tab by burning 8 s of CPU in it from the
 console and diffing `ps -o pid,time` around it; the GPU process is the plain
 `Google Chrome Helper`.
+
+## Renders per entity change (gauge level)
+
+The card's `shouldUpdate` already filtered on the entities it draws from, but
+below it every `sc-gauge` on the card re-rendered whenever the card did. On a
+card with sixteen gauges bound to sixteen different entities, one state change
+cost sixteen renders and fifteen of them had nothing to redraw.
+
+`hassInputsChanged(oldHass, newHass, ids)` now lives in core and both levels
+use it; `sc-gauge._inputIds()` caches the ids it watches against the identity
+of `config`/`globalEntities`.
+
+Measured on a mirror of the stress page - 5 cards, 80 gauges, entities spread
+round robin over 28 sensors, 20 s windows, same card update rate:
+
+| | card updates / 20 s | gauge updates / 20 s |
+|---|---|---|
+| before | 55 | 880 |
+| after  | 52 | 119 |
+
+A first attempt measured nothing at all, because every gauge on that page was
+bound to the *same* sensor - there the sixteen renders were all genuinely
+needed. Spreading the entities is what made the difference visible; a page
+where one entity drives everything cannot show this defect.
+

@@ -278,6 +278,36 @@ class ScGauge extends LitElement {
     return svg`<g class="g-ring">${paths}</g>`;
   }
 
+  /**
+   * The entity ids this gauge draws from: whatever its config names, plus the
+   * one an alias resolves to. Cached against the two objects it is read from,
+   * so a config edit or a change to the global list recollects and nothing
+   * else does.
+   */
+  _inputIds() {
+    if (this.__idsFor !== this.config || this.__idsForGlobals !== this.globalEntities) {
+      this.__idsFor = this.config;
+      this.__idsForGlobals = this.globalEntities;
+      const ids = SC.collectEntityIds(this.config);
+      const alias = SC.resolveAlias(this.globalEntities, this.config, 'entity', 'gauge_attribute');
+      if (alias.entity) ids.add(alias.entity);
+      this.__ids = ids;
+    }
+    return this.__ids;
+  }
+
+  /**
+   * A card hands every gauge on it a new `hass` whenever any entity in the
+   * whole instance changes, and there are sixteen gauges on a card and two
+   * dozen cards on a dashboard. A gauge that draws none of what changed has
+   * nothing to redraw.
+   */
+  shouldUpdate(changedProps) {
+    if (!this.hasUpdated) return true;
+    if (changedProps.size > 1 || !changedProps.has('hass')) return true;
+    return SC.hassInputsChanged(changedProps.get('hass'), this.hass, this._inputIds());
+  }
+
   render() {
     if (!this.config || !this.hass) return html``;
     
