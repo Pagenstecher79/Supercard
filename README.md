@@ -149,7 +149,7 @@ Below is an example of standard card configuration syntax in Home Assistant Love
 ```yaml
 type: custom:gauge-studio-core
 entity: sensor.living_room_temperature
-supercard:
+gauge_studio:
   layout_shape: pill
   border_radius: 16
   card_height_responsive: true

@@ -1,6 +1,6 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { reportedRows, isHeightPinned, canvasFromGrid } from "./canvas-model.js";
-import { stripDeadConfig } from "./config-cleanup.js";
+import { stripDeadConfig, migrateSlotKey } from "./config-cleanup.js";
 
 // --- CENTRAL LAYER DICTIONARY ---
 export const SC_LAYERS = {
@@ -268,7 +268,7 @@ Object.assign(window.SupercardUtils, (() => {
    * domain. Nothing here invents a name: an element with no entity and no
    * label keeps its id, and the caller decides what to draw instead.
    *
-   * @param {any} slot the card's `config.supercard`
+   * @param {any} slot the card's `config.gauge_studio`
    * @param {any} hass
    * @param {string} id an element id, as the canvas and the target lists use it
    * @param {string} [cardEntity] the card's own entity, which icon/name/state show
@@ -508,7 +508,7 @@ class SupercardCore extends LitElement {
   // default the layout tab may override - which is the whole point: it is the
   // same value in both places, and the canvas editor writes the same key.
   getGridOptions() {
-    const slot = this.config?.supercard || {};
+    const slot = this.config?.gauge_studio || {};
     return {
       columns: slot.grid_columns || 3,
       rows: reportedRows(slot),
@@ -519,7 +519,7 @@ class SupercardCore extends LitElement {
 
   setConfig(config) {
     // FIX: No longer requires an entity!
-    this.config = config;
+    this.config = migrateSlotKey(config);
   }
 
   // HA replaces the whole hass object on every state change in the instance, so
@@ -577,7 +577,7 @@ class SupercardCore extends LitElement {
                    border_radius_unit: '%', border_radius_ref: 'min' };
     const grid_options = { columns: 'full' };
     const shape = canvasFromGrid({ grid_options }, slot);
-    return { entity: '', grid_options, supercard: { ...slot,
+    return { entity: '', grid_options, gauge_studio: { ...slot,
       canvas: { w: shape.w, h: Math.round(shape.h / 2), elements: [] } } };
   }
 
@@ -706,7 +706,7 @@ class SupercardCore extends LitElement {
             this.style.setProperty('--sc-avail-h', h + 'px');
             this.style.setProperty('--sc-avail-min', minDim + 'px');
 
-            const slot = this.config?.supercard || {};
+            const slot = this.config?.gauge_studio || {};
             // The scale exists for the plain content row, which a canvas card
             // does not draw - so the responsive switches are not offered
             // there, and a leftover one must not scale a placed icon either.
@@ -735,7 +735,7 @@ class SupercardCore extends LitElement {
     super.updated(changedProps);
     Object.values(window.SupercardModules).forEach(module => {
       if (typeof module.onAfterRender === 'function') {
-        module.onAfterRender(this.renderRoot, this.config?.supercard || {}, { overlayChanged: true });
+        module.onAfterRender(this.renderRoot, this.config?.gauge_studio || {}, { overlayChanged: true });
       }
     });
   }
@@ -743,7 +743,7 @@ class SupercardCore extends LitElement {
   render() {
     if (!this.config || !this.hass) return html``;
 
-    const slot = this.config.supercard || {};
+    const slot = this.config.gauge_studio || {};
     const entityId = slot.entity || this.config.entity;
 
     const stateObj = entityId ? this.hass.states[entityId] : null;
@@ -945,7 +945,7 @@ class SupercardModularEditor extends LitElement {
   }
 
   setConfig(config) {
-    this.config = config;
+    this.config = migrateSlotKey(config);
   }
 
   _applyCommit(newConfig, key, value) {
@@ -957,9 +957,9 @@ class SupercardModularEditor extends LitElement {
         if (v === undefined) delete newConfig[k]; else newConfig[k] = v;
       }
     } else if (key === '__merge__') {
-      Object.assign(newConfig.supercard, value);
+      Object.assign(newConfig.gauge_studio, value);
     } else {
-      newConfig.supercard[key] = value;
+      newConfig.gauge_studio[key] = value;
       if (key === 'entity') newConfig.entity = value;
     }
   }
@@ -967,7 +967,7 @@ class SupercardModularEditor extends LitElement {
   _commit(key, value) {
     if (!this.config) return;
     const newConfig = structuredClone(this.config);
-    if (!newConfig.supercard) newConfig.supercard = {};
+    if (!newConfig.gauge_studio) newConfig.gauge_studio = {};
 
     // One edit that has to touch both the card config and the slot arrives as
     // a batch, because two commits in one tick lose the first: this clones
@@ -982,8 +982,8 @@ class SupercardModularEditor extends LitElement {
     // Every commit is a rewrite of the card anyway, so it is the cheapest
     // moment to drop the settings and list entries nothing reads any more.
     // See `config-cleanup.js`.
-    const cleaned = stripDeadConfig(newConfig.supercard);
-    if (cleaned) newConfig.supercard = cleaned;
+    const cleaned = stripDeadConfig(newConfig.gauge_studio);
+    if (cleaned) newConfig.gauge_studio = cleaned;
 
     const event = new Event("config-changed", { bubbles: true, composed: true });
     event.detail = { config: newConfig };
@@ -992,7 +992,7 @@ class SupercardModularEditor extends LitElement {
 
   render() {
     if (!this.config || !this.hass) return html``;
-    const slot = this.config.supercard || {};
+    const slot = this.config.gauge_studio || {};
 
     const moduleOrder = ['core', 'layout', 'labels', 'color', 'gauge', 'progressbar', 'debug'];
     const availableModules = Object.keys(window.SupercardModules);

@@ -25,7 +25,7 @@ Decisions already taken:
 Three nested levels, all in percentages, none of them absolute:
 
 ```yaml
-supercard:
+gauge_studio:
   layout_rows:
     - id: r1
       flex: 60          # % of card height. 0 or absent = share what's left
@@ -111,7 +111,7 @@ them:
 One level. One coordinate space.
 
 ```yaml
-supercard:
+gauge_studio:
   canvas:
     w: 400          # virtual units — with h, this IS the aspect ratio
     h: 200
@@ -507,7 +507,7 @@ The previous build put a 300 × 150 canvas into the 300 × 100 box and clipped
 
 `grid_options.rows` is Home Assistant's field, so the canvas editor writes
 *that* rather than a setting of its own — through a new `__card__` commit key,
-since `commitFn` otherwise writes into `config.supercard`. The **Card height**
+since `commitFn` otherwise writes into `config.gauge_studio`. The **Card height**
 row in the canvas editor and the layout tab's height control are two views of
 one value; there is nothing to keep in step.
 

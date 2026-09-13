@@ -895,7 +895,7 @@ export function gridRowsToPx(rows) {
  * of one - so it keeps reporting the fixed default it always has. Reporting
  * `auto` there would collapse every existing card to nothing.
  *
- * @param {any} slot config.supercard
+ * @param {any} slot config.gauge_studio
  * @returns {number | 'auto'}
  */
 export function reportedRows(slot) {
@@ -1064,7 +1064,7 @@ export function gridColumnsToPx(columns, total = HA_COLUMN_COUNT, sectionPx = 0)
  * hypothetical one.
  *
  * @param {any} cardConfig the Lovelace card config
- * @param {any} slot config.supercard
+ * @param {any} slot config.gauge_studio
  * @returns {{ columns: number | 'full', rows: number }}
  */
 export function gridSize(cardConfig, slot) {
