@@ -5,6 +5,30 @@ Gauge Studio puts custom gauges and progress bars onto a single card and lets yo
 
 Everything is configured visually — no YAML required — and the card scales its contents to whatever space it is given, so one configuration works in a wide desktop column and in a narrow phone view alike.
 
+---
+
+## 🎬 See it running
+
+One Home Assistant instance with live sensors, recorded as it runs. No mockups.
+
+**A dashboard built from it** — gauges, instrument grids, progress bars and rings side by side.
+
+![A dashboard built with the card](docs/media/dashboard-overview.gif)
+
+**One gauge up close** — SVG dial, sub-ticks, threshold gradient, and a pointer with spring physics rather than a value that teleports.
+
+![One gauge up close](docs/media/gauge-detail.gif)
+
+**Progress bars, vertical and horizontal** — the same four entities twice, with glassmorphism indicator pills that carry the value.
+
+![Progress bars in both orientations](docs/media/progress-bars.gif)
+
+**The editor** — a sixteen-gauge canvas card being reshaped. Every change lands in the live preview on the right immediately; nothing here was typed as YAML.
+
+![The card editor](docs/media/card-editor.gif)
+
+### Screenshots
+
 <img width="557" height="864" alt="Bildschirmfoto 2026-08-23 um 19 07 21" src="https://github.com/user-attachments/assets/eb839ac4-0531-4212-8273-637358f25e4c" />
 <img width="549" height="517" alt="Bildschirmfoto 2026-08-23 um 19 06 20" src="https://github.com/user-attachments/assets/150cd720-31be-4260-b20d-7d24623c81c7" />
 <img width="540" height="462" alt="Bildschirmfoto 2026-08-23 um 19 07 17" src="https://github.com/user-attachments/assets/ca1ab253-2c5b-4c02-9f4c-0ab286f8912d" />
@@ -53,7 +77,7 @@ Once installed, add a card to any dashboard and pick **Gauge, Progressbar, Custo
 ## 🌟 Key Features
 
 * **Layered Render Pipeline (`Z-Index Hierarchy`)**:
-  Separates background layers, grid overlay slots, static elements (icons/buttons), and dynamic dynamic elements (gauges, labels) cleanly without DOM overlay bugs.
+  Separates background layers, grid overlay slots, static elements (icons/buttons), and dynamic elements (gauges, labels) cleanly without DOM overlay bugs.
 * **Responsive Scaling Engine**:
   Uses `ResizeObserver` to automatically measure available component width/height and dynamically compute the scale factor (`--sc-scale`).
 * **Modular Architecture**:
@@ -150,6 +174,7 @@ supercard:
 
   gauge_active: false
   layout_active: false
+```
 
 ---
 
