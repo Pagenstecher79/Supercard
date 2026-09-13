@@ -81,7 +81,20 @@ class ScGauge extends LitElement {
          and only on that square does it land on the pivot. transform-box with
          view-box would be the direct way to say this, but on an outer svg it
          does not move the origin into viewBox units - measured, not assumed. */
-      .sc-gauge-wrap { container-type: size; }
+      /* Safari re-rasterises a gauge that is not on its own compositing layer
+         every time the value changes, and the redrawn picture does not always
+         land on the same pixel - the whole instrument twitches once or twice a
+         second. Promoting the wrap makes Safari rasterise it once and only move
+         the finished layer afterwards, which is also what the needle's own
+         layers already rely on.
+
+         Measured on a 16-gauge canvas card in Safari: the twitch is there with
+         the element box on whole device pixels as well as on fractional ones,
+         so it is the repaint and not the geometry. will-change rather than a
+         translateZ(0), because the wrap already carries a transform of its own
+         when the gauge is placed by hand and the two would overwrite each
+         other. */
+      .sc-gauge-wrap { container-type: size; will-change: transform; }
       .sc-gauge-layer { position: absolute; inset: 0; margin: auto;
                         width: 100cqmin; height: 100cqmin;
                         pointer-events: none; }
