@@ -21,8 +21,10 @@ HA's config dialog, a commit surviving the round trip through HA storage, drag
 and drop, `unavailable` entities, and whether an animation is actually smooth.
 Without Docker, copy `dist/supercard.js` over the installed file on an
 instance (HACS puts it at `/hacsfiles/Supercard/supercard.js`) and
-hard-refresh - and do not add a second resource entry for a test build, see
-the registration note below.
+hard-refresh - and delete any `supercard.js.gz` sitting next to it, because
+Home Assistant serves the compressed sibling in preference and the instance
+will keep running the old build however often you reload. Do not add a second
+resource entry for a test build either, see the registration note below.
 
 `package.json`'s `"version"` is **not** the version of record and has read
 `1.0.0` across every release so far. The version is the git tag: `hacs.json`
