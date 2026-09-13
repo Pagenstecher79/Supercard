@@ -280,3 +280,47 @@ same build ranged from 6 % to 28 % - so nothing is claimed about it.
 
 The gradient is non-interactive (`pointer-events: none`): a foreignObject
 covers the whole box even where the mask hides it, and taps belong to the card.
+
+## Where the renderer time actually goes
+
+Measured on a real dashboard - 24 cards, 73 gauges, 9 bars, 24,776 nodes - by
+hiding one thing at a time (`content-visibility: hidden`, or a stylesheet
+injected into the shadow root) and sampling the tab's renderer process and the
+GPU process for 20 s each, with a control sample between every probe. Controls
+drifted between 88 % and 97 %, so only differences against an adjacent control
+mean anything.
+
+| what was switched off | renderer | gpu |
+|---|---|---|
+| nothing (control) | 88-97 % | 61-65 % |
+| the needle's transform transition | **20 %** | 64 % |
+| the gauges entirely | 20 % | 57 % |
+| the bars entirely | 76 % | **35 %** |
+| backdrop-filter inside the bars | 86 % | 54 % |
+| every filter inside the bars | 92 % | 53 % |
+
+Two separate stories.
+
+**The gauges own the renderer, and it is entirely the needle.** Switching off
+the transform transition costs exactly as much as deleting all 73 gauges - 20 %
+either way. The card's own JavaScript is not involved: an instrumented
+requestAnimationFrame accounted for 1.4 ms per second across the whole page.
+An SVG transform is not composited, so each of the ~26 needles in flight at any
+moment repaints its gauge on the main thread, every frame, at 120 Hz.
+
+Two fixes that do not work, both measured: `will-change: transform` on the
+needle group made it worse (89 % -> 94 %), and driving the rotation through the
+Web Animations API instead of a CSS transition did not get it composited either
+- 73 needles animating that way cost 150 %.
+
+What does work is taking the needle out of the SVG. 73 HTML elements, absolutely
+positioned over the gauges and rotated by a CSS animation, run continuously for
+**21 %** - against 150 % for the same 73 inside the SVG, and 89 % for the 26
+that animate naturally there. An HTML transform is composited; an SVG one is
+not.
+
+**The bars own the GPU.** Hiding the nine of them takes the GPU from 61 % to
+35 %, and leaves the renderer where it was. Roughly a third of that is
+`backdrop-filter` (three panes, ~3 points each, in line with the earlier
+measurement of ~2.5 % per pane) and roughly a third is the SVG filters. The
+remainder, and the bars' share of the renderer, still needs its own pass.
