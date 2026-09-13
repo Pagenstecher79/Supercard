@@ -324,3 +324,35 @@ not.
 `backdrop-filter` (three panes, ~3 points each, in line with the earlier
 measurement of ~2.5 % per pane) and roughly a third is the SVG filters. The
 remainder, and the bars' share of the renderer, still needs its own pass.
+
+### What the needle rebuild actually bought
+
+Measured on the same dashboard, alternating between the installed v1.12.0 and a
+build with the needle in its own HTML layers, 30 s per sample:
+
+| | renderer | gpu |
+|---|---|---|
+| v1.12.0 | 75.3 %, 79.0 % | 61.9 %, 62.2 % |
+| needle in HTML layers | 52.0 %, 49.5 % | 34.6 %, 32.7 % |
+
+Nodes on that page fall from 24,776 to 8,983.
+
+It is a real and repeatable win, and it is **half** of what the ablation
+predicted. Freezing the needle in the new build still drops the renderer from
+49.5 % to 15.7 %, so the moving needle still costs some 34 points even out in
+the HTML flow - against the one point the bare-div probe cost. Four guesses at
+why, all measured and all wrong:
+
+| probe | renderer |
+|---|---|
+| new build, needles moving | 49.5 % |
+| pointer shadows hidden | 50.7 % |
+| one rotating layer per gauge instead of two | 53.6 % |
+| overflow: hidden on the layers | 62.9 % |
+| will-change: transform on the layers | 84.0 % |
+
+So it is neither the shadow's SVG filter, nor the number of rotating layers,
+nor the unbounded paint area, and asking for promotion outright makes it far
+worse. The difference from the probe that cost nothing is that these layers are
+SVG elements the size of the whole gauge, stacked over the gauge's own SVG,
+where the probe was a small opaque div. That is where the next pass starts.
