@@ -71,6 +71,21 @@ class ScGauge extends LitElement {
       
       .g-tick-labels.fade-in { animation: sc-tick-fade-in var(--sc-fade-dur, 0.4s) cubic-bezier(0.4, 0, 0.2, 1) forwards; }
 
+      /* A needle rotating inside the SVG repaints the whole gauge on the main
+         thread every frame - an SVG transform is never composited. Each moving
+         part therefore gets its own <svg> in the HTML flow, where the same
+         rotation is a compositor transform and the gauge below it never
+         repaints. See docs/perf-cpu.md. */
+      /* The layer is the square the gauge's viewBox is letterboxed into, not
+         the wrap's box: a percentage transform-origin measures the element,
+         and only on that square does it land on the pivot. transform-box with
+         view-box would be the direct way to say this, but on an outer svg it
+         does not move the origin into viewBox units - measured, not assumed. */
+      .sc-gauge-wrap { container-type: size; }
+      .sc-gauge-layer { position: absolute; inset: 0; margin: auto;
+                        width: 100cqmin; height: 100cqmin;
+                        overflow: visible; display: block; pointer-events: none; }
+
       /* --- SUPERCARD LAYER MAPPING --- */
       .layer-elm-base    { z-index: 700; }
       .layer-elm-static  { z-index: 800; }
@@ -844,14 +859,61 @@ class ScGauge extends LitElement {
     
     const scaleKey = `${data.unitPrefix}_${data.resultTier}_${data.max}`;
 
+    // Each moving part gets its own <svg> in the HTML flow, because a transform
+    // there is composited and the same transform on an SVG group is not - see
+    // the .sc-gauge-layer comment in the stylesheet. The layers keep the paint
+    // order the single SVG had: the needle's shadow, then the pivot dot, then
+    // the needle, with the value text above all of them.
+    // Every layer carries the same viewBox as the gauge below it, so what it
+    // draws lands where it always did, and the stylesheet sizes it to the
+    // square that viewBox fills - which is what makes a percentage origin
+    // land exactly on the pivot.
+    const layer = (originX, originY, rotate, content) => html`
+      <svg class="sc-gauge-layer" viewBox="0 0 ${this.SIZE} ${this.SIZE}"
+           style="transform-origin: ${(originX / this.SIZE * 100).toFixed(4)}% ${(originY / this.SIZE * 100).toFixed(4)}%;${
+             rotate ? ` transform: rotate(${renderAngle}deg); transition: transform ${this._isInitialized ? dur : 0}s ${easingCurve};` : ''}">
+        ${content}
+      </svg>`;
+
+    const is3d = this._get('pointer_3d_effect', false);
+    const pivotX = this.CENTER + safeFloat(this._get('pivot_offset_x',0),0);
+    const pivotY = this.CENTER + safeFloat(this._get('pivot_offset_y',0),0);
+    const dotR = safeFloat(this._get('pointer_center_radius',2),2) * scale;
+    const shape = (colour, gradId) => this._get('pointer_type','needle') === 'triangle'
+      ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="${colour}"/>${
+          gradId ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="url(#${gradId})"/>` : ''}`
+      : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="${colour}" stroke-width="${pW}" stroke-linecap="round"/>${
+          gradId ? svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="url(#${gradId})" stroke-width="${pW}" stroke-linecap="round"/>` : ''}`;
+
+    // The shadow rotates about its own offset pivot, as it did when it was a
+    // translate inside the rotating group.
+    const shadowAt = (content) => layer(pivotX + sX, pivotY + sY, true, svg`
+          ${shadowDef}
+          <g transform="translate(${(pivotX + sX).toFixed(2)}, ${(pivotY + sY).toFixed(2)})" filter="${filterAttr}" opacity="${sOpacity}">
+            ${content}
+          </g>`);
+
+    const pointerLayers = html`
+      ${filterAttr ? shadowAt(svg`<circle cx="0" cy="0" r="${dotR}" fill="${sCol}"/>${is3d ? '' : shape(sCol, null)}`) : ''}
+      ${layer(pivotX, pivotY, false, svg`<circle cx="${pivotX}" cy="${pivotY}" r="${dotR}" fill="${resolveColor(this._get('pointer_dot_color_type','fixed'), this._get('pointer_dot_color',[255,255,255]))}"/>`)}
+      ${(filterAttr && is3d) ? shadowAt(shape(sCol, null)) : ''}
+      ${layer(pivotX, pivotY, true, svg`
+          ${is3d ? svg`<defs>
+            <linearGradient id="sc-3d-pointer-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="white" stop-opacity="0.8"/>
+              <stop offset="35%" stop-color="white" stop-opacity="0.0"/>
+              <stop offset="65%" stop-color="black" stop-opacity="0.0"/>
+              <stop offset="100%" stop-color="black" stop-opacity="0.6"/>
+            </linearGradient>
+          </defs>` : ''}
+          <g transform="translate(${pivotX.toFixed(2)}, ${pivotY.toFixed(2)})">${shape(pCol, is3d ? 'sc-3d-pointer-grad' : null)}</g>`)}`;
+
     return html`
       <div class="sc-gauge-wrap" @touchstart=${this._handleTouch} style="${wrapStyle}">
         ${waveStyleBlock}
         ${waveDivNode}
         
         <svg viewBox="0 0 ${this.SIZE} ${this.SIZE}" style="width:100%;height:100%;overflow:visible;display:block;">
-          
-          ${shadowDef}
           ${bgNode}
 
           ${animType === 'ripple' ? [...Array(this._get('bg_threshold_anim_ripple_multi',false)?3:1)].map((_, i) => svg`
@@ -930,70 +992,11 @@ class ScGauge extends LitElement {
 
           ${extraLabels}
 
-          <g class="layer-elm-float">
-            ${this._get('pointer_3d_effect', false) ? svg`
-              <defs>
-                <linearGradient id="sc-3d-pointer-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stop-color="white" stop-opacity="0.8"/>
-                  <stop offset="35%" stop-color="white" stop-opacity="0.0"/>
-                  <stop offset="65%" stop-color="black" stop-opacity="0.0"/>
-                  <stop offset="100%" stop-color="black" stop-opacity="0.6"/>
-                </linearGradient>
-              </defs>
-            ` : ''}
+        </svg>
 
-            <g transform="translate(${this.CENTER + safeFloat(this._get('pivot_offset_x',0),0)}, ${this.CENTER + safeFloat(this._get('pivot_offset_y',0),0)})">
-              
-              ${filterAttr ? svg`
-                <g transform="translate(${sX.toFixed(2)}, ${sY.toFixed(2)})" filter="${filterAttr}" opacity="${sOpacity}">
-                  <circle cx="0" cy="0" r="${safeFloat(this._get('pointer_center_radius',2),2)*scale}" fill="${sCol}"/>
-                  
-                  ${!this._get('pointer_3d_effect', false) ? svg`
-                    <g style="transform-origin:0 0; transform: rotate(${renderAngle}deg); transition: transform ${this._isInitialized ? dur : 0}s ${easingCurve};">
-                      ${this._get('pointer_type','needle') === 'triangle'
-                        ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="${sCol}"/>`
-                        : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="${sCol}" stroke-width="${(pW).toFixed(2)}" stroke-linecap="round"/>`
-                      }
-                    </g>
-                  ` : ''}
-                </g>
-              ` : ''}
+        ${pointerLayers}
 
-              <circle cx="0" cy="0"
-                      r="${safeFloat(this._get('pointer_center_radius',2),2)*scale}"
-                      fill="${resolveColor(this._get('pointer_dot_color_type','fixed'), this._get('pointer_dot_color',[255,255,255]))}"/>
-
-              ${(filterAttr && this._get('pointer_3d_effect', false)) ? svg`
-                <g transform="translate(${sX.toFixed(2)}, ${sY.toFixed(2)})" filter="${filterAttr}" opacity="${sOpacity}">
-                  <g style="transform-origin:0 0; transform: rotate(${renderAngle}deg); transition: transform ${this._isInitialized ? dur : 0}s ${easingCurve};">
-                    ${this._get('pointer_type','needle') === 'triangle'
-                      ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="${sCol}"/>`
-                      : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="${sCol}" stroke-width="${(pW).toFixed(2)}" stroke-linecap="round"/>`
-                    }
-                  </g>
-                </g>
-              ` : ''}
-
-              <g style="transform-origin:0 0;
-                        transform: rotate(${renderAngle}deg);
-                        transition: transform ${this._isInitialized ? dur : 0}s ${easingCurve};
-                        will-change: transform;">
-                
-                ${this._get('pointer_type','needle') === 'triangle'
-                  ? svg`
-                      <polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="${pCol}"/>
-                      ${this._get('pointer_3d_effect', false) ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="url(#sc-3d-pointer-grad)"/>` : ''}
-                    `
-                  : svg`
-                      <line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="${pCol}" stroke-width="${pW}" stroke-linecap="round"/>
-                      ${this._get('pointer_3d_effect', false) ? svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="url(#sc-3d-pointer-grad)" stroke-width="${pW}" stroke-linecap="round"/>` : ''}
-                    `
-                }
-              </g>
-            </g>
-          </g>
-
-          ${this._get('show_value',false) ? svg`
+        ${this._get('show_value',false) ? layer(this.CENTER, this.CENTER, false, svg`          
             <text class="layer-elm-dynamic"
                   x="${this.CENTER}"
                   y="${this.CENTER + safeFloat(this._get('value_offset_y',15),15)*scale}"
@@ -1006,9 +1009,7 @@ class ScGauge extends LitElement {
                     : stateObj?.attributes?.unit_of_measurement||'')
                 : ''}
             </text>
-          ` : ''}
-
-        </svg>
+          `) : ''}
       </div>
     `;
   }
