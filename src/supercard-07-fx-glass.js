@@ -897,11 +897,11 @@ function update({ hass, config }) {
       const lensFraction = opaquePane ? 0 : lensScaleFraction(pat.refraction);
       const lensId = `sc-glass-lens-${pat.id}`;
       if (lensFraction) {
-        // A gauge's glass is a disc and bends at its ring; everything else is
-        // a box, however rounded, and bends at its rim. `isCircleRadius`
-        // catches a surface someone has made round by hand.
-        const shape = isRoundTarget(pat.target) || isCircleRadius(borderRadius) ? 'disc' : 'box';
-        lensDefs += lensFilterMarkup(lensId, shape, lensFraction, selector);
+        // A gauge's glass is a disc and curls at its ring; everything else is
+        // a pane, however rounded, and gathers the backdrop at its rim.
+        // `isCircleRadius` catches a surface someone has made round by hand.
+        const profile = isRoundTarget(pat.target) || isCircleRadius(borderRadius) ? 'disc' : 'dome';
+        lensDefs += lensFilterMarkup(lensId, profile, lensFraction, selector, '::after');
       }
       const backdropCSS = [blursBackdrop ? `blur(${u(blur)})` : '', lensFraction ? `url(#${lensId})` : '']
         .filter(Boolean).join(' ');

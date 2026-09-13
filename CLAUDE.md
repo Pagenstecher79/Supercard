@@ -241,12 +241,18 @@ gated:
 
 A lens - `backdrop-filter: url(#...)` over an `feDisplacementMap` - is not a
 third expensive thing. Measured on the demo at 120 Hz: 16 refracting gauge
-panes cost 119.5 fps against 119.8 with no glass at all, and 12 bars with
+panes cost 119.3 fps against 119.9 with no glass at all, and 12 bars with
 refracting pills cost nothing against the same bars with a flat dark pill.
-What does cost is *stacking* it on a blur: 16 panes doing both fell to 117.2
-fps with a p99 of 16.6 ms, because the pane then re-samples the backdrop
+What does cost is *stacking* it on a blur: 16 panes doing both fell to 118.8
+fps with a p99 of 16.0 ms, because the pane then re-samples the backdrop
 twice. The gate is the same one the blur already has - an opaque pane bends
 nothing, so it gets no filter.
+
+The map behind that lens is a 64x64 bitmap drawn once per profile, not a
+stack of gradients, and it carries both axes in one image - so the filter is
+one `feImage` and one `feDisplacementMap`, with nothing to composite. Keep it
+that way: the field is smooth, and a bigger map buys nothing that bilinear
+scaling does not already give.
 
 Before claiming a rendering change is faster, measure it. Frame budget is
 1000/refresh-rate ms - 8.3 ms on a 120 Hz display, not 16.6.
