@@ -2,6 +2,7 @@ import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/co
 import { DEAD_PATTERN_TARGETS } from "./config-cleanup.js";
 import { lightParams, bevelShadow, px, isRoundTarget, isReliefTarget, boxRingMask, isCircleRadius } from "./glass-light.js";
 import { lensScaleFraction, lensFilterMarkup, applyLensGeometry } from "./glass-lens.js";
+import { suspendable, watchModalSuspend } from "./glass-suspend.js";
 
 const SC = window.SupercardUtils;
 
@@ -951,8 +952,8 @@ function update({ hass, config }) {
           -webkit-transform: translateZ(0) !important;
 
           ${backdropCSS ? `
-          -webkit-backdrop-filter: ${backdropCSS} !important;
-          backdrop-filter: ${backdropCSS} !important;` : ''}
+          -webkit-backdrop-filter: ${suspendable(backdropCSS)} !important;
+          backdrop-filter: ${suspendable(backdropCSS)} !important;` : ''}
           ${maskCSS}
         }
 
@@ -991,6 +992,9 @@ function update({ hass, config }) {
   const awakeSheets = new WeakMap();
   function onAfterRender(shadow) {
     if (!shadow) return;
+    // Once per page, not once per card: the watcher is what drops every
+    // pane's blur while a modal dialog stands over the dashboard.
+    watchModalSuspend();
     // A lens is measured, not declared: its maps and its displacement are in
     // pixels of a pane whose size only exists once the card has been laid
     // out. This is the first moment that is true, and every later render is

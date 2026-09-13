@@ -3,6 +3,7 @@ import { squareBarOnCanvas } from "./canvas-model.js";
 import { lightParams, reliefPattern, reliefShadow, reliefLayers } from "./glass-light.js";
 import { isLiquidEffect, pillLensFraction, liquidPillCSS, liquidPadding } from "./pill-glass.js";
 import { applyLensGeometry, lensFilterElement } from "./glass-lens.js";
+import { suspendable, watchModalSuspend } from "./glass-suspend.js";
 
 const SC = window.SupercardUtils;
 
@@ -152,6 +153,9 @@ class ScProgressbar extends LitElement {
     // text, so they can only be written once the pill has been laid out - and
     // again whenever it has been laid out differently.
     applyLensGeometry(this.shadowRoot);
+    // A bar can be on a card that carries no fx-glass at all, so the watcher
+    // is armed from here too. It installs itself once per page.
+    watchModalSuspend();
     if (changedProps.has('config') || changedProps.has('rootConfig')) {
       this._checkEdges();
     }
@@ -475,13 +479,15 @@ class ScProgressbar extends LitElement {
          // pill's own background covers it completely we drop it and draw exactly
          // the same pixels for a fraction of the cost.
          const bgIsOpaque = pOp >= 100 && isOpaqueColor(pBgRaw);
-         const blurCSS = px => bgIsOpaque
-           ? ''
-           : `backdrop-filter: blur(${px}px); -webkit-backdrop-filter: blur(${px}px); `;
+         const blurCSS = px => {
+           if (bgIsOpaque) return '';
+           const v = suspendable('blur(' + px + 'px)');
+           return 'backdrop-filter: ' + v + '; -webkit-backdrop-filter: ' + v + '; ';
+         };
          // glass_dark paints its own rgba() background, so only the opacity counts.
          const darkBlurCSS = pOp >= 100
            ? ''
-           : `backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); `;
+           : 'backdrop-filter: ' + suspendable('blur(6px)') + '; -webkit-backdrop-filter: ' + suspendable('blur(6px)') + '; ';
 
          let glassCSS = '';
          if (glassEffect === 'glass_gooey') {

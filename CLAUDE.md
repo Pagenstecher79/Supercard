@@ -254,6 +254,25 @@ one `feImage` and one `feDisplacementMap`, with nothing to composite. Keep it
 that way: the field is smooth, and a bigger map buys nothing that bilinear
 scaling does not already give.
 
+A pane's `backdrop-filter` is also why the editor dialog flickers, and that
+one is not a cost but a correctness bug in the browser: for content in the
+top layer the backdrop root is the whole document, and Chromium sometimes
+presents the intermediate render without the top layer - the dialog and its
+dimming vanish for one to three frames and you see the dashboard through the
+editor. Measured with a per-frame recorder on the demo: in the second before
+each sighting there was not one DOM mutation anywhere, no long task, and a
+steady 114-120 fps, so nothing this card renders causes it. Glass everywhere:
+5 sightings. Glass nowhere: 0 in 7.0 min. Glass only inside the dialog: 0 in
+6.2 min.
+
+`glass-suspend.js` is that last line: every `backdrop-filter` this card
+writes goes through `var(--sc-glass-suspend, ...)`, and one watcher per page
+sets the property to `none` on the document root while a modal dialog is
+open, exempting the dialog itself with `initial`. Do not inline a
+`backdrop-filter` past that wrapper, and do not "simplify" the watcher away -
+the flicker comes back, and it comes back only sporadically, which is the
+worst way for a bug to come back.
+
 Before claiming a rendering change is faster, measure it. Frame budget is
 1000/refresh-rate ms - 8.3 ms on a 120 Hz display, not 16.6.
 

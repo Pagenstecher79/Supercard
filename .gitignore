@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# session scratch: recordings, frame dumps, one-off probes
+scratchpad/
 *.log
 .DS_Store
 .claude/
