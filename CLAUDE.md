@@ -91,8 +91,14 @@ Use those constants; never write a bare `z-index` number.
 | Renderer (`sc-progressbar`, `sc-gauge`) | `hass`, `config`, `globalEntities` (`sc-progressbar` also takes `rootConfig`) |
 | Editor (`sc-*-editor`) | `hass`, `slot`, `commitFn` |
 
-`slot` is `config.supercard` - the card's own config sub-object, not the
+`slot` is `config.gauge_studio` - the card's own config sub-object, not the
 Lovelace card config.
+
+That key was `config.supercard` until the card was renamed. Dashboards written
+before the rename still carry the old one, and `migrateSlotKey` in
+`config-cleanup.js` translates it in `setConfig` - both of them, the card's and
+the editor's. That is the only place either name is decided: read `slot`
+everywhere else, and never add a second read path for the old key.
 
 ### Shared helpers - use these, do not re-implement
 
@@ -130,13 +136,13 @@ config. Use `SC.withPatch(list, idx, key, value)`, or the editor's own
 
 **Committing from an editor.** Call `commitFn(key, value)`, or
 `commitFn('__merge__', { ...several keys })`. The card's `_commit` merges
-`__merge__` payloads into `config.supercard` and fires `config-changed`.
+`__merge__` payloads into `config.gauge_studio` and fires `config-changed`.
 
 `commitFn('__card__', { ...keys })` writes the **Lovelace card config** instead
 of the slot, for the few settings that are Home Assistant's rather than ours -
 `grid_options` is the only one so far. A key set to `undefined` is deleted.
 Use it so a setting HA already owns stays one value in both editors; do not
-mirror such a value into `config.supercard`.
+mirror such a value into `config.gauge_studio`.
 
 `commitFn('__batch__', [[key, value], ...])` applies several of those in one
 commit. **One edit that has to touch both the card config and the slot must

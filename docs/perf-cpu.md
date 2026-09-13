@@ -190,7 +190,7 @@ anything moves, so twenty of them is a different dashboard from four.
 
 ## The reproducer
 
-Docker instance, dashboard `supercard-demo`, view `perf`: five cards of sixteen
+Docker instance, dashboard `gauge-studio-demo`, view `perf`: five cards of sixteen
 gauges, four glass patterns each (`elm_gauge_N`). Build carries a temporary
 switch - `window.SC_AWAKE = 'on' | 'stepped' | 'off'`, then re-render the cards
 - so the three variants can be measured in one build. It is a measuring

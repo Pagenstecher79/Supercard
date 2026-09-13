@@ -126,7 +126,7 @@ const DEAD_ENTRIES = Object.freeze({
  * Pure: the slot it is given is not touched, and only the entries that
  * actually lose a key are rebuilt.
  *
- * @param {any} slot the card's `config.supercard`
+ * @param {any} slot the card's `config.gauge_studio`
  * @returns {any | null}
  */
 export function stripDeadConfig(slot) {
@@ -166,4 +166,30 @@ export function stripDeadConfig(slot) {
   }
 
   return Object.keys(lists).length ? { ...slot, ...lists } : null;
+}
+
+/**
+ * The card's own config sub-object used to be `config.supercard`; since the
+ * card was renamed it is `config.gauge_studio`.
+ *
+ * Dashboards written before the rename still carry the old key, so it is
+ * translated here - at `setConfig`, the single point every config passes
+ * through - rather than by teaching every reader both names. Everything
+ * downstream then sees one key, and the first edit the editor commits writes
+ * the migrated config back to storage.
+ *
+ * A config that already carries the new key is returned untouched, old key
+ * and all: two slots mean a hand-edited YAML, and picking one of them would
+ * silently throw the other away.
+ *
+ * Pure: the config it is given is not modified.
+ *
+ * @param {any} config the Lovelace card config
+ * @returns {any}
+ */
+export function migrateSlotKey(config) {
+  if (!config || typeof config !== 'object') return config;
+  if (!('supercard' in config) || 'gauge_studio' in config) return config;
+  const { supercard, ...rest } = config;
+  return { ...rest, gauge_studio: supercard };
 }

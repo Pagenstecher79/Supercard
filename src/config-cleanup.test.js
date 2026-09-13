@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripDeadConfig, DEAD_ENTRY_KEYS, DEAD_PATTERN_TARGETS } from './config-cleanup.js';
+import { stripDeadConfig, migrateSlotKey, DEAD_ENTRY_KEYS, DEAD_PATTERN_TARGETS } from './config-cleanup.js';
 
 describe('stripDeadConfig', () => {
   it('takes the dead keys out of the entry that carries them', () => {
@@ -115,5 +115,40 @@ describe('the editor fold state saved cards carry', () => {
 
   it('is for the gauge list only', () => {
     expect(stripDeadConfig({ progressbars: [{ _isOpen: true }] })).toBe(null);
+  });
+});
+
+describe('migrateSlotKey', () => {
+  it('moves a pre-rename slot onto the new key', () => {
+    const slot = { gauges: [{ entity: 'sensor.a' }] };
+    const out = migrateSlotKey({ type: 'custom:gauge-studio-core', entity: '', supercard: slot });
+    expect(out).toEqual({ type: 'custom:gauge-studio-core', entity: '', gauge_studio: slot });
+    expect(out.gauge_studio).toBe(slot);
+  });
+
+  it('leaves a config that already uses the new key alone', () => {
+    const config = { gauge_studio: { gauges: [] } };
+    expect(migrateSlotKey(config)).toBe(config);
+  });
+
+  it('keeps both when a hand-edited config carries both keys', () => {
+    const config = { supercard: { gauges: [{ entity: 'old' }] }, gauge_studio: { gauges: [] } };
+    expect(migrateSlotKey(config)).toBe(config);
+  });
+
+  it('does not modify the config it is given', () => {
+    const config = { supercard: { gauges: [] } };
+    migrateSlotKey(config);
+    expect(config).toEqual({ supercard: { gauges: [] } });
+  });
+
+  it('passes anything that is not a config straight through', () => {
+    expect(migrateSlotKey(undefined)).toBe(undefined);
+    expect(migrateSlotKey(null)).toBe(null);
+  });
+
+  it('is nothing to do for a card that has no slot at all', () => {
+    const config = { type: 'custom:gauge-studio-core' };
+    expect(migrateSlotKey(config)).toBe(config);
   });
 });
