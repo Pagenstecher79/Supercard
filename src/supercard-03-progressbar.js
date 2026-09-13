@@ -129,12 +129,18 @@ class ScProgressbar extends LitElement {
     this._animFrame  = null;
     this._isAtLeftEdge = false;
     this._isAtRightEdge = false;
+    this._boxW = 0;
+    this._boxH = 0;
   }
 
   firstUpdated() {
     setTimeout(() => { this._isInitialized = true; }, 50);
     this._checkEdges();
-    this._resizeObs = new ResizeObserver(() => this._checkEdges());
+    this._resizeObs = new ResizeObserver(entries => {
+      const box = entries[0]?.contentRect;
+      if (box) { this._boxW = box.width; this._boxH = box.height; }
+      this._checkEdges();
+    });
     this._resizeObs.observe(this);
   }
 
@@ -199,13 +205,19 @@ class ScProgressbar extends LitElement {
       const decimals = parseInt(this._get('value_decimals', 0)) || 0;
       steps.push(Math.pow(10, -decimals) / range);
     }
-    if (this._get('use_gradient', false)) {
+    if (this._get('use_gradient', false) && this._boxW > 0 && this._boxH > 0) {
       // A gradient is sampled along the bar, so its finest visible step is a
       // device pixel of the axis it runs along.
+      //
+      // The size comes from the ResizeObserver, never from `offsetWidth`:
+      // this runs inside `render()`, and a layout read there is a forced
+      // synchronous layout of the whole page per animating bar. On a
+      // dashboard of two dozen cards that is not slow, it is a hung tab.
+      const orientation = this._get('orientation', 'horizontal');
       const px = Math.max(1, Math.round(
-        /^circular/.test(this._get('orientation', 'horizontal'))
-          ? Math.min(this.offsetWidth, this.offsetHeight) * Math.PI
-          : (this._get('orientation', 'horizontal') === 'horizontal' ? this.offsetWidth : this.offsetHeight)));
+        /^circular/.test(orientation)
+          ? Math.min(this._boxW, this._boxH) * Math.PI
+          : (orientation === 'horizontal' ? this._boxW : this._boxH)));
       steps.push(1 / px);
     }
     return steps.length ? Math.min(...steps) : 0;
@@ -213,7 +225,7 @@ class ScProgressbar extends LitElement {
 
   _animatePct(to, durationMs) {
     if (this._animFrame) cancelAnimationFrame(this._animFrame);
-    if (window.SC_SWEEP_FLAG ?? true) this.toggleAttribute('data-sweeping', true);
+    const sweepFlag = window.SC_SWEEP_FLAG ?? true;
     const from  = this._displayPct;
     const start = performance.now();
     const step  = (window.SC_FRAME_SKIP ?? SC_FRAME_SKIP_DEFAULT) ? this._visibleStep() : 0;
@@ -227,6 +239,9 @@ class ScProgressbar extends LitElement {
     let   shown = this._displayPct;
     let   last  = 0;
     const tick  = (now) => {
+      // Set from the frame, not from render(): `_animatePct` is called during
+      // render, and the DOM is not ours to touch there.
+      if (sweepFlag && !this.hasAttribute('data-sweeping')) this.toggleAttribute('data-sweeping', true);
       const t     = Math.min((now - start) / durationMs, 1);
       const eased = solveCubicBezier(t, 0.2, 0, 0, 1);
       const next  = from + (to - from) * eased;

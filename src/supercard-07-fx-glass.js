@@ -934,11 +934,12 @@ function update({ hass, config }) {
         }
 
         ${SC_AWAKE_MODE === 'demand' ? `
-        /* The nudge, once per render instead of once per frame. The card
-           flips this class in onAfterRender, which only runs when something
-           the card draws has actually changed - so an idle card costs
-           nothing, and a changing one still gets its backdrop re-sampled. */
-        :host(.sc-awake-alt) ${selector}::after { opacity: 0.999 !important; }
+        /* The nudge, once per render instead of once per frame: --sc-awake is
+           flipped in onAfterRender, which only runs when something the card
+           draws has changed, so an idle card costs nothing and a changing one
+           still gets its backdrop re-sampled. It moves the pane's opacity by
+           a thousandth - invisible, and enough to make it repaint. */
+        ${selector}::after { opacity: calc(1 - var(--sc-awake, 0) * 0.001) !important; }
         ` : ''}
       `;
     });
@@ -946,7 +947,7 @@ function update({ hass, config }) {
   }
 
   /**
-   * Flip the nudge class after a render that changed something.
+   * Flip the nudge after a render that changed something.
    *
    * `backdrop-filter` samples what is behind the pane when the pane paints,
    * and a pane that never paints can hold a stale sample. The card used to
@@ -954,11 +955,28 @@ function update({ hass, config }) {
    * every frame for as long as the dashboard was open - 80 % of a core on a
    * real one. This does the same job on the only occasions it can matter:
    * the card re-rendered.
+   *
+   * It flips a custom property inside a stylesheet the card adopts, and
+   * touches no element: a class or attribute on the card would fire the
+   * MutationObservers other frontend integrations keep on it - card-mod
+   * watches every card - and a re-render triggered from inside `updated()`
+   * is how a render loop starts. A stylesheet edit fires nothing.
    */
+  const awakeSheets = new WeakMap();
   function onAfterRender(shadow) {
-    const host = shadow?.host;
-    if (!host) return;
-    host.classList.toggle('sc-awake-alt');
+    if (!shadow || typeof CSSStyleSheet === 'undefined') return;
+    let entry = awakeSheets.get(shadow);
+    if (!entry) {
+      try {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(':host { --sc-awake: 0; }');
+        shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, sheet];
+        entry = { sheet, on: false };
+        awakeSheets.set(shadow, entry);
+      } catch (_) { return; }
+    }
+    entry.on = !entry.on;
+    try { entry.sheet.cssRules[0].style.setProperty('--sc-awake', entry.on ? '1' : '0'); } catch (_) {}
   }
 
   function renderCustomBlock(commitFn, hass, slot) {
