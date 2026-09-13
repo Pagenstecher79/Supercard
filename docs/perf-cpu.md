@@ -224,3 +224,25 @@ bound to the *same* sensor - there the sixteen renders were all genuinely
 needed. Spreading the entities is what made the difference visible; a page
 where one entity drives everything cannot show this defect.
 
+## DOM nodes: one path per colour, not per subdivision
+
+94 % of the nodes on the stress page were `<path>` elements inside `.g-ring`.
+The ring is drawn by subdividing the arc - `auto` resolution gives 306 steps
+for a full circle - and each step was emitted as its own path even when it
+carried the same stroke as its neighbour. Runs of equal colour are now one arc
+(split into half circles, since a single 360 degree arc starts and ends on the
+same point and draws nothing).
+
+Verified identical, not eyeballed: 336 gauges covering every gauge type,
+gradient preset, gradient mode and resolution, each ring sampled at 1440 angles
+for stroke colour, radius and width. All 312 rings hash identically before and
+after; ring paths 95,172 -> 48,642.
+
+On the stress page: 26,025 -> 19,145 nodes, and a forced re-render of all 80
+gauges 11.6 ms -> 10.2 ms.
+
+What is left is not waste: a smooth gradient really does carry ~220 distinct
+colours over its 306 steps, so run merging cannot go below that. Getting a ring
+down to a single node needs a different mechanism - a CSS `conic-gradient` in a
+`foreignObject`, masked to the ring - which is a rewrite of ring rendering, not
+a tweak.

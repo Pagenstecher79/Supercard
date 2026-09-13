@@ -248,7 +248,11 @@ class ScGauge extends LitElement {
       segs = Math.max(1, baseSegs * (resMap[resMode] ?? 24));
     }
     
+    // One path per *colour run*, not per subdivision step. A 306-step ring in
+    // a single colour is one arc; a gradient still merges every run of steps
+    // that round to the same rgb. Same pixels, a fraction of the nodes.
     const paths = [];
+    const colors = [];
     for (let i = 0; i < segs; i++) {
       const p1=i/segs, p2=(i+1)/segs, vSeg=data.min+p1*range;
       
@@ -271,9 +275,26 @@ class ScGauge extends LitElement {
       }
       
       const rgb = toRgbArray(rawRgb)||rawRgb;
-      const a1=startAngle+p1*totalAngle, a2=startAngle+p2*totalAngle;
-      const c1=polarToCart(this.CENTER,this.CENTER,radius,a1), c2=polarToCart(this.CENTER,this.CENTER,radius,a2);
-      paths.push(svg`<path class="layer-elm-base" d="M${c1.x.toFixed(3)},${c1.y.toFixed(3)} A${radius},${radius},0,0,1,${c2.x.toFixed(3)},${c2.y.toFixed(3)}" stroke="rgb(${rgb.join(',')})" stroke-width="${stroke}" fill="none" stroke-linecap="butt"/>`);
+      colors.push(`rgb(${rgb.join(',')})`);
+    }
+
+    for (let i = 0; i < segs; ) {
+      let j = i + 1;
+      while (j < segs && colors[j] === colors[i]) j++;
+      const a1 = startAngle + (i / segs) * totalAngle;
+      const a2 = startAngle + (j / segs) * totalAngle;
+      // Kept to half circles: a single arc spanning 360 degrees would start and
+      // end on the same point and draw nothing, and one over 180 would need the
+      // large-arc flag. Two or three sub-arcs avoid both.
+      const parts = Math.max(1, Math.ceil(Math.abs(a2 - a1) / 180));
+      for (let k = 0; k < parts; k++) {
+        const b1 = a1 + (a2 - a1) * (k / parts);
+        const b2 = a1 + (a2 - a1) * ((k + 1) / parts);
+        const c1 = polarToCart(this.CENTER, this.CENTER, radius, b1);
+        const c2 = polarToCart(this.CENTER, this.CENTER, radius, b2);
+        paths.push(svg`<path class="layer-elm-base" d="M${c1.x.toFixed(3)},${c1.y.toFixed(3)} A${radius},${radius},0,0,1,${c2.x.toFixed(3)},${c2.y.toFixed(3)}" stroke="${colors[i]}" stroke-width="${stroke}" fill="none" stroke-linecap="butt"/>`);
+      }
+      i = j;
     }
     return svg`<g class="g-ring">${paths}</g>`;
   }
