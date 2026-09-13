@@ -408,3 +408,94 @@ just relocate the bill. The bars' eleven points are no longer the backdrop
 filter either - switching that off now changes nothing (36.4 %), and switching
 off every filter in them buys three points. Both halves are static painting,
 which is where the next pass goes.
+## The bars: it is the frame rate, not the property
+
+Measured on a page of 36 bars built to match a real one - vertical, gradient as
+solid, eleven ticks, a glass indicator pill, a 3 s animation - on a 120 Hz
+display. The bars alone: renderer 17 %, GPU 63-71 %.
+
+| what was switched off | gpu |
+|---|---|
+| nothing | 63.3 %, 70.6 % |
+| the liquid layer | 65.1 % |
+| every transition and animation in the bars | 16.1 % |
+| every transition (animations kept) | 15.5 % |
+| all transitions except clip-path | 69.0 % |
+| the bars entirely | 9.0 % |
+
+So the bars' whole GPU cost is the fill's `clip-path` transition. The obvious
+conclusion - clip-path is not a composited property, use transform - is wrong,
+and the probes say so:
+
+| 36 fills animated continuously with | gpu |
+|---|---|
+| transform (clip-path still applied) | 54.1 % |
+| transform, clip-path removed | 54.7 % |
+| opacity | 50.7 % |
+| opacity, on 9 of the 36 bars | 43.8 % |
+
+A composited property is barely cheaper, and a quarter of the bars costs nearly
+as much as all of them. What actually decides it is how often the page
+composites. Driving the same clip-path from JavaScript, changing only the rate:
+
+| | gpu |
+|---|---|
+| 120 fps | 61.8 % |
+| 30 fps | 34.3 % |
+| not animating | 15.5 % |
+
+Against a floor of 15.5, that is 46 points at 120 fps and 19 at 30. A bar
+crawling to a new value over three seconds does not need a fresh frame every
+8 ms, and nobody can see the difference - but a CSS transition always runs at
+display rate, so the cap the rAF path already has (`SC_ANIM_FPS_CAP`) never
+applies to it. Everything that moves in a bar moves by CSS transition:
+`clip-path` for the fill and the overlay, `left`/`bottom` for the indicator
+line, the pill and the floating value, `stroke-dasharray` for the circle.
+
+Moving those onto the capped rAF path is the fix the numbers point at. It also
+means reproducing `--pb-bounce-ease` in JavaScript, which is why it is a
+separate piece of work rather than a tweak.
+
+### Everything a bar moves now moves on the capped loop
+
+The bar already had a frame loop with a 30 fps cap (`_animatePct`), but it only
+drove the colour sampling - the fill, the indicator line, the pill, the
+floating value and the circle's dash all moved by CSS transition, which runs at
+the display's rate no matter what. They now read the same frame value the loop
+produces, and carry no transition of their own. Keeping them on separate clocks
+was not an option: a pill at 120 fps beside a fill at 30 would visibly lead it.
+
+The loop's easing had to grow up for that. It was a fixed cubic bezier while
+CSS got the user's bounce curve, so the two disagreed; both now come from the
+same function, and `getBounceEase`, `--pb-anim-dur` and `--pb-bounce-ease` are
+gone with their last reader.
+
+On the 36-bar page, alternating builds:
+
+    before   GPU 63.3 %, 70.6 %, 66.6 %
+    after    GPU 23.4 %, 33.9 %, 42.8 %
+    floor     GPU 9.0 %
+
+Roughly halved, with the spread the GPU process always has here.
+
+The motion survives at the granularity a screen can show it: a 10 % move on a
+46 px bar draws 13 distinct states, about one per third of a pixel. Smaller
+moves draw fewer - a 1 % change on that bar is six tenths of a pixel and draws
+two - which is the step filter doing its job, not the animation failing.
+
+## The whole stack, on the dashboard that started this
+
+The 24-card dashboard (73 gauges, 9 bars) had never run anything newer than the
+released build, so this round compares that build against the branch with all
+four changes in it - gauge `shouldUpdate`, the merged colour runs, the conic
+ring, the needle on HTML layers, and the bars on the capped frame loop.
+Alternating the Lovelace resource between the two, 30 s samples:
+
+    v1.12.0      renderer 83.3 %   GPU 58.1 %   24 776 nodes
+    branch       renderer 22.2 %   GPU 18.4 %    9 243 nodes
+    v1.12.0      renderer 78.0 %   GPU 57.7 %   24 776 nodes
+
+The GPU figure is the one the bar change was aimed at, and it is the first time
+it has come down on this dashboard: the earlier rounds moved the renderer and
+left the GPU at 37 %. Both processes now sit near the floor this page has with
+every Supercard hidden.
