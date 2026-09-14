@@ -201,7 +201,7 @@ const HUNDRED = Object.freeze({
  * gauge from -10..50 to 15..25 keeps a blue bottom and a red top, where a list
  * in degrees would put every colour off the left edge.
  */
-const stops = (...pairs) => pairs.map(([value, color]) => ({ value, color }));
+const stops = (...pairs) => pairs.map(([pos, color]) => ({ pos, color }));
 
 /** @type {readonly ElementTemplate[]} */
 export const GAUGE_TEMPLATES = Object.freeze([

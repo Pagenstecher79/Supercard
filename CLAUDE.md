@@ -174,6 +174,18 @@ own means fixed rows, which is a height in pixels and is matched against the
 for the same reason - a grid in units does not survive the next reshape. See
 §7.
 
+**One gradient shape, one gradient editor.** A colour stop is
+`{pos, color}` - `pos` in per cent, or on the entity's scale where a gauge
+says so, and `null` for a colour nobody placed, which CSS then spreads
+itself. `gradient-stops.js` holds the arithmetic and `<sc-gradient-stops>`
+(`supercard-09-gradient-stops.js`) is the only editor for such a list: the
+gauge's stops, a bar's gradient and a colour pattern's colours are all that
+one element, told what its add button should say. Saved cards still carry the
+older shapes - a gauge's `{value, color}`, a pattern's parallel `colors` and
+`stops` - so readers go through `normalizeStops`, and `stripDeadConfig`
+rewrites them on the next edit. Do not add a fourth stop editor, and do not
+read a stop list without `normalizeStops`.
+
 **One layout model.** The canvas is the only one. The rows-and-cells model it
 replaced had its renderer and its editor removed in v2.1.0, but its
 configurations are on people's dashboards, so `layout_rows` is still *read*:

@@ -1278,7 +1278,6 @@ class ScProgressbarEditor extends LitElement {
       .stop-row input[type="text"] { flex: 1; min-width: 0; font-size: 11px; }
       .stop-row input[type="number"] { width: 50px; font-size: 11px; }
       .stop-row .del-btn { background: none; border: none; color: #f44; cursor: pointer; font-size: 14px; padding: 0; }
-      .stops-preview { height: 8px; border-radius: 4px; margin: 4px 0; }
       .field-wrapper { display: flex; flex-direction: column; gap: 4px; }
       .sector-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 90px; margin: 4px 0; }
       .sector-btn { aspect-ratio: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color, #444); border-radius: 3px; cursor: pointer; transition: all 0.2s ease; }
@@ -1362,37 +1361,16 @@ class ScProgressbarEditor extends LitElement {
             </div>
           </div>`;
         break;
-      case 'gradient-stops': {
-        const stops = Array.isArray(val) && val.length > 0
-          ? val : [{ color: '#2196f3', pos: 0 }, { color: '#4caf50', pos: 100 }];
-        const previewGrad = stops.map(s => `${s.color} ${s.pos}%`).join(', ');
-        const updStop = n => updateDirect(n);
-        
-        const distributeStops = () => {
-          if (stops.length < 2) return;
-          const step = 100 / (stops.length - 1);
-          updStop(stops.map((s, i) => ({ ...s, pos: Math.round(i * step) })));
-        };
-
+      case 'gradient-stops':
         content = html`
           <div class="col">
             <label>${field.label}</label>
-            <div class="stops-preview" style="background: linear-gradient(90deg, ${previewGrad})"></div>
-            ${stops.map((s, si) => html`
-              <div class="stop-row">
-                <input type="color" .value=${s.color} @input=${e => updStop(stops.map((x,i) => i===si ? {...x, color: e.target.value} : x))}>
-                <input type="text"  .value=${s.color} @input=${e => updStop(stops.map((x,i) => i===si ? {...x, color: e.target.value} : x))}>
-                <input type="number" min="0" max="100" .value=${s.pos} @input=${e => updStop(stops.map((x,i) => i===si ? {...x, pos: parseInt(e.target.value)||0} : x))}>
-                <span style="font-size:10px;opacity:.6">%</span>
-                ${stops.length > 2 ? html`<button class="del-btn" @click=${() => updStop(stops.filter((_,i) => i !== si))}>✕</button>` : ''}
-              </div>`)}
-            <div style="display:flex; gap:6px; margin-top:4px;">
-              <button type="button" class="add-btn" style="flex:1; margin-top:0;" @click=${() => updStop([...stops, { color: '#ffffff', pos: 100 }])}>＋ Stop</button>
-              <button type="button" class="add-btn" style="flex:1; margin-top:0; border-color:var(--secondary-text-color); color:var(--secondary-text-color);" @click=${distributeStops}>⇿ Distribute</button>
-            </div>
+            <sc-gradient-stops .onUpdate=${n => updateDirect(n)}
+              .stops=${Array.isArray(val) && val.length ? val
+                : [{ color: cfg.color1 || '#2196f3', pos: 0 },
+                   { color: cfg.color2 || '#4caf50', pos: 100 }]}></sc-gradient-stops>
           </div>`;
         break;
-      }
       case 'custom-ticks': {
         const ct = Array.isArray(val) ? val : [];
         const updCt = n => updateDirect(n);
