@@ -163,24 +163,12 @@ const HAS_OWN_SWITCH = /^elm_(gauge|progressbar|label)_\d+$/;
 function getTargets(slot) {
   const groups = {
     general: { label: 'General', items: [ { id: 'none', label: '— Please select a target —' } ]},
-    cells: { label: 'Layout cells (containers)', items: [] },
     elements: { label: 'Direct elements (exact fit)', items: [] }
   };
   const els = getAvailableElements(slot);
-  // Converted cards keep layout_rows, so the cell ids are still there to list -
-  // but the parts they name are gone, and a target that cannot work is worse
-  // than one absent. Elements below cover the canvas, surfaces included.
-  if (!slot?.canvas && Array.isArray(slot.layout_rows)) {
-    slot.layout_rows.forEach((row, rIdx) => {
-      row.cells.forEach((cell, cIdx) => {
-        const typeLabel = els[cell.content] || 'Empty';
-        groups.cells.items.push({ id: `r${rIdx}c${cIdx}`, label: `Cell R${rIdx+1}C${cIdx+1} (${typeLabel})` });
-      });
-    });
-  }
   Object.entries(els).forEach(([key, label]) => {
-    // Same rule as the cells above: an element the canvas does not place has
-    // no part to reach. showsElement passes everything on a rows card.
+    // An element the canvas does not place has no part to reach, and a target
+    // that cannot work is worse than one absent. Surfaces are included.
     if (key !== 'empty' && SC.showsElement(slot, key)
         && !HAS_OWN_SWITCH.test(`elm_${key}`) && !NO_GLASS.has(`elm_${key}`)) {
       groups.elements.items.push({ id: `elm_${key}`, label: `Element: ${label}` });

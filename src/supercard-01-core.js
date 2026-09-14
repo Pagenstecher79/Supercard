@@ -1,6 +1,7 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { reportedRows, isHeightPinned, canvasFromGrid } from "./canvas-model.js";
 import { stripDeadConfig, migrateSlotKey } from "./config-cleanup.js";
+import { rowsAsCanvas } from "./rows-compat.js";
 
 // --- CENTRAL LAYER DICTIONARY ---
 export const SC_LAYERS = {
@@ -706,7 +707,17 @@ class SupercardCore extends LitElement {
             this.style.setProperty('--sc-avail-h', h + 'px');
             this.style.setProperty('--sc-avail-min', minDim + 'px');
 
-            const slot = this.config?.gauge_studio || {};
+            // The rows compatibility path needs the card's real shape, and
+            // the first render happens before this observer has ever fired.
+            // So the numbers are kept, and that first render is asked for
+            // again once there is a box to read - once, because after that
+            // the ratio is already the one the canvas was built with.
+            const hadBox = this._boxW > 0 && this._boxH > 0;
+            this._boxW = w;
+            this._boxH = h;
+            if (!hadBox) this.requestUpdate();
+
+            const slot = this._drawnSlot();
             // The scale exists for the plain content row, which a canvas card
             // does not draw - so the responsive switches are not offered
             // there, and a leftover one must not scale a placed icon either.
@@ -735,15 +746,40 @@ class SupercardCore extends LitElement {
     super.updated(changedProps);
     Object.values(window.SupercardModules).forEach(module => {
       if (typeof module.onAfterRender === 'function') {
-        module.onAfterRender(this.renderRoot, this.config?.gauge_studio || {}, { overlayChanged: true });
+        module.onAfterRender(this.renderRoot, this._drawnSlot(), { overlayChanged: true });
       }
     });
+  }
+
+  /**
+   * The slot as the card draws it: a leftover rows layout is read as the
+   * canvas it describes, so every consumer sees one model.
+   *
+   * Memoised on the slot object and the measured box, because `render` runs on
+   * every state update the card is subscribed to and the migration walks every
+   * row, cell and pattern. The slot is replaced rather than mutated on an
+   * edit, so its identity is a sound cache key.
+   *
+   * @returns {any}
+   */
+  _drawnSlot() {
+    const slot = this.config?.gauge_studio || {};
+    if (this._drawnFor === slot && this._drawnW === this._boxW && this._drawnH === this._boxH) {
+      return this._drawnSlotCache;
+    }
+    const compat = rowsAsCanvas(slot, this._boxW, this._boxH);
+    this._drawnFor = slot;
+    this._drawnW = this._boxW;
+    this._drawnH = this._boxH;
+    this._drawnSlotCache = compat ? { ...slot, ...compat } : slot;
+    return this._drawnSlotCache;
   }
 
   render() {
     if (!this.config || !this.hass) return html``;
 
     const slot = this.config.gauge_studio || {};
+    const drawnSlot = this._drawnSlot();
     const entityId = slot.entity || this.config.entity;
 
     const stateObj = entityId ? this.hass.states[entityId] : null;
@@ -781,7 +817,13 @@ class SupercardCore extends LitElement {
 
     // Modules are handed the slot, not the card config, so the one fact about
     // the card's box that the layout renderer needs travels with it.
-    const renderConfig = { ...slot, __moduleData: moduleData,
+    //
+    // A card still carrying a rows layout is answered with the canvas that
+    // layout describes - see rows-compat.js. It is spread in ahead of the two
+    // private keys and behind the slot, so the repointed pattern lists reach
+    // the colour and glass modules the same way the canvas reaches the layout
+    // one: every module reads this object and none of them reads the slot.
+    const renderConfig = { ...drawnSlot, __moduleData: moduleData,
                            __heightPinned: isHeightPinned(this.config) };
 
     Object.entries(window.SupercardModules).forEach(([modKey, module]) => {

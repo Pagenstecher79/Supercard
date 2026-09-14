@@ -251,18 +251,29 @@ The legacy shapes in §1 are resolved **first**, by running the existing
 way there is exactly one place that understands the old field names, and it is
 the one already proven against real configurations.
 
-### Migration runs on Convert, and only there
+### Migration runs on read, and is written down by the editor
 
-Migration is one button's job. The renderer takes the new path only for a
-config that already carries a `canvas`; nothing migrates on the way in.
+Migration was one button's job — **Convert** — for as long as both models had
+renderers to compare. Since v2.1.0 only the canvas has one, so a card carrying
+`layout_rows` is migrated on read instead: `rows-compat.js` answers with the
+canvas those rows describe, once per render, and the card draws that.
 
-This was originally drafted the other way — migrate on read, hand the result
-to the renderer, write it back at the user's next save — and `resolveCanvas()`
-existed for it. Nothing ever called it. Convert is the better answer to the
-same worry: a card that rewrites someone's stored config just for being
-displayed can corrupt a dashboard while nobody is watching, and a button
-cannot. It also keeps the two paths comparable while both exist, which is the
-only way to check that the new one puts things where the old one did.
+The worry that made a button the right answer at the time still holds: a card
+that rewrites someone's stored config just for being displayed can corrupt a
+dashboard while nobody is watching. So the read-time migration writes nothing —
+it cannot, a Lovelace card has no way to persist its own config outside the
+editor. Opening the editor stages the same canvas as an ordinary edit, which
+**Save** writes and **Cancel** discards.
+
+Reading it at render time is also more accurate than the button was. Convert
+ran inside the edit dialog, where the card is not on screen, so it inferred the
+card's shape from `grid_options` and a reference section width. The card has
+measured itself, so `canvasFromBox` takes the ratio it actually has.
+
+A card that never had a layout is *not* migrated. There the canvas is built
+from what the card draws and arranged as bands, which is a new arrangement
+however faithful the contents — so it stays an offer, with a button that says
+so, and the two models it sits between are the content row and the canvas.
 
 Keep `layout_rows` in the config after converting. It costs a few hundred
 bytes and it is the only way back if the migration turns out to be wrong for a
@@ -605,9 +616,10 @@ already being drawn as a centred square of the smaller side; after squaring,
 the element *is* that square. Nothing moves. What changes is that the box now
 means something: drag it bigger and the gauge gets bigger.
 
-Because migration only runs when someone presses **Convert**, this affects
-conversions from here on and never rewrites a card that is already converted.
-Existing canvas cards keep their boxes until a gauge in them is resized.
+Because migration builds a fresh canvas from the rows each time, this affects
+every card that is still on rows, and never rewrites one whose canvas has
+already been written. Existing canvas cards keep their boxes until a gauge in
+them is resized.
 
 ### The size lives in one place
 

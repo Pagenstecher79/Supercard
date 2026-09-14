@@ -1102,6 +1102,30 @@ export function canvasFromGrid(cardConfig, slot, scale = 400, total = HA_COLUMN_
 }
 
 /**
+ * A canvas shaped like the box the card actually occupies.
+ *
+ * `canvasFromGrid` infers that box from `grid_options` because Convert runs in
+ * the edit dialog, where the card itself is not on screen to be measured. The
+ * rows compatibility path has the real thing - the card's own resize observer
+ * has already published its width and height - so it uses them and infers
+ * nothing. Same scaling convention as `canvasFromGrid`: the longer side
+ * becomes `scale`, since only the ratio carries meaning.
+ *
+ * A box with no area yet (the first render, before the observer has fired) has
+ * no ratio to give, so the caller is told so rather than handed a square.
+ *
+ * @param {number} w measured width in px
+ * @param {number} h measured height in px
+ * @param {number} [scale]
+ * @returns {{ w: number, h: number } | null}
+ */
+export function canvasFromBox(w, h, scale = 400) {
+  if (!(w > 0) || !(h > 0)) return null;
+  const k = scale / Math.max(w, h);
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+
+/**
  * A first canvas for a card that has no layout to migrate.
  *
  * Reaching the canvas used to mean building a rows layout first and converting

@@ -11006,7 +11006,7 @@ views:
               color_patterns:
                 - id: 1773236954173
                   enabled: true
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []
@@ -13221,7 +13221,7 @@ views:
               color_patterns:
                 - id: 1773618182013
                   enabled: false
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []
@@ -13825,7 +13825,7 @@ views:
               color_patterns:
                 - id: 1773236954173
                   enabled: true
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []
@@ -15411,7 +15411,7 @@ views:
               color_patterns:
                 - id: 1773154336317
                   enabled: false
-                  name: Neues Pattern
+                  name: New pattern
                   target: r0c0
                   bg_condition: []
                   anim_condition: []
@@ -17266,7 +17266,7 @@ views:
               color_patterns:
                 - id: 1773679539727
                   enabled: true
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []
@@ -18663,7 +18663,7 @@ views:
               color_patterns:
                 - id: 1774101959080
                   enabled: true
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []
@@ -18887,7 +18887,7 @@ views:
               color_patterns:
                 - id: 1773236954173
                   enabled: false
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []
@@ -20387,7 +20387,7 @@ views:
               color_patterns:
                 - id: 1773236954173
                   enabled: true
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []
@@ -20792,7 +20792,7 @@ views:
               color_patterns:
                 - id: 1774101959080
                   enabled: true
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []
@@ -20905,7 +20905,7 @@ views:
               color_patterns:
                 - id: 1774122956866
                   enabled: true
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []
@@ -21275,7 +21275,7 @@ views:
               color_patterns:
                 - id: 1774122956866
                   enabled: true
-                  name: Neues Pattern
+                  name: New pattern
                   target: main
                   bg_condition: []
                   anim_condition: []

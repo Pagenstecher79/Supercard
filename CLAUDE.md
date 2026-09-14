@@ -157,12 +157,26 @@ canvas letterboxes inside it - never `max-height`, which would keep the width
 at 100% and break the ratio. See `docs/canvas-layout.md` §5.
 
 **The card's shape.** `canvasFromGrid` turns `grid_options` (columns x rows)
-into the canvas shape that box wants, so Convert reproduces the card that is
-already on the dashboard instead of imposing a default. `gridColumnsToPx` uses
-a *reference* section width, because a section's real width is a viewport
-result; only the ratio against `gridRowsToPx` is used. The canvas editor sets
-columns and rows itself and reshapes the canvas with `rescaleCanvas` when they
-change - but only on a user's edit, never on render. See §7.
+into the canvas shape that box wants, so a migration reproduces the card that
+is already on the dashboard instead of imposing a default. `gridColumnsToPx`
+uses a *reference* section width, because a section's real width is a viewport
+result; only the ratio against `gridRowsToPx` is used. `canvasFromBox` is the
+same thing from a box that has been measured, which is what the card itself
+can offer. The canvas editor sets columns and rows itself and reshapes the
+canvas with `rescaleCanvas` when they change - but only on a user's edit,
+never on render. See §7.
+
+**One layout model.** The canvas is the only one. The rows-and-cells model it
+replaced had its renderer and its editor removed in v2.1.0, but its
+configurations are on people's dashboards, so `layout_rows` is still *read*:
+`rows-compat.js` answers with the canvas those rows describe, in memory, once
+per render, and `_drawnSlot` in the core hands that one answer to every module
+so none of them sees two models. Nothing is written back - a Lovelace card
+cannot persist its own config outside the editor - so the editor stages the
+same canvas as an ordinary edit when it opens such a card. Do not add a second
+read path for `layout_rows`, and do not migrate a card that never had a layout:
+the canvas built from a content row is a new arrangement, so that one stays an
+offer with a button. See `docs/canvas-layout.md` §3.
 
 **Editor styles.** Start from a shared stylesheet and add only what differs:
 
