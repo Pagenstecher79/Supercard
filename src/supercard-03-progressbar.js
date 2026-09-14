@@ -1098,15 +1098,15 @@ const STYLE_FIELDS = [
   { id: 'height',              label: 'Height (CSS)',            type: 'text',   placeholder: '20px or 100%' },
   { id: 'border_radius',       label: 'Corner radius',           type: 'range',  min: 0, max: 50, step: 0.1,   placeholder: '4px', condition: cfg => isLin(cfg) },
   { id: 'circular_border_radius', label: 'Background corner radius (%)', type: 'range', min: 0, max: 50, step: 1, placeholder: '50', condition: cfg => isCirc(cfg) },
-  { id: '_section_colors',     label: '── Colors, Gradient & Animation',   type: 'section' },
+  { id: '_section_colors',     label: '── Colours, Gradient & Animation',   type: 'section' },
   { id: 'animation_duration',  label: 'Animation duration (s)',  type: 'range',  min: 0, max: 10, step: 0.1, placeholder: '0.4' },
   { id: 'bounce_intensity', label: 'Bounce intensity (%)', type: 'range', min: 0, max: 30, dynamic_step: true, placeholder: '50' },
-  { id: 'bg_color',            label: 'Background color',      type: 'color',  placeholder: '#ffffff' },
+  { id: 'bg_color',            label: 'Background colour',      type: 'color',  placeholder: '#ffffff' },
   { id: 'bg_opacity',          label: 'Background opacity (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '10' },
-  { id: 'fill_color',          label: 'Fill color (solid)',     type: 'color',  placeholder: 'var(--primary-color)' },
+  { id: 'fill_color',          label: 'Fill colour (solid)',     type: 'color',  placeholder: 'var(--primary-color)' },
   { id: 'use_gradient',        label: 'Use gradient', type: 'checkbox' },
-  { id: 'gradient_as_solid',   label: 'Derive color from gradient (dynamic)', type: 'checkbox', condition: cfg => cfg.use_gradient },
-  { id: 'gradient_stops',      label: 'Gradient color stops',    type: 'gradient-stops', condition: cfg => cfg.use_gradient },
+  { id: 'gradient_as_solid',   label: 'Derive colour from gradient (dynamic)', type: 'checkbox', condition: cfg => cfg.use_gradient },
+  { id: 'gradient_stops',      label: 'Gradient colour stops',    type: 'gradient-stops', condition: cfg => cfg.use_gradient },
 
   { id: '_section_scale',      label: '── Value Range & Main Ticks', type: 'section' },
   { id: 'min',                 label: 'Minimum',               type: 'number', placeholder: '0' },
@@ -1121,8 +1121,8 @@ const STYLE_FIELDS = [
   { id: 'tick_mirror_side',    label: 'Also mirror on other side', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && (cfg.tick_align === 'start' || cfg.tick_align === 'end') },
   { id: 'tick_length',         label: 'Main tick length (%, px)', type: 'text', placeholder: '100%', condition: cfg => isLin(cfg) && cfg.show_ticks },
   { id: 'tick_width',          label: 'Tick width (px or %)', type: 'text', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_color_adaptive', label: 'Dual-adaptive color (inverted at fill level)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
-  { id: 'tick_color',          label: 'Manual color',        type: 'color',  placeholder: 'rgba(255,255,255,0.3)', condition: cfg => isLin(cfg) && cfg.show_ticks && !cfg.tick_color_adaptive },
+  { id: 'tick_color_adaptive', label: 'Dual-adaptive colour (inverted at fill level)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: 'tick_color',          label: 'Manual colour',        type: 'color',  placeholder: 'rgba(255,255,255,0.3)', condition: cfg => isLin(cfg) && cfg.show_ticks && !cfg.tick_color_adaptive },
 
   { id: '_section_segments',   label: '── Segments (circle)',   type: 'section', condition: cfg => isCirc(cfg) },
   { id: 'circular_segmented',  label: 'Split circle into pill segments', type: 'checkbox', condition: cfg => isCirc(cfg) },
@@ -1136,8 +1136,8 @@ const STYLE_FIELDS = [
   { id: 'subtick_mirror_side', label: 'Also mirror on other side', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && (cfg.subtick_pos === 'start' || cfg.subtick_pos === 'end') },
   { id: 'subtick_length',      label: 'Subtick length (% or px)',type: 'text', placeholder: '50%', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && cfg.subtick_pos !== 'full' },
   { id: 'subtick_width',       label: 'Width (px or %)',    type: 'text', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
-  { id: 'subtick_color_adaptive', label: 'Dual-adaptive color (inverted at fill level)', type: 'checkbox', placeholder: 'false', default: false, condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
-  { id: 'subtick_color',       label: 'Manual color',        type: 'color', placeholder: 'rgba(255,255,255,0.2)', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && !cfg.subtick_color_adaptive },
+  { id: 'subtick_color_adaptive', label: 'Dual-adaptive colour (inverted at fill level)', type: 'checkbox', placeholder: 'false', default: false, condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
+  { id: 'subtick_color',       label: 'Manual colour',        type: 'color', placeholder: 'rgba(255,255,255,0.2)', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && !cfg.subtick_color_adaptive },
 
   { id: '_section_custom_ticks', label: '── Custom Ticks', type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
   { id: 'custom_ticks',        label: 'Insert additional / manual ticks', type: 'custom-ticks', condition: cfg => isLin(cfg) && cfg.show_ticks },
@@ -1157,20 +1157,20 @@ const STYLE_FIELDS = [
     { value: '-90', label: '-90°' },
     { value: '180', label: '180° (upside down)' }
   ], condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_color_adaptive', label: 'Dual-adaptive color (inverted at fill level)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_color',   label: 'Custom color',          type: 'color', placeholder: 'var(--secondary-text-color)', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && !cfg.tick_labels_color_adaptive },
+  { id: 'tick_labels_color_adaptive', label: 'Dual-adaptive colour (inverted at fill level)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_color',   label: 'Custom colour',          type: 'color', placeholder: 'var(--secondary-text-color)', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && !cfg.tick_labels_color_adaptive },
   { id: 'tick_labels_pos',     label: 'Positioning',        type: 'select', options: [{value:'start', label:'Before / above'}, {value:'end', label:'After / below'}, {value:'center', label:'Centered'}], condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_shift',   label: 'Offset from center', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_shift',   label: 'Offset from centre', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
   { id: 'tick_labels_tick_gap',label: 'Gap to tick', type: 'text', placeholder: '4', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && cfg.tick_labels_pos !== 'center' },
-  { id: 'tick_labels_center_gap_offset', label: 'Adjust center gap', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && cfg.tick_labels_pos === 'center' },
+  { id: 'tick_labels_center_gap_offset', label: 'Adjust centre gap', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && cfg.tick_labels_pos === 'center' },
 
   { id: '_section_label',      label: '── Label (Name/Label)', type: 'section' },
   { id: 'show_label',          label: 'Show name / label', type: 'checkbox' },
   { id: 'label_font_size',     label: 'Font size (e.g. 12 or 12cqw)', type: 'text', placeholder: '12',  condition: cfg => cfg.show_label },
   { id: 'label_bold',          label: 'Bold',   type: 'checkbox', condition: cfg => cfg.show_label },
-  { id: 'label_color',         label: 'Text color (manual)',   type: 'color',  placeholder: 'var(--primary-text-color)', condition: cfg => cfg.show_label && !cfg.label_color_adaptive_bar && !cfg.label_color_adaptive_theme },
+  { id: 'label_color',         label: 'Text colour (manual)',   type: 'color',  placeholder: 'var(--primary-text-color)', condition: cfg => cfg.show_label && !cfg.label_color_adaptive_bar && !cfg.label_color_adaptive_theme },
   { id: 'label_color_adaptive_bar',   label: 'Adaptive: contrast to bar color', type: 'checkbox', condition: cfg => cfg.show_label && isLin(cfg) },
-  { id: 'label_color_adaptive_bar',   label: 'Take color from gradient', type: 'checkbox', condition: cfg => cfg.show_label && isCirc(cfg) },
+  { id: 'label_color_adaptive_bar',   label: 'Take colour from gradient', type: 'checkbox', condition: cfg => cfg.show_label && isCirc(cfg) },
   { id: 'label_color_adaptive_theme', label: 'Adaptive: HA theme (light/dark)',   type: 'checkbox', condition: cfg => cfg.show_label },
   { id: 'label_position',      label: 'Position in the bar',    type: '9-sector', condition: cfg => isLin(cfg) && cfg.show_label },
   { id: 'label_offset_x',      label: 'X offset',  type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_label },
@@ -1191,15 +1191,15 @@ const STYLE_FIELDS = [
     { value: '90', label: '90° (clockwise)' },
     { value: '-90', label: '-90° (counter-clockwise)' }
   ], condition: cfg => isLin(cfg) && cfg.show_value },
-  { id: 'value_color',         label: 'Text color (manual)',   type: 'color',  placeholder: 'var(--primary-text-color)', condition: cfg => cfg.show_value && !cfg.value_color_adaptive_bar && !cfg.value_color_adaptive_theme },
+  { id: 'value_color',         label: 'Text colour (manual)',   type: 'color',  placeholder: 'var(--primary-text-color)', condition: cfg => cfg.show_value && !cfg.value_color_adaptive_bar && !cfg.value_color_adaptive_theme },
   { id: 'value_color_adaptive_bar',   label: 'Adaptive: contrast to bar color', type: 'checkbox', condition: cfg => cfg.show_value && isLin(cfg) },
-  { id: 'value_color_adaptive_bar',   label: 'Take color from gradient', type: 'checkbox', condition: cfg => cfg.show_value && isCirc(cfg) },
+  { id: 'value_color_adaptive_bar',   label: 'Take colour from gradient', type: 'checkbox', condition: cfg => cfg.show_value && isCirc(cfg) },
   { id: 'value_color_adaptive_theme', label: 'Adaptive: HA theme (light/dark)',   type: 'checkbox', condition: cfg => cfg.show_value },
   { id: 'value_bold',          label: 'Bold',   type: 'checkbox', condition: cfg => cfg.show_value },
   { id: 'value_decimals',      label: 'Decimal places',      type: 'range',  min: 0, max: 3, step: 1, placeholder: '0', condition: cfg => cfg.show_value },
   { id: 'value_unit',          label: 'Custom unit (e.g. %)', type: 'text', placeholder: 'Optional', condition: cfg => cfg.show_value },
   { id: 'value_position',      label: 'Text position',         type: 'select', options: [
-    { value: 'center',   label: 'Centered in bar' },
+    { value: 'center',   label: 'Centred in bar' },
     { value: 'start',    label: 'At the start' },
     { value: 'end',      label: 'At the end' },
     { value: 'floating', label: 'Follows the fill level' }
@@ -1208,7 +1208,7 @@ const STYLE_FIELDS = [
 
   { id: '_section_indicator',  label: '── Indicator & Pill',  type: 'section', condition: cfg => isLin(cfg) },
   { id: 'show_indicator',      label: 'Show indicator line', type: 'checkbox', condition: cfg => isLin(cfg) },
-  { id: 'indicator_color',     label: 'Line color',       type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator },
+  { id: 'indicator_color',     label: 'Line colour',       type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator },
   { id: 'indicator_thickness', label: 'Line thickness (px/%)',type: 'text', placeholder: '2px', condition: cfg => isLin(cfg) && cfg.show_indicator },
   { id: 'indicator_value',     label: 'Show pill with value on line', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_indicator },
   { id: 'value_animated',      label: 'Animate value (follow fill level)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
@@ -1221,11 +1221,11 @@ const STYLE_FIELDS = [
   ], condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
   { id: 'indicator_value_decimals', label: 'Pill decimal places', type: 'range', min: 0, max: 3, step: 1, placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
   { id: 'indicator_value_adaptive_mode', label: 'Adaptive behavior', type: 'select', options: [
-    { value: 'none', label: 'None (manual colors)' },
+    { value: 'none', label: 'None (manual colours)' },
     { value: 'pill', label: 'Whole pill (background adaptive, text contrast)' },
     { value: 'text', label: 'Text only (text adaptive, background manual)' }
   ], condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
-  { id: 'indicator_value_bg',  label: 'Pill background color', type: 'color',  placeholder: '#000000', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value && cfg.indicator_value_adaptive_mode !== 'pill' },
+  { id: 'indicator_value_bg',  label: 'Pill background colour', type: 'color',  placeholder: '#000000', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value && cfg.indicator_value_adaptive_mode !== 'pill' },
   { id: 'indicator_value_opacity', label: 'Pill opacity (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '100', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
   { id: 'indicator_glass_effect', label: 'Glass effect (pill)', type: 'select', options: [
     { value: 'none', label: 'No effect (default)' },
@@ -1237,7 +1237,7 @@ const STYLE_FIELDS = [
     { value: 'glass_liquid', label: 'Liquid glass (refracts the bar)' },
     { value: 'glass_liquid_heavy', label: 'Liquid glass, thick (more refraction)' }
   ], condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
-  { id: 'indicator_value_color', label: 'Pill text color',     type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value && cfg.indicator_value_adaptive_mode === 'none' },
+  { id: 'indicator_value_color', label: 'Pill text colour',     type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value && cfg.indicator_value_adaptive_mode === 'none' },
   { id: 'indicator_value_font_size', label: 'Pill font size (CSS text)', type: 'text', placeholder: '10', condition: cfg => isLin(cfg) && cfg.show_indicator && cfg.indicator_value },
 ];
 
@@ -1389,7 +1389,7 @@ class ScProgressbarEditor extends LitElement {
                 <div style="display:flex; align-items:center; gap:4px; flex:1;">
                   <select style="width:100%; font-size:11px; padding:2px;" @change=${e => updCt(ct.map((x,i) => i===ti ? {...x, align: e.target.value} : x))}>
                     <option value="main" ?selected=${!t.align || t.align === 'main'}>Pos: Same as main</option>
-                    <option value="center" ?selected=${t.align === 'center'}>Pos: Centered</option>
+                    <option value="center" ?selected=${t.align === 'center'}>Pos: Centred</option>
                     <option value="start" ?selected=${t.align === 'start'}>Pos: Edge 1</option>
                     <option value="end" ?selected=${t.align === 'end'}>Pos: Edge 2</option>
                     <option value="full" ?selected=${t.align === 'full'}>Pos: Full</option>

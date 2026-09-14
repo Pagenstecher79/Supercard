@@ -221,16 +221,16 @@ function glassFields() {
     { type: 'custom', condition: manual, render: ctx => radiusRow(ctx) },
 
     { type: 'heading', label: '🍩 Ring / Donut Mask' },
-    { id: 'ring_effect', label: 'Hide center (hard edge)', type: 'checkbox',
-      hint: 'Blur & color only affect the edge exactly.', labelStyle: 'color:var(--primary-color)' },
+    { id: 'ring_effect', label: 'Hide centre (hard edge)', type: 'checkbox',
+      hint: 'Blur & colour only affect the edge exactly.', labelStyle: 'color:var(--primary-color)' },
     { id: 'use_custom_ring_width', label: 'Use custom mask thickness', type: 'checkbox',
       style: 'padding-top: 4px;', condition: pat => !!pat.ring_effect,
       hint: pat => 'Off = thickness matches the bevel width exactly (' + (pat.bevel_width ?? pat.bevel_size ?? 2) + 'px)' },
     { id: 'ring_width', label: 'Mask thickness (px)', type: 'range', min: 1, max: 50, step: 0.5,
       placeholder: 5, condition: pat => pat.ring_effect && pat.use_custom_ring_width },
-    { id: 'ring_center_opacity', label: 'Effect strength in center (%)', type: 'range',
+    { id: 'ring_center_opacity', label: 'Effect strength in centre (%)', type: 'range',
       min: 0, max: 100, int: true, placeholder: 0, condition: pat => !!pat.ring_effect,
-      hint: '0 = blur & color completely hollow' },
+      hint: '0 = blur & colour completely hollow' },
 
     { type: 'heading', label: '🔍 Optics (Magnifier & Curvature)' },
     { id: 'zoom', label: 'Magnify content (zoom)', type: 'range', min: 1, max: 1.5, step: 0.01, placeholder: 1 },
@@ -242,7 +242,7 @@ function glassFields() {
     { id: 'blur', label: 'Blur strength (px)', type: 'range', min: 0, max: 2, step: 0.01, placeholder: 10 },
     { id: 'opacity', label: 'Background opacity (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 10 },
     { type: 'custom', render: ctx => html`
-      <div class="row"><label>Color (hex picker)</label>
+      <div class="row"><label>Colour (hex picker)</label>
         <input type="color" .value=${ctx.entry.bg_rgb || '#ffffff'}
                @input=${e => ctx.set('bg_rgb', e.target.value)}>
       </div>` },

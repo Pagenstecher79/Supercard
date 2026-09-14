@@ -107,19 +107,19 @@ class ScColorEditor extends LitElement {
                    label: locked ? t.label + ' (Already in use)' : t.label };
         }) },
 
-      { type: 'details', label: '🎨 Design & Colors', style: 'margin-top: 4px; margin-bottom: 0;', fields: [
+      { type: 'details', label: '🎨 Design & Colours', style: 'margin-top: 4px; margin-bottom: 0;', fields: [
         { id: 'border_radius_auto', label: 'Automatic corner radius', type: 'checkbox', value: autoBorder },
         { type: 'custom', condition: pat => !autoBorder(pat), render: ctx => this._radiusRow(ctx) },
 
         { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;', condition: waveColors,
-          label: 'The colors are calculated dynamically by the effect.' },
+          label: 'The colours are calculated dynamically by the effect.' },
         { id: 'wave_count', label: 'Count (density)', type: 'range', min: 1, max: 20, int: true,
           placeholder: 3, condition: waveColors },
         { id: 'wave_balance', label: 'Balance (peak vs. trough)', type: 'range', min: 5, max: 95,
           int: true, placeholder: 50, condition: waveColors },
-        { id: 'wave_c1', label: 'Line/wave color (peak)', type: 'color', fallback: '#03a9f4',
+        { id: 'wave_c1', label: 'Line/wave colour (peak)', type: 'color', fallback: '#03a9f4',
           textFallback: true, condition: waveColors },
-        { id: 'wave_c2', label: 'Background color (trough)', type: 'color', fallback: 'transparent',
+        { id: 'wave_c2', label: 'Background colour (trough)', type: 'color', fallback: 'transparent',
           textFallback: true, condition: waveColors },
         { type: 'note', class: '', bare: true, style: caption, label: 'Gradient preview', condition: waveColors },
         { type: 'custom', condition: waveColors, render: ctx => this._wavePreview(ctx, angled(ctx.entry)) },
@@ -150,7 +150,7 @@ class ScColorEditor extends LitElement {
         { id: 'opacity', label: 'Opacity (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 100 },
       ] },
 
-      { type: 'details', label: '📊 Data source for color calculation',
+      { type: 'details', label: '📊 Data source for colour calculation',
         condition: pat => pat.bg_type === 'solid_gradient' && !fluid(pat), fields: [
           { id: 'global_id', label: 'Data source', type: 'select', layout: 'col',
             style: 'margin-bottom: 4px;', labelStyle: small,
@@ -168,7 +168,7 @@ class ScColorEditor extends LitElement {
           ] },
         ] },
 
-      { type: 'details', label: '📍 Center / origin', condition: radialCenter, fields: [
+      { type: 'details', label: '📍 Centre / origin', condition: radialCenter, fields: [
         { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
           label: 'Tap or drag inside the box to freely move the origin point.' },
         { type: 'custom', render: ctx => this._originPad(ctx) },
@@ -282,7 +282,7 @@ class ScColorEditor extends LitElement {
     const setSolid = value => ctx.setStops([{ pos: stopList[0]?.pos ?? null, color: value }]);
 
     return html`
-      <div class="col"><label>Colors</label>
+      <div class="col"><label>Colours</label>
         ${gradient ? html`
           <sc-gradient-stops .stops=${stopList} .previewCss=${previewCss}
             .onUpdate=${list => ctx.setStops(list)}></sc-gradient-stops>
@@ -363,7 +363,7 @@ class ScColorEditor extends LitElement {
           @pointercancel=${e => { e.stopPropagation(); e.currentTarget.onpointermove = null; }}>
           <div class="pos-dot" style="left:${pat.radial_x ?? 50}%;top:${pat.radial_y ?? 50}%"></div>
         </div>
-        <button class="icon-btn" title="Center (50/50)"
+        <button class="icon-btn" title="Centre (50/50)"
           @click=${() => ctx.setMany({ radial_x: 50, radial_y: 50 })}>
           <ha-icon icon="mdi:crosshairs-gps" style="--mdc-icon-size:20px"></ha-icon>
         </button>
@@ -386,7 +386,7 @@ class ScColorEditor extends LitElement {
 
     return html`
       <details class="inner-section">
-        <summary>🎨 Colors, Patterns &amp; Animations <span style="font-size:10px">▼</span></summary>
+        <summary>🎨 Colours, Patterns &amp; Animations <span style="font-size:10px">▼</span></summary>
         <div class="inner-content">
           ${patterns.map((pat, idx) => {
             const isExp = !!this._expanded[pat.id];

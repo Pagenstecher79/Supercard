@@ -307,7 +307,7 @@ class ScGauge extends LitElement {
       colors.push(`rgb(${rgb.join(',')})`);
     }
 
-    // Runs of one colour, not one path per subdivision step.
+    // Runs of one color, not one path per subdivision step.
     const runs = [];
     for (let i = 0; i < segs; ) {
       let j = i + 1;
@@ -316,7 +316,7 @@ class ScGauge extends LitElement {
       i = j;
     }
 
-    const arc = (a1, a2, colour) => {
+    const arc = (a1, a2, color) => {
       // Kept to half circles: a single arc spanning 360 degrees would start and
       // end on the same point and draw nothing, and one over 180 would need the
       // large-arc flag. Two or three sub-arcs avoid both.
@@ -329,19 +329,19 @@ class ScGauge extends LitElement {
         const c2 = polarToCart(this.CENTER, this.CENTER, radius, b2);
         out.push(`M${c1.x.toFixed(3)},${c1.y.toFixed(3)} A${radius},${radius},0,0,1,${c2.x.toFixed(3)},${c2.y.toFixed(3)}`);
       }
-      return colour
-        ? svg`<path class="layer-elm-base" d="${out.join(' ')}" stroke="${colour}" stroke-width="${stroke}" fill="none" stroke-linecap="butt"/>`
+      return color
+        ? svg`<path class="layer-elm-base" d="${out.join(' ')}" stroke="${color}" stroke-width="${stroke}" fill="none" stroke-linecap="butt"/>`
         : out.join(' ');
     };
 
-    // A ring of one colour is one stroked arc; there is nothing to interpolate
+    // A ring of one color is one stroked arc; there is nothing to interpolate
     // and a gradient would only cost a mask.
     if (runs.length === 1) {
       return svg`<g class="g-ring">${arc(startAngle, startAngle + totalAngle, runs[0].c)}</g>`;
     }
 
     // Everything else is a conic gradient behind a mask shaped like the ring:
-    // one node instead of one per colour. SVG has no angular gradient, so the
+    // one node instead of one per color. SVG has no angular gradient, so the
     // gradient is a CSS one painted into a foreignObject.
     //
     // Every band stays flat, as a pair of stops sharing an angle. At coarse
@@ -846,12 +846,12 @@ class ScGauge extends LitElement {
       const sAngle = safeFloat(this._get('pointer_shadow_angle', 90), 90); 
       const sRad = sAngle * Math.PI / 180;
       // 'adaptive' cannot mean here what it means everywhere else in this file.
-      // The theme's text colour is near-white on a dark card, and the shadow is
+      // The theme's text color is near-white on a dark card, and the shadow is
       // offset and barely blurred, so it does not read as the halo a lifted
       // object casts on a dark surface - it reads as a second, ghostly pointer
       // beside the real one. A shadow is the absence of light in any theme;
       // what adapts is its strength, which is the opacity below. 'fixed' takes
-      // the colour the editor has been offering all along.
+      // the color the editor has been offering all along.
       sCol = pShadowType === 'adaptive'
         ? 'rgb(0,0,0)'
         : resolveColor('fixed', this._get('pointer_shadow_color', [0, 0, 0]));
@@ -899,10 +899,10 @@ class ScGauge extends LitElement {
     const pivotX = this.CENTER + safeFloat(this._get('pivot_offset_x',0),0);
     const pivotY = this.CENTER + safeFloat(this._get('pivot_offset_y',0),0);
     const dotR = safeFloat(this._get('pointer_center_radius',2),2) * scale;
-    const shape = (colour, gradId) => this._get('pointer_type','needle') === 'triangle'
-      ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="${colour}"/>${
+    const shape = (color, gradId) => this._get('pointer_type','needle') === 'triangle'
+      ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="${color}"/>${
           gradId ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="url(#${gradId})"/>` : ''}`
-      : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="${colour}" stroke-width="${pW}" stroke-linecap="round"/>${
+      : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="${color}" stroke-width="${pW}" stroke-linecap="round"/>${
           gradId ? svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="url(#${gradId})" stroke-width="${pW}" stroke-linecap="round"/>` : ''}`;
 
     // The shadow rotates about its own offset pivot, as it did when it was a

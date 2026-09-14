@@ -185,7 +185,7 @@ class ScLabelsEditor extends LitElement {
           { value: 'after', label: 'After text', selected: item.icon_position === 'after' },
           { value: 'only', label: 'Icon only (no text)', selected: item.icon_position === 'only' },
         ] },
-      { id: 'icon_color', label: 'Icon color', type: 'color', fallback: '#ffffff',
+      { id: 'icon_color', label: 'Icon colour', type: 'color', fallback: '#ffffff',
         placeholder: 'Empty = inherit', condition: withIcon },
       // On a box that sizes the label itself, a size here would change nothing.
       { type: 'note', condition: item => item.use_icon && this.boxSized,
@@ -215,10 +215,10 @@ class ScLabelsEditor extends LitElement {
       type: 'group', style: boxStyle, fields: [
         { type: 'note', class: '', bare: true, style: titleStyle, label: title },
         { id: 'indicator_icon_' + suffix, label: 'Icon', type: 'icon', style: 'margin-bottom: 8px;' },
-        { id: 'indicator_bg_' + suffix, label: 'Background color', type: 'color',
+        { id: 'indicator_bg_' + suffix, label: 'Background colour', type: 'color',
           fallback: suffix === 'active' ? '#03a9f4' : '#333333', placeholder: 'transparent',
           style: 'margin-bottom: 8px;' },
-        { id: 'indicator_color_' + suffix, label: 'Icon/text color', type: 'color',
+        { id: 'indicator_color_' + suffix, label: 'Icon/text colour', type: 'color',
           fallback: '#ffffff', placeholder: 'inherit' },
       ],
     });

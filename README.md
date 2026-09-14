@@ -84,7 +84,7 @@ Once installed, add a card to any dashboard and pick **Gauge, Progressbar, Custo
   Extensible architecture using `SupercardModules`. Built-in modules include:
   * **Core Editor & Global Entities**: Easily register alias entities and attributes, and set the card's shape, sizing and responsiveness.
   * **Interactions**: Per-element tap, hold and double-tap actions (`more-info`, `toggle`, `call-service`, `navigate`) with press-scale and rotation effects.
-  * **Color & Animation Engine**: Solid, gradient, vector fluid (Aurora, Gooey, Smoke, Particles), wave, ripple, and drop pulse effects.
+  * **Colour & Animation Engine**: Solid, gradient, vector fluid (Aurora, Gooey, Smoke, Particles), wave, ripple, and drop pulse effects.
   * **Interactive Layout Engine**: Modular multi-cell layout manager with fine-tuning, flexible aspect-ratio canvas, and responsive sizing.
   * **Progressbars**: Linear and circular (donut, speedo, half-circle) progress bars with glassmorphism/gooey indicator pills.
   * **Gauges**: Custom SVG full 360° / semi 270° dials with spring acceleration physics, dynamic thresholds, multi-stops, custom ticks, and sectors.
@@ -113,11 +113,11 @@ The plugin includes the following modules:
 
 ### 1. `core` Module
 * **Primary Entity Handling**: Select a main entity and optional attribute to monitor state changes.
-* **Global Alias Entities**: Add and manage arbitrary global entities (`global_entities`) referenced across gauges, progress bars, and color conditions.
+* **Global Alias Entities**: Add and manage arbitrary global entities (`global_entities`) referenced across gauges, progress bars, and colour conditions.
 * **Shape & Sizing**: Toggle between `rectangle` and `pill` layouts, fine-tune `border-radius`, and manage responsiveness or fixed pixel/percentage dimensions.
 
 ### 2. `color` Module
-* Render dynamic background overlays and color animations.
+* Render dynamic background overlays and colour animations.
 * **Supported Modes**: Solid, Linear, Radial, Solid Gradient (calculated dynamically based on entity numerical states), and Vector Fluid.
 * **Fluid Engine**: Renders inline animated SVGs using filter effects (`gooey`, `smoke`, `aurora`, `particles`).
 * **Effects & Animations**: `pulse`, `pump`, `ripple`, `waves`, `wobble_radial`, `wobble_linear`, and `fluid`.
@@ -125,7 +125,7 @@ The plugin includes the following modules:
 ### 3. `progressbar` Module
 * Renders highly customizable progress indicators into card slots.
 * **Orientations**: Linear (Horizontal / Vertical) and Circular (Donut, Speedo, Half-circle).
-* **Feature Highlights**: Advanced tick/subtick generators, glassmorphism indicator pills (Liquid, Gooey, Clean Frost, Lens), bounce easing, custom color stops, and text rotation.
+* **Feature Highlights**: Advanced tick/subtick generators, glassmorphism indicator pills (Liquid, Gooey, Clean Frost, Lens), bounce easing, custom colour stops, and text rotation.
 
 ### 4. `layout` Module
 * A fully interactive grid editor providing flexible multi-row and multi-cell structural placement.

@@ -45,7 +45,7 @@ class ScGradientStops extends LitElement {
     this.stops = [];
     this.absolute = false;
     this.blocks = false;
-    this.addLabel = '＋ Add color';
+    this.addLabel = '＋ Add colour';
     this.previewCss = '';
     this.itemLabel = 'Color';
     this._open = {};
