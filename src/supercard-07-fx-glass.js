@@ -512,12 +512,16 @@ class ScFxGlassEditor extends LitElement {
       .filter(({ pat }) => !HAS_OWN_SWITCH.test(pat.target));
 
     // With gauges, bars, labels and the card itself switched from their own
-    // editors, what is left for this list is the icon and the surfaces. A card
-    // that has neither has nothing to put here, so the section stays away
-    // rather than offering an empty menu - unless a pattern is already stored,
-    // because a row nobody can reach is how the last stale target went
-    // unnoticed.
-    if (!rows.length && !targetGroups.elements.items.length) return html``;
+    // editors, what is left for this list is the icon and the surfaces - and
+    // only where one of those is actually laid out, because a target you
+    // cannot point at on the canvas is not a target. A card without one has
+    // nothing to put here, so the section stays away rather than offering an
+    // empty menu - unless a pattern is already stored, because a row nobody
+    // can reach is how the last stale target went unnoticed.
+    const placed = Array.isArray(this.slot?.canvas?.elements) ? this.slot.canvas.elements : [];
+    const reachable = targetGroups.elements.items
+      .some(t => placed.some(el => el?.id === t.id.replace(/^elm_/, '')));
+    if (!rows.length && !reachable) return html``;
 
     const getLabelForTarget = (targetId) => {
       for (const group of Object.values(targetGroups)) {
