@@ -138,7 +138,7 @@ class ScLabelsEditor extends LitElement {
                     @change=${e => { this._set(list, idx, 'enabled', e.target.checked); }}>
                   </ha-switch>
                   <button @click=${e => { e.stopPropagation(); const n = [...list]; n.splice(idx, 1); this._commit(n); }}
-                    style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">✕</button>
+                    style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">🗑</button>
                 </div>
               </div>
 

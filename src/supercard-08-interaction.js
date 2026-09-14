@@ -229,7 +229,7 @@ class ScInteractionEditor extends LitElement {
                     <button type="button" title="Delete" @click=${e => {
                       e.preventDefault(); e.stopPropagation();
                       const n = [...patterns]; n.splice(idx, 1); this._commit(n);
-                    }} style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">✕</button>
+                    }} style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">🗑</button>
                   </div>
                 </div>
 

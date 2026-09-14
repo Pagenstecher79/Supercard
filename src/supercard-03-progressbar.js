@@ -1419,7 +1419,7 @@ class ScProgressbarEditor extends LitElement {
                     <span style="font-size:10px; opacity:0.8;">🪞</span>
                   </div>
                 ` : ''}
-                <button class="del-btn" @click=${() => updCt(ct.filter((_,i) => i !== ti))}>✕</button>
+                <button class="del-btn" @click=${() => updCt(ct.filter((_,i) => i !== ti))}>🗑</button>
               </div>`)}
             <button type="button" class="add-btn" style="margin-top:4px; padding:6px;"
               @click=${() => updCt([...ct, { value: 50, color: '#ff0000', width: '2px', length: '', align: 'main', mirror: false }])}>＋ Add custom tick</button>
