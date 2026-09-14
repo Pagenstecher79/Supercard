@@ -224,9 +224,12 @@ static get styles() {
 }
 ```
 
-Use `editorStyles` for pattern/card-list editors (the `ha-switch` look) and
-`formStyles` for compact config forms (the hand-rolled `.toggle` look). Do not
-paste a full stylesheet into a new module.
+Use `editorStyles` for pattern/card-list editors (the `ha-switch` look) -
+colour, labels, glass, interaction - and `formStyles` for the config forms
+(the hand-rolled `.toggle` look): core's two editors, the gauge and the bar.
+The gauge and the bar are the same kind of form and look the same; the bar
+used to start from the other stylesheet, which is the only reason they ever
+differed. Do not paste a full stylesheet into a new module.
 
 **Field visibility.** A predicate on the field definition:
 

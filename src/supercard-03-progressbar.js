@@ -1261,28 +1261,40 @@ class ScProgressbarEditor extends LitElement {
   }
 
   static get styles() {
-    return [SC.editorStyles, css`
-      .add-btn { margin-top: 8px; }
+    // The gauge editor's look, because the two are the same kind of form and
+    // used to differ only in which stylesheet they happened to start from.
+    return [SC.formStyles, css`
+      input[type="text"], input[type="number"], select { transition: border-color 0.2s; }
       .fx-slot { margin: 8px 0; padding: 8px; border-radius: 6px;
                  background: rgba(255,255,255,0.03); border: 1px solid var(--divider-color,#555); }
-      .color-row { width: 100%; }
-      .entity-row { display: flex; flex-direction: column; gap: 4px; font-size: 13px; margin-bottom: 8px; }
-      .sub-section { border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-top: 6px; }
-      .sub-section > summary { padding: 7px 10px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--primary-color,#03a9f4); list-style: none; display: flex; align-items: center; gap: 6px; user-select: none; background: rgba(255,255,255,0.03); }
-      .sub-section > summary::before { content: '▶'; font-size: 9px; transition: transform 0.15s; }
-      .sub-section[open] > summary::before { transform: rotate(90deg); }
-      .sub-content { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
-      .color-row input[type="color"] { width: 36px; height: 28px; padding: 0; border: none; background: none; cursor: pointer; flex-shrink: 0; }
+      details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
+      .inner-content { padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); margin-top: 4px; padding-top: 12px; }
+      ha-entity-picker, ha-selector { display: block; width: 100%; }
+      .entity-row { display: flex; flex-direction: column; gap: 4px; }
+      .field-wrapper { display: block; }
+      button.add-btn { margin-top:4px; padding:8px; border-radius:8px; border:1px dashed var(--primary-color,#03a9f4); background:none; color:var(--primary-color,#03a9f4); cursor:pointer; font-size:13px; width:100%; }
+      .sector-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2px;
+        width: 54px;
+        height: 54px;
+        margin-top: 4px;
+      }
+      .sector-btn {
+        background: var(--divider-color, #555);
+        border-radius: 2px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .sector-btn:hover { background: var(--primary-color, #03a9f4); opacity: 0.7; }
+      .sector-btn.active { background: var(--primary-color, #03a9f4); box-shadow: 0 0 4px rgba(3,169,244,0.5); }
+
+      /* A custom tick is a row of small fields, which is a bar's own shape. */
       .stop-row { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.04); padding: 4px 6px; border-radius: 4px; }
       .stop-row input[type="color"] { width: 32px; height: 26px; padding: 0; border: none; background: none; cursor: pointer; flex-shrink: 0; }
-      .stop-row input[type="text"] { flex: 1; min-width: 0; font-size: 11px; }
-      .stop-row input[type="number"] { width: 50px; font-size: 11px; }
+      .stop-row input[type="text"], .stop-row input[type="number"] { font-size: 11px; }
       .stop-row .del-btn { background: none; border: none; color: #f44; cursor: pointer; font-size: 14px; padding: 0; }
-      .field-wrapper { display: flex; flex-direction: column; gap: 4px; }
-      .sector-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 90px; margin: 4px 0; }
-      .sector-btn { aspect-ratio: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color, #444); border-radius: 3px; cursor: pointer; transition: all 0.2s ease; }
-      .sector-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--primary-color); }
-      .sector-btn.active { background: var(--primary-color, #03a9f4); border-color: var(--primary-color, #03a9f4); box-shadow: 0 0 8px var(--primary-color); }
     `];
   }
 
@@ -1312,14 +1324,17 @@ class ScProgressbarEditor extends LitElement {
         content = html`
           <div class="row">
             <label>${field.label}</label>
-            <ha-switch .checked=${val === true} @change=${e => updateDirect(e.target.checked)}></ha-switch>
+            <label class="toggle">
+              <input type="checkbox" .checked=${val === true} @change=${e => updateDirect(e.target.checked)}>
+              <span class="toggle-slider"></span>
+            </label>
           </div>`;
         break;
       case 'select':
         content = html`
           <div class="row">
             <label>${field.label}</label>
-            <select style="width:50%" @change=${e => updateDirect(e.target.value)}>
+            <select @change=${e => updateDirect(e.target.value)}>
               ${field.options.map(opt => html`<option value="${opt.value}" ?selected=${val === opt.value}>${opt.label}</option>`)}
             </select>
           </div>`;
@@ -1456,10 +1471,13 @@ class ScProgressbarEditor extends LitElement {
         const sKey = `s_${idx}_${g.label}`;
         if (this._expanded[sKey] === undefined) this._expanded[sKey] = false;
         return html`
-          <details class="sub-section" ?open=${this._expanded[sKey]}
+          <details class="inner-section" ?open=${this._expanded[sKey]}
             @toggle=${e => { this._expanded[sKey] = e.target.open; this.requestUpdate(); }}>
-            <summary>${g.label}</summary>
-            <div class="sub-content">
+            <summary style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="flex: 1;">${g.label}</span>
+              <span style="font-size:10px;">▼</span>
+            </summary>
+            <div class="inner-content">
               ${g.fields.map(f => this._renderField(f, cfg, v => updateDirect(f.id, v), v => updateDebounced(f.id, v)))}
             </div>
           </details>`;
