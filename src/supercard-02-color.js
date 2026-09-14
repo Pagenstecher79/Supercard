@@ -22,6 +22,40 @@ function getTargets(slot) {
   return targets;
 }
 
+/**
+ * A pattern nobody has touched yet. The list and the per-target panels both
+ * start from this, so a pattern made in one place is the pattern made in the
+ * other.
+ *
+ * @param {string} target
+ */
+function defaultColorPattern(target) {
+  return {
+    id: Date.now(), enabled: true, name: 'New pattern', target,
+    bg_condition: [], anim_condition: [], bg_type: 'solid',
+    gradient_stops: [{ pos: 100, color: '#ff9800' }], opacity: 100, gradient_angle: 90, animation: 'none',
+    anim_duration: 3, wave_count: 3, wave_c1: '#03a9f4', wave_c2: 'transparent',
+    border_radius: '', border_radius_unit: 'px', wave_invert: false, pump_scale: 1.1,
+    radial_x: 50, radial_y: 50, wave_balance: 50,
+    wobble_amplitude: 100, wobble_freq: 4, wobble_pause: 2
+  };
+}
+
+/**
+ * Whether a target is painted from a panel of its own rather than from this
+ * list. The card always is - Card & Dimensions holds its panel - and on a
+ * canvas every surface is, in its element settings. Only the *first* pattern
+ * of such a target belongs to the panel: a second one on the same target is
+ * something the list made, and taking it out of the list would leave it
+ * painting a card nobody could find it on.
+ *
+ * @param {string} target @param {any} slot
+ */
+function hasOwnPanel(target, slot) {
+  if (target === 'main') return true;
+  return !!slot?.canvas && /^elm_surface_\d+$/.test(target);
+}
+
 // --- THE EDITOR ---
 class ScColorEditor extends LitElement {
   static get properties() {
@@ -102,7 +136,11 @@ class ScColorEditor extends LitElement {
     return [
       { id: 'name', label: 'Name (internal)', type: 'text' },
       { id: 'target', label: 'Target container', type: 'select', width: '60%',
-        options: (pat, ctx) => ctx.targets.map(t => {
+        // A target with a panel of its own is not on offer here - unless this
+        // pattern already points at it, because a select with nothing selected
+        // shows its first option instead and would read as a target it is not.
+        options: (pat, ctx) => ctx.targets
+          .filter(t => t.id === pat.target || !hasOwnPanel(t.id, ctx.slot)).map(t => {
           const locked = t.id !== 'none' && t.id !== pat.target && ctx.usedTargets.includes(t.id);
           return { value: t.id, disabled: locked, selected: pat.target === t.id,
                    label: locked ? t.label + ' (Already in use)' : t.label };
@@ -384,12 +422,28 @@ class ScColorEditor extends LitElement {
     const patterns = Array.isArray(this.slot.color_patterns) ? this.slot.color_patterns : [];
     const targets = getTargets(this.slot);
     const usedTargets = patterns.map(p => p.target).filter(t => t !== 'none');
+    // The pattern a panel owns is edited there, so the list leaves that one
+    // out rather than offering the same colour in two places.
+    const owned = new Set();
+    patterns.forEach(p => {
+      if (hasOwnPanel(p.target, this.slot) && !owned.has(p.target)) owned.add(p.target);
+    });
+    const rows = patterns
+      .map((pat, idx) => ({ pat, idx }))
+      .filter(({ pat }) => !(owned.has(pat.target) && patterns.find(p => p.target === pat.target) === pat));
+
+    // On a canvas every box is either an element with settings of its own or a
+    // surface, and the card's own colour sits in Card & Dimensions - so this
+    // list has nothing left to add and stays out of the menu. It comes back
+    // only for what no panel can reach: a pattern pointed at an element that
+    // has since gone, or one written before the panels existed.
+    if (this.slot.canvas && !rows.length) return html``;
 
     return html`
       <details class="inner-section">
         <summary>🎨 Colours, Patterns &amp; Animations <span style="font-size:10px">▼</span></summary>
         <div class="inner-content">
-          ${patterns.map((pat, idx) => {
+          ${rows.map(({ pat, idx }) => {
             const isExp = !!this._expanded[pat.id];
             const targetLabel = targets.find(t => t.id === pat.target)?.label || 'Unknown target';
 
@@ -443,19 +497,9 @@ class ScColorEditor extends LitElement {
             `;
           })}
           <button class="add-btn" @click=${() => {
-            const n = [...patterns];
-            const newId = Date.now();
-            n.push({
-              id: newId, enabled: true, name: 'New pattern', target: 'none',
-              bg_condition: [], anim_condition: [], bg_type: 'solid',
-              gradient_stops: [{ pos: 100, color: '#ff9800' }], opacity: 100, gradient_angle: 90, animation: 'none',
-              anim_duration: 3, wave_count: 3, wave_c1: '#03a9f4', wave_c2: 'transparent',
-              border_radius: '', border_radius_unit: 'px', wave_invert: false, pump_scale: 1.1,
-              radial_x: 50, radial_y: 50, wave_balance: 50,
-              wobble_amplitude: 100, wobble_freq: 4, wobble_pause: 2
-            });
-            this._commit(n);
-            this._expanded = { ...this._expanded, [newId]: true };
+            const fresh = defaultColorPattern('none');
+            this._commit([...patterns, fresh]);
+            this._expanded = { ...this._expanded, [fresh.id]: true };
           }}>＋ Add new pattern</button>
         </div>
       </details>
@@ -465,6 +509,103 @@ class ScColorEditor extends LitElement {
 
 if (!customElements.get('sc-color-editor')) {
   customElements.define('sc-color-editor', ScColorEditor);
+}
+
+/**
+ * One target's colour, drawn as a switch with the pattern's own settings under
+ * it - the same shape the glass and the push panels have, and in the same
+ * places: the card in Card & Dimensions, a surface in its element settings.
+ *
+ * A surface takes it `switchless`: a fold instead of a switch, because a box
+ * that draws nothing else is already the answer to "is this painted?" - and
+ * the pattern is written only when a control is actually touched, so the fold
+ * standing open does not paint the surface orange.
+ *
+ * It is the list editor itself, showing one pattern instead of all of them:
+ * the fields, the gradient editor and the condition selectors are written
+ * there, and a second copy of them here would be a second thing to keep in
+ * step. Only the name and the target are left out - a panel knows both.
+ */
+class ScColorPanel extends ScColorEditor {
+  static get properties() {
+    return { slot: { type: Object }, hass: { type: Object }, commitFn: { type: Function },
+             target: { type: String }, label: { type: String },
+             switchless: { type: Boolean } };
+  }
+
+  static get styles() {
+    return [ScColorEditor.styles[0], ScColorEditor.styles[1], css`
+      .panel-switch { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .panel-body { margin-top: 8px; border-top: 1px dashed var(--divider-color, #444); padding-top: 8px;
+                    display: flex; flex-direction: column; gap: 12px; }
+      details.panel-fold > summary { cursor: pointer; list-style: none; font-weight: 500;
+                                     display: flex; align-items: center; justify-content: space-between; }
+      details.panel-fold > summary::-webkit-details-marker { display: none; }
+    `];
+  }
+
+  _list() { return Array.isArray(this.slot?.color_patterns) ? this.slot.color_patterns : []; }
+
+  /**
+   * Write one change, making the pattern first if there is none yet. A
+   * switchless panel has no other moment to create it: the fold is opened to
+   * look as often as to paint.
+   *
+   * @param {Record<string, any>} patch
+   */
+  _apply(patch) {
+    const list = this._list();
+    const idx = list.findIndex(p => p.target === this.target);
+    if (idx < 0) {
+      this._commit([...list, { ...defaultColorPattern(this.target), ...patch }]);
+      return;
+    }
+    const n = structuredClone(list);
+    Object.assign(n[idx], patch);
+    this._commit(n);
+  }
+
+  _switch(on) {
+    const list = this._list();
+    const idx = list.findIndex(p => p.target === this.target);
+    if (idx < 0) { this._commit([...list, { ...defaultColorPattern(this.target), enabled: on }]); return; }
+    this._commit(SC.withPatch(list, idx, 'enabled', on));
+  }
+
+  render() {
+    if (!this.slot || !this.target) return html``;
+    const list = this._list();
+    const idx = list.findIndex(p => p.target === this.target);
+    const pat = idx < 0 ? null : list[idx];
+    const on = !!pat?.enabled;
+    const fields = this._fields().filter(f => f.id !== 'name' && f.id !== 'target');
+    const body = (entry) => SC.renderFields(fields, {
+      entry, slot: this.slot, hass: this.hass,
+      targets: getTargets(this.slot), usedTargets: [],
+      set: (key, value) => this._apply({ [key]: value }),
+      setMany: (fields2) => this._apply(fields2),
+    });
+
+    if (this.switchless) {
+      return html`
+        <details class="panel-fold" open>
+          <summary>${this.label || '🎨 Colour & pattern'} <span style="font-size:10px">▼</span></summary>
+          <div class="panel-body">${body(pat || defaultColorPattern(this.target))}</div>
+        </details>`;
+    }
+
+    return html`
+      <div class="panel-switch">
+        <label>${this.label || '🎨 Colour & pattern'}</label>
+        <ha-switch .checked=${on} @change=${e => this._switch(e.target.checked)}></ha-switch>
+      </div>
+      ${on && pat ? html`<div class="panel-body">${body(pat)}</div>` : ''}
+    `;
+  }
+}
+
+if (!customElements.get('sc-color-panel')) {
+  customElements.define('sc-color-panel', ScColorPanel);
 }
 
 class ScColorStyler extends LitElement {
