@@ -244,8 +244,7 @@ class ScColorEditor extends LitElement {
 
                           <div class="col"><label>Colors</label>
                             ${gradient ? html`
-                              <sc-gradient-stops .stops=${stopList} .addLabel=${'＋ Add color'} .itemLabel=${'Color'}
-                                .previewCss=${previewCss}
+                              <sc-gradient-stops .stops=${stopList} .previewCss=${previewCss}
                                 .onUpdate=${list => this._setStops(patterns, idx, list)}></sc-gradient-stops>
                               ${pat.animation === 'fluid' ? html`
                                 <div class="info-text" style="color:var(--secondary-text-color);">A position here is the blob's radius, not a place along a line.</div>

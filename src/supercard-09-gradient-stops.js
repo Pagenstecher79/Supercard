@@ -13,10 +13,10 @@ const SC = window.SupercardUtils;
  * answers, and the gauge's is the one that scales - a stop is a colour *and*
  * a position, and an order you can change without retyping the numbers.
  *
- * So this is the gauge's, lifted out whole and given the two things the other
- * two needed: a label for the add button, because a colour pattern adds a
- * colour rather than a stop, and the absolute/blocks readings of a position
- * that only the gauge has.
+ * So this is the gauge's, lifted out whole and given what the other two
+ * needed: the absolute/blocks readings of a position that only the gauge has,
+ * and labels a caller can override - though nobody does any more, because a
+ * stop is called a colour in every menu now.
  *
  * It renders no module of its own and registers nothing on
  * `window.SupercardModules` - it is a control, imported for its side effect of
@@ -45,9 +45,9 @@ class ScGradientStops extends LitElement {
     this.stops = [];
     this.absolute = false;
     this.blocks = false;
-    this.addLabel = '＋ Add color stop';
+    this.addLabel = '＋ Add color';
     this.previewCss = '';
-    this.itemLabel = 'Stop';
+    this.itemLabel = 'Color';
     this._open = {};
   }
 
