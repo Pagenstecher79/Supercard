@@ -87,8 +87,6 @@ class ScColorEditor extends LitElement {
       .color-item-row input[type="color"], .color-row input[type="color"] { width: 40px; height: 30px; padding: 0; border: none; background: none; cursor: pointer; }
       .action-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color,#555); color: var(--primary-text-color); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px; flex: 1; font-weight: bold; }
       .action-btn:hover { background: rgba(255,255,255,0.1); }
-      /* Every .info-text is prose about a control, so all of them answer to "Hide tips". */
-      .info-text { font-size: 11px; color: var(--secondary-text-color); margin-top: -8px; margin-bottom: 4px; display: var(--sc-tip-display, revert); }
       ha-selector { width: 100%; }
       .pos-preview-wrap { display: flex; align-items: center; justify-content: center; gap: 16px; width: 100%; margin: 8px 0; }
       .pos-preview { width: 140px; height: 140px; background: #111; border: 1px solid var(--divider-color,#555); border-radius: 8px; position: relative; overflow: hidden; cursor: crosshair; touch-action: none; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
@@ -154,10 +152,9 @@ class ScColorEditor extends LitElement {
         { id: 'border_radius_auto', label: 'Automatic corner radius', type: 'checkbox', value: autoBorder },
         { type: 'custom', condition: pat => !autoBorder(pat), render: ctx => this._radiusRow(ctx) },
 
-        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;', condition: waveColors,
-          label: 'The colours are calculated dynamically by the effect.' },
         { id: 'wave_count', label: 'Count (density)', type: 'range', min: 1, max: 20, int: true,
-          placeholder: 3, condition: waveColors },
+          placeholder: 3, condition: waveColors,
+          hint: 'The colours are calculated dynamically by the effect.' },
         { id: 'wave_balance', label: 'Balance (peak vs. trough)', type: 'range', min: 5, max: 95,
           int: true, placeholder: 50, condition: waveColors },
         { id: 'wave_c1', label: 'Line/wave colour (peak)', type: 'color', fallback: '#03a9f4',
@@ -176,10 +173,8 @@ class ScColorEditor extends LitElement {
           ] },
         { type: 'note', class: '', bare: true, style: caption, label: '🌊 Fluid mode (dynamic mesh)',
           condition: pat => !waveColors(pat) && fluid(pat) },
-        { type: 'note', class: 'info-text', bare: true, style: 'color:var(--secondary-text-color); margin-top:0;',
-          label: 'Generates an endless, organically flowing vector animation.',
-          condition: pat => !waveColors(pat) && fluid(pat) },
         { id: 'fluid_style', label: 'Fluid style (viscosity)', type: 'select', width: '60%',
+          hint: 'Generates an endless, organically flowing vector animation.',
           style: 'margin-top:4px;', condition: pat => !waveColors(pat) && fluid(pat), options: pat => [
             { value: 'aurora', label: 'Aurora (gentle mesh, GentleRain)', selected: !pat.fluid_style || pat.fluid_style === 'aurora' },
             { value: 'gooey', label: 'Liquid (lava/water, WbONyK)', selected: pat.fluid_style === 'gooey' },
@@ -211,9 +206,8 @@ class ScColorEditor extends LitElement {
           ] },
         ] },
 
-      { type: 'details', label: '📍 Centre / origin', condition: radialCenter, fields: [
-        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
-          label: 'Tap or drag inside the box to freely move the origin point.' },
+      { type: 'details', label: '📍 Centre / origin', condition: radialCenter,
+        hint: 'Tap or drag inside the box to freely move the origin point.', fields: [
         { type: 'custom', render: ctx => this._originPad(ctx) },
         { type: 'group', class: 'row', fields: [
           { id: 'radial_x', label: pat => 'X-axis (' + (pat.radial_x ?? 50) + '%)', type: 'range',
@@ -225,9 +219,8 @@ class ScColorEditor extends LitElement {
         ] },
       ] },
 
-      { type: 'details', label: '⚙️ Condition: show background', fields: [
-        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
-          label: 'Without a condition the background is always visible.' },
+      { type: 'details', label: '⚙️ Condition: show background',
+        hint: 'Without a condition the background is always visible.', fields: [
         { type: 'custom', render: ctx => this._conditionSelector(ctx, 'bg_condition') },
       ] },
 
@@ -263,9 +256,8 @@ class ScColorEditor extends LitElement {
         { id: 'wave_invert', label: 'Reverse direction', type: 'checkbox', condition: waveOrRipple },
       ] },
 
-      { type: 'details', label: '⚙️ Condition: run animation', condition: pat => pat.animation !== 'none', fields: [
-        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
-          label: 'Without a condition the animation is always active.' },
+      { type: 'details', label: '⚙️ Condition: run animation', condition: pat => pat.animation !== 'none',
+        hint: 'Without a condition the animation is always active.', fields: [
         { type: 'custom', render: ctx => this._conditionSelector(ctx, 'anim_condition') },
       ] },
     ];
@@ -325,13 +317,11 @@ class ScColorEditor extends LitElement {
     const setSolid = value => ctx.setStops([{ pos: stopList[0]?.pos ?? null, color: value }]);
 
     return html`
-      <div class="col"><label>Colours</label>
+      <div class="col"><label>Colours ${pat.animation === 'fluid' && gradient
+          ? SC.tipDot("A position here is the blob's radius, not a place along a line.") : ''}</label>
         ${gradient ? html`
           <sc-gradient-stops .stops=${stopList} .previewCss=${previewCss}
             .onUpdate=${list => ctx.setStops(list)}></sc-gradient-stops>
-          ${pat.animation === 'fluid' ? html`
-            <div class="info-text" style="color:var(--secondary-text-color);">A position here is the blob's radius, not a place along a line.</div>
-          ` : ''}
         ` : html`
           <div class="color-list">
             <div class="color-item"><div class="color-item-row">

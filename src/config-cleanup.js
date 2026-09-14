@@ -36,6 +36,18 @@ import { normalizeStops } from "./gradient-stops.js";
  *
  * @type {Readonly<Record<string, readonly string[]>>}
  */
+/**
+ * Dead keys on the slot itself.
+ *
+ * `hide_tips` hid every explanation in every editor at once, back when an
+ * explanation was a line of prose under its control and a menu full of them
+ * was hard to read. Prose is now a balloon on the label's own mark, which
+ * costs no room until it is asked for, so there is nothing left to hide.
+ *
+ * @type {readonly string[]}
+ */
+export const DEAD_SLOT_KEYS = Object.freeze(['hide_tips']);
+
 export const DEAD_ENTRY_KEYS = Object.freeze({
   progressbars: Object.freeze(['position_mode', 'offset_x', 'offset_y']),
   fx_glass_patterns: Object.freeze(['debug_mask']),
@@ -231,7 +243,13 @@ export function stripDeadConfig(slot) {
     if (next.length !== list.length) lists[key] = next;
   }
 
-  const cleaned = Object.keys(lists).length ? { ...slot, ...lists } : slot;
+  let cleaned = Object.keys(lists).length ? { ...slot, ...lists } : slot;
+
+  const deadSlotKeys = DEAD_SLOT_KEYS.filter(k => k in cleaned);
+  if (deadSlotKeys.length) {
+    cleaned = { ...cleaned };
+    for (const k of deadSlotKeys) delete cleaned[k];
+  }
   const shaped = withStopShapes(cleaned);
   if (shaped !== cleaned) return shaped;
   return cleaned === slot ? null : cleaned;

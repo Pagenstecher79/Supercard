@@ -504,9 +504,9 @@ Object.assign(window.SupercardUtils, (() => {
     // A hint may be a function, for the ones that quote a value back.
     const hint = typeof field.hint === 'function' ? field.hint(ctx.entry, ctx) : field.hint;
     const text = typeof field.label === 'function' ? field.label(ctx.entry, ctx) : field.label;
-    const label = hint
-      ? html`${text}<br><span class="tip" style="font-size:10px;color:var(--secondary-text-color)">${hint}</span>`
-      : text;
+    // A hint is a balloon on the label's mark, not a line under it: the prose
+    // is read once and the line would cost its height for good.
+    const label = hint ? html`${text} ${tipDot(hint)}` : text;
     const box = (cls, control) => html`
       <div class=${cls} style=${field.style || nothing}>
         <label style=${field.labelStyle || nothing}>${label}</label>${control}
@@ -532,7 +532,7 @@ Object.assign(window.SupercardUtils, (() => {
       case 'details':
         return html`
           <details class="inner-section" style=${field.style || 'margin: 0;'}>
-            <summary><span style="flex: 1;">${text}</span><span style="font-size:10px;">▼</span></summary>
+            <summary><span style="flex: 1;">${text} ${tipDot(hint)}</span><span style="font-size:10px;">▼</span></summary>
             <div class="inner-content" style=${field.contentStyle || nothing}>
               ${(field.fields || []).map(f => renderField(f, ctx))}
             </div>
@@ -636,6 +636,53 @@ Object.assign(window.SupercardUtils, (() => {
 
   // Used by the module editors that list pattern/label cards (color,
   // progressbar, labels, fx-glass, interaction). Identified by ha-switch.
+  /**
+   * The ⓘ and the balloon it opens: every explanation in every editor.
+   *
+   * Prose under a control reads once and then costs that line for good, in an
+   * editor that is already taller than the screen. The mark is the primary
+   * colour because it is the thing to aim at, and its hit area is padded well
+   * past the glyph - 13 px is hard to hit with a mouse and impossible with a
+   * thumb - with the room given back as a negative margin so no row grows for
+   * it. The balloon answers to hover and to focus, so it is reachable from a
+   * keyboard and on a touch screen.
+   */
+  const tipStyles = css`
+    .tip-dot { position: relative; display: inline-block; font-size: 13px; line-height: 1;
+               font-weight: normal; cursor: help; color: var(--primary-color, #03a9f4);
+               padding: 5px 6px; margin: -5px -6px; vertical-align: middle; }
+    .tip-dot::after {
+      content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 2px);
+      z-index: 30; width: max-content; max-width: 260px; padding: 6px 8px;
+      border-radius: 6px; background: var(--card-background-color, #2b2b2b);
+      color: var(--primary-text-color); border: 1px solid var(--divider-color, #444);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4); font-size: 11px; line-height: 1.35;
+      text-align: left; white-space: normal; opacity: 0; visibility: hidden;
+      transition: opacity 0.12s ease; pointer-events: none;
+    }
+    /* A balloon hung on the right of a row would run off the editor. */
+    .tip-dot.right::after { left: auto; right: 0; }
+    .tip-dot:hover::after, .tip-dot:focus::after { opacity: 1; visibility: visible; }
+  `;
+
+  /**
+   * The ⓘ that opens one explanation. `right` hangs the balloon from the mark's
+   * right edge, for a mark near the right of its row.
+   *
+   * The click is swallowed because a mark often sits inside a `<label>`, and a
+   * click on a label is a click on the control it names - reading the tip
+   * would otherwise flip the switch beside it.
+   *
+   * @param {any} text @param {{right?: boolean}} [opts]
+   */
+  function tipDot(text, opts = {}) {
+    if (text === undefined || text === null || text === '') return '';
+    return html`<span class="tip-dot${opts.right ? ' right' : ''}" tabindex="0"
+                      data-tip=${text}
+                      @click=${(/** @type {Event} */ e) => { e.preventDefault(); e.stopPropagation(); }}
+                      >ⓘ</span>`;
+  }
+
   const editorStyles = css`
     /* The space below a menu belongs to the menu, not to the list it sits in:
        a module that renders nothing - the glass list on a healthy canvas, say -
@@ -658,10 +705,7 @@ Object.assign(window.SupercardUtils, (() => {
     .pattern-content { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; margin-top: 8px; border-top: 1px dashed var(--divider-color, #333); }
     .drag-handle { cursor: grab; padding-right: 8px; color: var(--secondary-text-color); }
     option:disabled { color: rgba(255,255,255,0.3); font-style: italic; }
-    /* A tip is prose that explains a control. "Hide tips" sets
-       --sc-tip-display on the editor's container, and every editor
-       inherits it through its shadow root. */
-    .tip { display: var(--sc-tip-display, revert); }
+    ${tipStyles}
   `;
 
   // Used by the compact config forms (core's two editors, the gauge editor).
@@ -685,10 +729,7 @@ Object.assign(window.SupercardUtils, (() => {
     .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
     details.inner-section summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; outline: none; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
     details.inner-section summary::-webkit-details-marker { display: none; }
-    /* A tip is prose that explains a control. "Hide tips" sets
-       --sc-tip-display on the editor's container, and every editor
-       inherits it through its shadow root. */
-    .tip { display: var(--sc-tip-display, revert); }
+    ${tipStyles}
   `;
 
 // Entity ids referenced anywhere in a card config. Used by shouldUpdate to tell
@@ -739,7 +780,7 @@ function hassInputsChanged(oldHass, newHass, ids) {
     getAvailableElements, listElements, elementLabel, showsElement, elementPartSelector,
     resolveAlias, withPatch, gaugeIsResponsive, onCanvas, cardIsPill, cardRadius,
     collectEntityIds, hassInputsChanged,
-    colorRow, colorField, slider, sliderRow, sliderField,
+    colorRow, colorField, slider, sliderRow, sliderField, tipDot,
     renderField, renderFields,
     editorStyles, formStyles
   });
@@ -1312,7 +1353,7 @@ class SupercardModularEditor extends LitElement {
     });
 
     return html`
-      <div id="modules-container" style="display:flex; flex-direction:column; padding-top: 8px;${slot.hide_tips ? ' --sc-tip-display:none;' : ''}">
+      <div id="modules-container" style="display:flex; flex-direction:column; padding-top: 8px;">
         ${availableModules.map(modKey => {
           const mod = window.SupercardModules[modKey];
           const blocks = [];
@@ -1525,12 +1566,10 @@ Object.assign(window.SupercardModules['core'], (() => {
             <div class="inner-content">
 
               <div class="col">
-                <label>Main entity (optional)</label>
-                <span class="tip" style="font-size:10px;color:var(--secondary-text-color);margin:-4px 0 4px;">
-                  Feeds the Icon, Name and State elements, and stands in for an
-                  action that names no entity of its own. Gauges, bars and labels
-                  bring their own - leave this empty if the card has no use for it.
-                </span>
+                <label>Main entity (optional) ${SC_UTILS.tipDot(
+                  'Feeds the Icon, Name and State elements, and stands in for an action that '
+                  + 'names no entity of its own. Gauges, bars and labels bring their own - leave '
+                  + 'this empty if the card has no use for it.')}</label>
                 <ha-selector
                   .hass=${this.hass}
                   .selector=${{ entity: {} }}
@@ -1561,23 +1600,18 @@ Object.assign(window.SupercardModules['core'], (() => {
               <!-- === NEW BLOCK: GLOBAL ENTITIES === -->
               <div class="col" style="margin-top: 12px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
                 <div class="row" style="margin-bottom: 12px;">
-                  <label style="font-weight: 600;">Global entities (alias)</label>
+                  <label style="font-weight: 600;">Global entities (alias) ${SC_UTILS.tipDot(
+                    'Name an entity once here, and every gauge, bar, label, colour pattern and '
+                    + 'action picks it from a list instead of naming it again. Swap the entity on '
+                    + 'this one line and everything that uses the alias follows - which is what '
+                    + 'makes a card built for one room a card you can drop into the next. An alias '
+                    + 'carries its attribute too, so a single entry can mean "the humidity of the '
+                    + 'bedroom sensor" everywhere it is used, and the menus show the current value '
+                    + 'beside the name so you pick the right one.')}</label>
                   <div style="cursor: pointer; background: var(--primary-color, #03a9f4); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;" @click="${() => this._addGlobalEntity()}">
                     + Add
                   </div>
                 </div>
-
-                <span class="tip" style="font-size:10px;color:var(--secondary-text-color);margin:-8px 0 12px;">
-                  Name an entity once here, and every gauge, bar, label, colour
-                  pattern and action picks it from a list instead of naming it
-                  again. Swap the entity on this one line and everything that
-                  uses the alias follows - which is what makes a card built for
-                  one room a card you can drop into the next. An alias carries
-                  its attribute too, so a single entry can mean "the humidity
-                  of the bedroom sensor" everywhere it is used, and the menus
-                  show the current value beside the name so you pick the right
-                  one.
-                </span>
 
                 <ha-sortable handle-selector=".handle" @item-moved=${this._handleSort}>
                   <div class="global-entities-list" style="display: flex; flex-direction: column; gap: 8px;">
