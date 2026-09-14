@@ -1469,6 +1469,18 @@ Object.assign(window.SupercardModules['core'], (() => {
                   </div>
                 </div>
 
+                <span style="font-size:10px;color:var(--secondary-text-color);margin:-8px 0 12px;">
+                  Name an entity once here, and every gauge, bar, label, colour
+                  pattern and action picks it from a list instead of naming it
+                  again. Swap the entity on this one line and everything that
+                  uses the alias follows - which is what makes a card built for
+                  one room a card you can drop into the next. An alias carries
+                  its attribute too, so a single entry can mean "the humidity
+                  of the bedroom sensor" everywhere it is used, and the menus
+                  show the current value beside the name so you pick the right
+                  one.
+                </span>
+
                 <ha-sortable handle-selector=".handle" @item-moved=${this._handleSort}>
                   <div class="global-entities-list" style="display: flex; flex-direction: column; gap: 8px;">
                     ${(this.slot.global_entities || []).map((ge, index) => html`
