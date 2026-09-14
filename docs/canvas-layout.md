@@ -652,6 +652,20 @@ was in fixed-pixel mode now fills its element instead. `gauge_position_mode`
 and the two offsets only ever applied in fixed mode, so they stop applying
 there too — as they already did for every responsive gauge.
 
+### A bar's width is the box, and only its width
+
+The same question has a different answer for a progress bar, and it was worth
+measuring rather than assuming. The canvas writes
+`::slotted(sc-progressbar) { width: 100% !important; max-height: 100% !important }`,
+and an important declaration from the outer tree beats the `:host { width }` the
+component writes for itself — measured on a live card, a bar configured at 20px
+came out at the box's 30.4px, and even an inline width could not move it. So
+**Width (CSS)** is hidden on a canvas: it is a control that cannot do anything.
+
+**Height (CSS)** stays, because `max-height` only caps it. A 20px line inside a
+taller box is a real arrangement, and the bar templates ask for `height: 100%`
+precisely so that the ones dropped from the menu fill theirs.
+
 ## 7. The canvas takes the card's shape
 
 Conversion used to migrate into `DEFAULT_CANVAS`, a flat 400 × 200. Every card

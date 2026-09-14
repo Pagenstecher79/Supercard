@@ -1083,7 +1083,15 @@ const STYLE_FIELDS = [
   { id: 'circular_stroke_width', label: 'Ring thickness / segment height (%)', type: 'range', min: 1, max: 50, step: 1, placeholder: '10', condition: cfg => isCirc(cfg) },
   { id: 'circular_scale',        label: 'Ring scale (%)', type: 'range', min: 10, max: 100, step: 1, placeholder: '100', condition: cfg => isCirc(cfg) },
   { id: 'circular_glow',         label: 'Neon glow effect',      type: 'checkbox', condition: cfg => isCirc(cfg) },
-  { id: 'width',               label: 'Width (CSS)',          type: 'text',   placeholder: '100% or 20px' },
+  // A bar on the canvas is as wide as the box it sits in: the canvas writes
+  // `width: 100% !important` on the host, and an important declaration from
+  // the outer tree beats the `:host` rule this component writes - measured on
+  // a live card, a bar configured at 20px came out the box's 30.4px, and even
+  // an inline width could not move it. Offering the field there is offering a
+  // control that does nothing. Height is *not* overridden - only capped with
+  // `max-height` - so the 20px line inside a taller box is still available.
+  { id: 'width',               label: 'Width (CSS)',          type: 'text',   placeholder: '100% or 20px',
+    condition: (cfg, slot) => !SC.onCanvas(slot) },
   { id: 'height',              label: 'Height (CSS)',            type: 'text',   placeholder: '20px or 100%' },
   { id: 'border_radius',       label: 'Corner radius',           type: 'range',  min: 0, max: 50, step: 0.1,   placeholder: '4px', condition: cfg => isLin(cfg) },
   { id: 'circular_border_radius', label: 'Background corner radius (%)', type: 'range', min: 0, max: 50, step: 1, placeholder: '50', condition: cfg => isCirc(cfg) },
