@@ -107,7 +107,7 @@ class ScColorEditor extends LitElement {
                    label: locked ? t.label + ' (Already in use)' : t.label };
         }) },
 
-      { type: 'details', label: '🎨 Design & Colours', style: 'margin-top: 4px; margin-bottom: 0;', fields: [
+      { type: 'details', label: '🎨 Design & Colours', style: 'margin: 4px 0 0 0;', fields: [
         { id: 'border_radius_auto', label: 'Automatic corner radius', type: 'checkbox', value: autoBorder },
         { type: 'custom', condition: pat => !autoBorder(pat), render: ctx => this._radiusRow(ctx) },
 

@@ -378,7 +378,7 @@ class ScLabelsEditor extends LitElement {
 
     return html`
       <details class="inner-section" ?open=${this._outerOpen} @toggle=${e => this._outerOpen = e.target.open}>
-        <summary>── Labels &amp; Extra Texts <span style="font-size:10px;">▼</span></summary>
+        <summary>🏷️ Labels &amp; Extra Texts <span style="font-size:10px;">▼</span></summary>
         <div class="inner-content">
           ${list.map((item, idx) => this._renderLabelCard(item, idx, list))}
 

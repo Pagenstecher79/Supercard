@@ -208,80 +208,85 @@ function glassFields() {
   const manual = pat => !isDirect(pat) || pat.manual_override;
 
   return [
-    { type: 'heading', label: '📏 Dimensions & Shape' },
+    { type: 'details', label: '📏 Dimensions & Shape', fields: [
+      { id: 'manual_override', label: 'Manual adjustments', type: 'checkbox', condition: isDirect,
+        hint: "The glass fits the element by itself. Turn this on to depart from that - a negative edge distance makes it larger than the element, and the radius stops following the element's own." },
 
-    { id: 'manual_override', label: 'Manual adjustments', type: 'checkbox', condition: isDirect,
-      hint: "The glass fits the element by itself. Turn this on to depart from that - a negative edge distance makes it larger than the element, and the radius stops following the element's own." },
-
-    { id: 'force_square', label: 'Lock shape (1:1 aspect ratio)', type: 'checkbox', condition: manual,
-      hint: 'Forces a perfect square/circle (cqmin).',
-      style: 'background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;',
-      labelStyle: 'color:var(--primary-color)' },
-    { type: 'custom', condition: manual, render: ctx => paddingRow(ctx) },
-    { type: 'custom', condition: manual, render: ctx => radiusRow(ctx) },
-
-    { type: 'heading', label: '🍩 Ring / Donut Mask' },
-    { id: 'ring_effect', label: 'Hide centre (hard edge)', type: 'checkbox',
-      hint: 'Blur & colour only affect the edge exactly.', labelStyle: 'color:var(--primary-color)' },
-    { id: 'use_custom_ring_width', label: 'Use custom mask thickness', type: 'checkbox',
-      style: 'padding-top: 4px;', condition: pat => !!pat.ring_effect,
-      hint: pat => 'Off = thickness matches the bevel width exactly (' + (pat.bevel_width ?? pat.bevel_size ?? 2) + 'px)' },
-    { id: 'ring_width', label: 'Mask thickness (px)', type: 'range', min: 1, max: 50, step: 0.5,
-      placeholder: 5, condition: pat => pat.ring_effect && pat.use_custom_ring_width },
-    { id: 'ring_center_opacity', label: 'Effect strength in centre (%)', type: 'range',
-      min: 0, max: 100, int: true, placeholder: 0, condition: pat => !!pat.ring_effect,
-      hint: '0 = blur & colour completely hollow' },
-
-    { type: 'heading', label: '🔍 Optics (Magnifier & Curvature)' },
-    { id: 'zoom', label: 'Magnify content (zoom)', type: 'range', min: 1, max: 1.5, step: 0.01, placeholder: 1 },
-    { id: 'glare', label: 'Convex 3D shine (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 0 },
-    { id: 'refraction', label: 'Edge refraction (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 0,
-      hint: 'Bends what is behind the edge, the way real glass does. With blur at 0 this is clear glass: what is underneath stays readable and only the rim curls. Not shown by Safari or Firefox, which draw the pane without it.' },
-
-    { type: 'heading', label: '💧 Glass & Blur' },
-    { id: 'blur', label: 'Blur strength (px)', type: 'range', min: 0, max: 2, step: 0.01, placeholder: 10 },
-    { id: 'opacity', label: 'Background opacity (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 10 },
-    { type: 'custom', render: ctx => html`
-      <div class="row"><label>Colour (hex picker)</label>
-        <input type="color" .value=${ctx.entry.bg_rgb || '#ffffff'}
-               @input=${e => ctx.set('bg_rgb', e.target.value)}>
-      </div>` },
-
-    { type: 'heading', label: '🌒 Light Refraction & Bevel (Physics)' },
-    { id: 'shadow_style', label: 'Glass style', type: 'select', options: pat => [
-      { value: 'none', label: 'Flat (no edges)', selected: pat.shadow_style === 'none' },
-      { value: 'frosted', label: 'Frosted (soft edges)', selected: pat.shadow_style === 'frosted' },
-      { value: 'liquid', label: 'Liquid (physical refraction)', selected: pat.shadow_style === 'liquid' },
+      { id: 'force_square', label: 'Lock shape (1:1 aspect ratio)', type: 'checkbox', condition: manual,
+        hint: 'Forces a perfect square/circle (cqmin).',
+        style: 'background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;',
+        labelStyle: 'color:var(--primary-color)' },
+      { type: 'custom', condition: manual, render: ctx => paddingRow(ctx) },
+      { type: 'custom', condition: manual, render: ctx => radiusRow(ctx) },
     ] },
 
-    { type: 'custom', condition: pat => pat.shadow_style !== 'none', render: ctx => sunPad(ctx) },
-    { id: 'bevel_width', label: 'Bevel width (px)', type: 'range', min: 0, max: 30, step: 0.1,
-      hint: 'Extent of the edge inward', condition: pat => pat.shadow_style !== 'none',
-      value: pat => pat.bevel_width ?? pat.bevel_size ?? 2 },
-    { id: 'glass_thickness', label: 'Glass thickness (depth)', type: 'range', min: 0, max: 20, step: 0.5,
-      placeholder: 5, hint: 'Controls the steepness & refraction',
-      condition: pat => pat.shadow_style !== 'none' },
-    { id: 'light_brightness', label: 'Base brightness (light)', type: 'range', min: 0, max: 1, step: 0.001,
-      placeholder: 0.4, condition: pat => pat.shadow_style !== 'none' },
+    { type: 'details', label: '🍩 Ring / Donut Mask', fields: [
+      { id: 'ring_effect', label: 'Hide centre (hard edge)', type: 'checkbox',
+        hint: 'Blur & colour only affect the edge exactly.', labelStyle: 'color:var(--primary-color)' },
+      { id: 'use_custom_ring_width', label: 'Use custom mask thickness', type: 'checkbox',
+        style: 'padding-top: 4px;', condition: pat => !!pat.ring_effect,
+        hint: pat => 'Off = thickness matches the bevel width exactly (' + (pat.bevel_width ?? pat.bevel_size ?? 2) + 'px)' },
+      { id: 'ring_width', label: 'Mask thickness (px)', type: 'range', min: 1, max: 50, step: 0.5,
+        placeholder: 5, condition: pat => pat.ring_effect && pat.use_custom_ring_width },
+      { id: 'ring_center_opacity', label: 'Effect strength in centre (%)', type: 'range',
+        min: 0, max: 100, int: true, placeholder: 0, condition: pat => !!pat.ring_effect,
+        hint: '0 = blur & colour completely hollow' },
+    ] },
 
-    { type: 'heading', label: '⛰️ Relief', condition: (pat, slot) => isReliefTarget(pat.target, slot) },
-    { id: 'segment_relief', label: 'Light the ring too', type: 'checkbox',
-      condition: (pat, slot) => isReliefTarget(pat.target, slot),
-      hint: 'Gives the ring an edge of its own, lit from the same sun as the glass - each pill on a segmented bar, the stroke on a continuous one.' },
-    // The sun belongs to the bevel, but the relief borrows it: both are lit
-    // from the same direction, so the pad is shown in whichever section is
-    // currently the one that uses it.
-    { type: 'custom', render: ctx => sunPad(ctx),
-      condition: (pat, slot) => isReliefTarget(pat.target, slot) && pat.segment_relief && pat.shadow_style === 'none' },
-    { id: 'segment_relief_mode', label: 'Relief', type: 'select',
-      condition: (pat, slot) => isReliefTarget(pat.target, slot) && pat.segment_relief,
-      options: pat => [
-        { value: 'raised', label: 'Raised (standing out of the glass)', selected: pat.segment_relief_mode !== 'engraved' },
-        { value: 'engraved', label: 'Engraved (cut into the glass)', selected: pat.segment_relief_mode === 'engraved' },
+    { type: 'details', label: '🔍 Optics (Magnifier & Curvature)', fields: [
+      { id: 'zoom', label: 'Magnify content (zoom)', type: 'range', min: 1, max: 1.5, step: 0.01, placeholder: 1 },
+      { id: 'glare', label: 'Convex 3D shine (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 0 },
+      { id: 'refraction', label: 'Edge refraction (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 0,
+        hint: 'Bends what is behind the edge, the way real glass does. With blur at 0 this is clear glass: what is underneath stays readable and only the rim curls. Not shown by Safari or Firefox, which draw the pane without it.' },
+    ] },
+
+    { type: 'details', label: '💧 Glass & Blur', fields: [
+      { id: 'blur', label: 'Blur strength (px)', type: 'range', min: 0, max: 2, step: 0.01, placeholder: 10 },
+      { id: 'opacity', label: 'Background opacity (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 10 },
+      { type: 'custom', render: ctx => html`
+        <div class="row"><label>Colour (hex picker)</label>
+          <input type="color" .value=${ctx.entry.bg_rgb || '#ffffff'}
+                 @input=${e => ctx.set('bg_rgb', e.target.value)}>
+        </div>` },
+    ] },
+
+    { type: 'details', label: '🌒 Light Refraction & Bevel (Physics)', fields: [
+      { id: 'shadow_style', label: 'Glass style', type: 'select', options: pat => [
+        { value: 'none', label: 'Flat (no edges)', selected: pat.shadow_style === 'none' },
+        { value: 'frosted', label: 'Frosted (soft edges)', selected: pat.shadow_style === 'frosted' },
+        { value: 'liquid', label: 'Liquid (physical refraction)', selected: pat.shadow_style === 'liquid' },
       ] },
-    { id: 'segment_relief_depth', label: 'Relief depth', type: 'range', min: 0, max: 3, step: 0.1,
-      placeholder: 0.6, condition: (pat, slot) => isReliefTarget(pat.target, slot) && pat.segment_relief,
-      hint: "In the bar's own unit, so it keeps its look as the ring resizes" },
+
+      { type: 'custom', condition: pat => pat.shadow_style !== 'none', render: ctx => sunPad(ctx) },
+      { id: 'bevel_width', label: 'Bevel width (px)', type: 'range', min: 0, max: 30, step: 0.1,
+        hint: 'Extent of the edge inward', condition: pat => pat.shadow_style !== 'none',
+        value: pat => pat.bevel_width ?? pat.bevel_size ?? 2 },
+      { id: 'glass_thickness', label: 'Glass thickness (depth)', type: 'range', min: 0, max: 20, step: 0.5,
+        placeholder: 5, hint: 'Controls the steepness & refraction',
+        condition: pat => pat.shadow_style !== 'none' },
+      { id: 'light_brightness', label: 'Base brightness (light)', type: 'range', min: 0, max: 1, step: 0.001,
+        placeholder: 0.4, condition: pat => pat.shadow_style !== 'none' },
+    ] },
+
+    { type: 'details', label: '⛰️ Relief',
+      condition: (pat, slot) => isReliefTarget(pat.target, slot), fields: [
+      { id: 'segment_relief', label: 'Light the ring too', type: 'checkbox',
+        hint: 'Gives the ring an edge of its own, lit from the same sun as the glass - each pill on a segmented bar, the stroke on a continuous one.' },
+      // The sun belongs to the bevel, but the relief borrows it: both are lit
+      // from the same direction, so the pad is shown in whichever section is
+      // currently the one that uses it.
+      { type: 'custom', render: ctx => sunPad(ctx),
+        condition: pat => pat.segment_relief && pat.shadow_style === 'none' },
+      { id: 'segment_relief_mode', label: 'Relief', type: 'select',
+        condition: pat => !!pat.segment_relief,
+        options: pat => [
+          { value: 'raised', label: 'Raised (standing out of the glass)', selected: pat.segment_relief_mode !== 'engraved' },
+          { value: 'engraved', label: 'Engraved (cut into the glass)', selected: pat.segment_relief_mode === 'engraved' },
+        ] },
+      { id: 'segment_relief_depth', label: 'Relief depth', type: 'range', min: 0, max: 3, step: 0.1,
+        placeholder: 0.6, condition: pat => !!pat.segment_relief,
+        hint: "In the bar's own unit, so it keeps its look as the ring resizes" },
+    ] },
   ];
 }
 
