@@ -51,6 +51,16 @@ declare global {
     /** Extra <style> text injected once per render. */
   }
 
+  /** What `renderField` needs to draw a field and write what it changes. */
+  interface EditorFieldCtx {
+    entry: any;
+    slot?: any;
+    hass?: any;
+    set: (id: string, value: any) => void;
+    setDebounced?: (id: string, value: any) => void;
+    [key: string]: any;
+  }
+
   interface SliderOpts {
     min?: number; max?: number; step?: number | string; width?: string; style?: string; int?: boolean;
     dynamicStep?: boolean;
@@ -144,6 +154,10 @@ declare global {
     sliderRow: (label: any, value: number, onInput: (v: number) => void, opts?: SliderOpts) => any;
     /** A slider under its label, with the value read out beside it. */
     sliderField: (label: any, value: number, onInput: (v: number) => void, opts?: SliderOpts & { shown?: any }) => any;
+    /** One field of an editor built from a field array. */
+    renderField: (field: any, ctx: EditorFieldCtx) => any;
+    /** Every field of a list, in order. */
+    renderFields: (fields: any[], ctx: EditorFieldCtx) => any[];
     /** Shared chrome for the card-list module editors (ha-switch family). */
     editorStyles: CSSResult;
     /** Shared chrome for the compact config forms (.toggle family). */

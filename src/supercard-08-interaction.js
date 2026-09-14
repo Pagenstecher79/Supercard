@@ -94,63 +94,64 @@ class ScInteractionEditor extends LitElement {
     ScInteractionEditor._expandedCache = this._expanded;
   }
 
-  _renderActionBlock(pat, idx, patterns, prefix, label) {
-    const actionType = pat[`${prefix}_action`] || 'none';
-    const setAction = (val) => { this._set(patterns, idx, `${prefix}_action`, val); };
+  /**
+   * The fields of one action block - a picker for the kind of action, and
+   * whatever that kind needs. Written as a field array like the gauge's and
+   * the bar's, so the three blocks are the same definition three times over.
+   */
+  _actionFields(prefix, label) {
+    const key = prefix + '_action';
+    const is = (...kinds) => entry => kinds.includes(entry[key] || 'none');
+    return {
+      type: 'group', class: 'action-box', label,
+      labelStyle: 'font-weight:bold; color:var(--primary-text-color);',
+      fields: [
+        { id: key, type: 'custom', render: ctx => this._actionPicker(key, ctx) },
+        { id: prefix + '_entity', label: 'Target entity (Entity ID)', type: 'entity',
+          style: 'margin-top:8px;', condition: is('toggle', 'more-info', 'call-service') },
+        { id: prefix + '_service', label: 'Service', type: 'text', placeholder: 'light.turn_on',
+          style: 'margin-top:8px;', condition: is('call-service') },
+        { id: prefix + '_data', label: 'Data (JSON, optional)', type: 'text',
+          placeholder: '{"brightness": 255}',
+          style: 'margin-top:8px;', condition: is('call-service') },
+        { id: prefix + '_nav', label: 'Path', type: 'text', placeholder: '/lovelace/dashboard',
+          style: 'margin-top:8px;', condition: is('navigate') },
+      ],
+    };
+  }
 
+  /** The five-button grid that picks the kind of action. */
+  _actionPicker(key, ctx) {
+    const current = ctx.entry[key] || 'none';
     return html`
-      <div class="action-box">
-        <label style="font-weight:bold; color:var(--primary-text-color);">${label}</label>
+      <div class="action-icon-grid">
+        ${ScInteractionEditor.ACTION_KINDS.map(a => html`
+          <div class="action-icon-btn ${current === a.id ? 'active' : ''}" title=${a.title}
+               @click=${() => ctx.set(key, a.id)}>
+            <ha-icon icon=${a.icon}></ha-icon><span class="action-icon-label">${a.label}</span>
+          </div>`)}
+      </div>`;
+  }
 
-        <div class="action-icon-grid">
-          <div class="action-icon-btn ${actionType === 'none' ? 'active' : ''}" title="No action" @click=${() => setAction('none')}>
-            <ha-icon icon="mdi:cancel"></ha-icon><span class="action-icon-label">None</span>
-          </div>
-          <div class="action-icon-btn ${actionType === 'toggle' ? 'active' : ''}" title="Toggle" @click=${() => setAction('toggle')}>
-            <ha-icon icon="mdi:toggle-switch-outline"></ha-icon><span class="action-icon-label">Toggle</span>
-          </div>
-          <div class="action-icon-btn ${actionType === 'more-info' ? 'active' : ''}" title="More info" @click=${() => setAction('more-info')}>
-            <ha-icon icon="mdi:information-outline"></ha-icon><span class="action-icon-label">Info</span>
-          </div>
-          <div class="action-icon-btn ${actionType === 'call-service' ? 'active' : ''}" title="Call service" @click=${() => setAction('call-service')}>
-            <ha-icon icon="mdi:lightning-bolt"></ha-icon><span class="action-icon-label">Service</span>
-          </div>
-          <div class="action-icon-btn ${actionType === 'navigate' ? 'active' : ''}" title="Navigate" @click=${() => setAction('navigate')}>
-            <ha-icon icon="mdi:arrow-right-top"></ha-icon><span class="action-icon-label">Path</span>
-          </div>
-        </div>
-
-        ${['toggle', 'more-info', 'call-service'].includes(actionType) ? html`
-          <div class="col" style="margin-top:8px;">
-            <label>Target entity (Entity ID)</label>
-            <ha-entity-picker .hass=${this.hass} .allowCustomEntity=${true} .value=${pat[`${prefix}_entity`] || ''}
-              @value-changed=${e => { this._set(patterns, idx, `${prefix}_entity`, e.detail.value); }}>
-            </ha-entity-picker>
-          </div>
-        ` : ''}
-
-        ${actionType === 'call-service' ? html`
-          <div class="col" style="margin-top:8px;">
-            <label>Service</label>
-            <input type="text" placeholder="light.turn_on" .value=${pat[`${prefix}_service`] || ''}
-              @input=${e => { this._set(patterns, idx, `${prefix}_service`, e.target.value); }}>
-          </div>
-          <div class="col" style="margin-top:8px;">
-            <label>Data (JSON, optional)</label>
-            <input type="text" placeholder='{"brightness": 255}' .value=${pat[`${prefix}_data`] || ''}
-              @input=${e => { this._set(patterns, idx, `${prefix}_data`, e.target.value); }}>
-          </div>
-        ` : ''}
-
-        ${actionType === 'navigate' ? html`
-          <div class="col" style="margin-top:8px;">
-            <label>Path</label>
-            <input type="text" placeholder="/lovelace/dashboard" .value=${pat[`${prefix}_nav`] || ''}
-              @input=${e => { this._set(patterns, idx, `${prefix}_nav`, e.target.value); }}>
-          </div>
-        ` : ''}
-      </div>
-    `;
+  /** Everything inside an expanded interaction card. */
+  _fields() {
+    return [
+      { id: 'target', label: 'Target element', type: 'select', width: '60%',
+        options: (entry, ctx) => ctx.targets.map(t => {
+          const locked = t.id !== 'none' && t.id !== entry.target && ctx.usedTargets.includes(t.id);
+          return { value: t.id, group: t.group || 'General', disabled: locked,
+                   label: locked ? t.label + ' (In use)' : t.label };
+        }) },
+      { type: 'heading', label: '⚡ Home Assistant Actions' },
+      this._actionFields('tap', 'Tap'),
+      this._actionFields('double_tap', 'Double tap'),
+      this._actionFields('hold', 'Hold'),
+      { type: 'heading', label: '🎬 Visual animations (GPU)' },
+      { id: 'scale_depth', label: 'Click depth (scale)', hint: '0 = Off, 100 = Max. press depth',
+        type: 'range', min: 0, max: 100, width: '60%', int: true, placeholder: 50 },
+      { id: 'rotate_speed', label: 'Continuous rotation', hint: '0 = Off, 100 = Very fast',
+        type: 'range', min: 0, max: 100, width: '60%', int: true, placeholder: 0 },
+    ];
   }
 
   render() {
@@ -234,44 +235,10 @@ class ScInteractionEditor extends LitElement {
 
                 ${isExp ? html`
                   <div class="pattern-content">
-                    <div class="row">
-                      <label>Target element</label>
-                      <select style="width:60%" @change=${e => { this._set(patterns, idx, 'target', e.target.value); }}>
-                        ${(() => {
-                          const groups = {};
-                          targets.forEach(t => {
-                            const g = t.group || 'General';
-                            if (!groups[g]) groups[g] = [];
-                            groups[g].push(t);
-                          });
-                          return Object.entries(groups).map(([gName, els]) => html`
-                            <optgroup label="${gName}">
-                              ${els.map(t => {
-                                const isLocked = t.id !== 'none' && t.id !== pat.target && usedTargets.includes(t.id);
-                                return html`<option value=${t.id} ?selected=${pat.target === t.id} ?disabled=${isLocked}>
-                                  ${t.label} ${isLocked ? '(In use)' : ''}
-                                </option>`;
-                              })}
-                            </optgroup>
-                          `);
-                        })()}
-                      </select>
-                    </div>
-
-                    <div class="section-title">⚡ Home Assistant Actions</div>
-                    ${this._renderActionBlock(pat, idx, patterns, 'tap', 'Tap')}
-                    ${this._renderActionBlock(pat, idx, patterns, 'double_tap', 'Double tap')}
-                    ${this._renderActionBlock(pat, idx, patterns, 'hold', 'Hold')}
-
-                    <div class="section-title">🎬 Visual animations (GPU)</div>
-                    <div class="row">
-                      <label>Click depth (scale)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Max. press depth</span></label>
-                      ${SC.slider(pat.scale_depth ?? 50, v => this._set(patterns, idx, 'scale_depth', v), { min: 0, max: 100, width: '60%', int: true })}
-                    </div>
-                    <div class="row">
-                      <label>Continuous rotation<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Very fast</span></label>
-                      ${SC.slider(pat.rotate_speed ?? 0, v => this._set(patterns, idx, 'rotate_speed', v), { min: 0, max: 100, width: '60%', int: true })}
-                    </div>
+                    ${SC.renderFields(this._fields(), {
+                      entry: pat, slot: this.slot, hass: this.hass, targets, usedTargets,
+                      set: (key, value) => this._set(patterns, idx, key, value),
+                    })}
                   </div>
                 ` : ''}
               </div>
@@ -299,6 +266,13 @@ class ScInteractionEditor extends LitElement {
 if (!customElements.get('sc-interaction-editor')) {
   customElements.define('sc-interaction-editor', ScInteractionEditor);
 }
+ScInteractionEditor.ACTION_KINDS = [
+  { id: 'none', icon: 'mdi:cancel', label: 'None', title: 'No action' },
+  { id: 'toggle', icon: 'mdi:toggle-switch-outline', label: 'Toggle', title: 'Toggle' },
+  { id: 'more-info', icon: 'mdi:information-outline', label: 'Info', title: 'More info' },
+  { id: 'call-service', icon: 'mdi:lightning-bolt', label: 'Service', title: 'Call service' },
+  { id: 'navigate', icon: 'mdi:arrow-right-top', label: 'Path', title: 'Navigate' },
+];
 ScInteractionEditor._expandedCache = {};
 
 // --- THE MODULE ---

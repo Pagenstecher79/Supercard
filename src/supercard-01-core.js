@@ -469,6 +469,169 @@ Object.assign(window.SupercardUtils, (() => {
       ${colorRow(value, onInput, opts)}
     </div>`;
 
+  /**
+   * One field of an editor built from a field array.
+   *
+   * The gauge and the progressbar are written that way - a field is a record,
+   * and one renderer turns its `type` into a control - while the colour,
+   * label, glass and interaction editors wrote every field out by hand. This
+   * is that renderer, shared, so the second kind can become the first without
+   * each of them inventing the translation again.
+   *
+   * A field is `{ id, label, type }` plus what its type needs: `options` for a
+   * select, `min`/`max`/`step` for a range, `placeholder`, a `hint` line under
+   * the label, and `condition(entry, slot)` to hide it. `type: 'custom'`
+   * hands the rendering back to the editor through `render(ctx)`, for the
+   * blocks that are not a field at all - a preview, a picker grid.
+   *
+   * `ctx` carries the entry being edited and how to write to it:
+   * `{ entry, slot, hass, set(id, value), setDebounced(id, value) }`.
+   *
+   * @param {any} field
+   * @param {any} ctx
+   */
+  const renderField = (field, ctx) => {
+    if (!field) return html``;
+    if (field.condition && !field.condition(ctx.entry, ctx.slot)) return html``;
+
+    // A field usually reads its own key; `value` is for the few that do not -
+    // a default that falls back through an older key, a switch that is on
+    // unless it was switched off.
+    const val = field.value ? field.value(ctx.entry, ctx) : ctx.entry?.[field.id];
+    const set = v => ctx.set(field.id, v);
+    const setSlow = v => (ctx.setDebounced || ctx.set)(field.id, v);
+    const width = field.width || '60%';
+    // A hint may be a function, for the ones that quote a value back.
+    const hint = typeof field.hint === 'function' ? field.hint(ctx.entry, ctx) : field.hint;
+    const text = typeof field.label === 'function' ? field.label(ctx.entry, ctx) : field.label;
+    const label = hint
+      ? html`${text}<br><span style="font-size:10px;color:var(--secondary-text-color)">${hint}</span>`
+      : text;
+    const box = (cls, control) => html`
+      <div class=${cls} style=${field.style || nothing}>
+        <label style=${field.labelStyle || nothing}>${label}</label>${control}
+      </div>`;
+    const row = c => box('row', c);
+    const col = c => box('col', c);
+    /** A field sits in a row unless it says otherwise; a few default to col. */
+    const place = (c, dflt) => ((field.layout || dflt || 'row') === 'col' ? col : row)(c);
+    /** An explicit control style wins over the one the type would write. */
+    const control = dflt =>
+      (field.controlStyle != null ? field.controlStyle : dflt) || nothing;
+
+    switch (field.type) {
+      case 'custom':
+        return field.render(ctx);
+
+      case 'heading':
+        return html`<div class="section-title">${text}</div>`;
+
+      // A section that folds away, with fields of its own.
+      case 'details':
+        return html`
+          <details class="inner-section" style=${field.style || 'margin-bottom: 0;'}>
+            <summary style="font-size: 13px; color: var(--primary-color);"><span>${text}</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
+            <div class="inner-content" style=${field.contentStyle || 'gap: 8px;'}>
+              ${(field.fields || []).map(f => renderField(f, ctx))}
+            </div>
+          </details>`;
+
+      // A frame with a label and fields of its own - an action block, a group
+      // of settings that belong together.
+      case 'group':
+        return html`
+          <div class=${field.class || nothing} style=${field.style || nothing}>
+            ${field.label ? html`<label style=${field.labelStyle || nothing}>${text}</label>` : ''}
+            ${(field.fields || []).map(f => renderField(f, ctx))}
+          </div>`;
+
+      // A line of prose among the fields - why a control is missing, what a
+      // section means. `bare` writes the text straight into the div, for a
+      // caption that is not labelling anything.
+      case 'note': {
+        const cls = field.class ?? 'row';
+        return html`
+          <div class=${cls || nothing} style=${field.style || nothing}>
+            ${field.bare ? text
+              : html`<label style=${field.labelStyle || nothing}>${text}</label>`}
+          </div>`;
+      }
+
+      case 'select': {
+        // Options may be a function, because a list of targets depends on what
+        // the other entries already claimed.
+        const options = typeof field.options === 'function'
+          ? field.options(ctx.entry, ctx) : (field.options || []);
+        const option = o => html`
+          <option value=${o.value}
+                  ?selected=${o.selected === undefined ? String(val ?? '') === String(o.value) : !!o.selected}
+                  ?disabled=${!!o.disabled}>${o.label}</option>`;
+        const grouped = options.some(o => o.group);
+        let body;
+        if (grouped) {
+          const groups = new Map();
+          options.forEach(o => {
+            const g = o.group || '';
+            if (!groups.has(g)) groups.set(g, []);
+            groups.get(g).push(o);
+          });
+          body = [...groups].map(([name, els]) => html`
+            <optgroup label=${name}>${els.map(option)}</optgroup>`);
+        } else {
+          body = options.map(option);
+        }
+        return place(html`
+          <select style=${control('width:' + width)} @change=${e => set(e.target.value)}>${body}</select>`);
+      }
+
+      case 'checkbox':
+        return place(html`
+          <ha-switch .checked=${!!val} @change=${e => set(e.target.checked)}></ha-switch>`);
+
+      case 'range':
+        return place(slider(val ?? field.placeholder ?? 0, set,
+          { min: field.min, max: field.max, step: field.step, width, int: field.int }));
+
+      case 'color':
+        return place(colorRow(val || '', set, {
+          fallback: field.fallback, placeholder: field.placeholder, hexOnly: field.hexOnly,
+          textFallback: field.textFallback,
+        }), 'col');
+
+      case 'entity':
+        return place(html`
+          <ha-entity-picker .hass=${ctx.hass} .allowCustomEntity=${field.allowCustom !== false}
+            .value=${val || ''} @value-changed=${e => set(e.detail.value)}></ha-entity-picker>`, 'col');
+
+      case 'icon':
+        return place(html`
+          <ha-icon-picker .hass=${ctx.hass} .value=${val || ''}
+            @value-changed=${e => set(e.detail.value)}></ha-icon-picker>`, 'col');
+
+      case 'number':
+        return place(html`
+          <input type="number" style=${control('width:' + (field.width || '80px'))}
+                 min=${field.min ?? nothing} max=${field.max ?? nothing} step=${field.step ?? nothing}
+                 placeholder=${field.placeholder || nothing}
+                 .value=${field.blankZero ? (val || '') : (val ?? '')}
+                 @input=${e => {
+                   const n = field.int ? parseInt(e.target.value) : parseFloat(e.target.value);
+                   const bad = Number.isNaN(n) || (field.blankZero && !n);
+                   set(bad ? (field.emptyValue ?? null) : n);
+                 }}>`);
+
+      default:
+        // Text, and anything a field array asks for that is spelled as text.
+        return place(html`
+          <input type="text" style=${control(field.width ? 'width:' + field.width : '')}
+                 placeholder=${field.placeholder || nothing} .value=${val ?? ''}
+                 @input=${e => (field.debounce ? setSlow : set)(e.target.value)}>`, 'col');
+    }
+  };
+
+  /** Every field of a list, in order. */
+  const renderFields = (fields, ctx) => (fields || []).map(f => renderField(f, ctx));
+
   // Used by the module editors that list pattern/label cards (color,
   // progressbar, labels, fx-glass, interaction). Identified by ha-switch.
   const editorStyles = css`
@@ -564,6 +727,7 @@ function hassInputsChanged(oldHass, newHass, ids) {
     resolveAlias, withPatch, gaugeIsResponsive, onCanvas, cardIsPill, cardRadius,
     collectEntityIds, hassInputsChanged,
     colorRow, colorField, slider, sliderRow, sliderField,
+    renderField, renderFields,
     editorStyles, formStyles
   });
 })());

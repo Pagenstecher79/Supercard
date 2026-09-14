@@ -120,6 +120,9 @@ everywhere else, and never add a second read path for the old key.
   control: swatch plus text, `hexOnly` where only `#rrggbb` will do
 - `slider(value, onInput, opts)` / `sliderRow(label, ...)` / `sliderField(label, ...)`
   - the range control, beside its label or under it with the value read out
+- `renderField(field, ctx)` / `renderFields(fields, ctx)` - one field of an
+  editor's field array, and all of them; `ctx` is
+  `{ entry, slot, hass, set(id, value) }`
 - `editorStyles` / `formStyles` - the two shared editor stylesheets
 
 Add a helper here as soon as a second module needs it, and extend
@@ -221,9 +224,12 @@ static get styles() {
 }
 ```
 
-Use `editorStyles` for pattern/card-list editors (the `ha-switch` look) and
-`formStyles` for compact config forms (the hand-rolled `.toggle` look). Do not
-paste a full stylesheet into a new module.
+Use `editorStyles` for pattern/card-list editors (the `ha-switch` look) -
+colour, labels, glass, interaction - and `formStyles` for the config forms
+(the hand-rolled `.toggle` look): core's two editors, the gauge and the bar.
+The gauge and the bar are the same kind of form and look the same; the bar
+used to start from the other stylesheet, which is the only reason they ever
+differed. Do not paste a full stylesheet into a new module.
 
 **Field visibility.** A predicate on the field definition:
 
@@ -266,14 +272,20 @@ way, because they genuinely differ - `SC.getAvailableElements` is a flat
 `{id: label}` map for colour/fx-glass/interaction, while `getLayoutTargets` in
 layout groups them and adds four sub-targets per label.
 
-Two larger things are **deliberately** not unified, because the cost outweighs
+One larger thing is **deliberately** not unified, because the cost outweighs
 the gain:
 
-- **Editor architecture.** progressbar and gauge-editor are built from
-  declarative field arrays; the other editors write their markup by hand.
-  Converting either direction is a rewrite, not a cleanup.
 - **The two editor look-and-feels.** `editorStyles` and `formStyles` are
   genuinely different visual languages. Merging them is a product decision.
+
+**One editor architecture.** An editor is a field array: a field is a record -
+`{ id, label, type }` plus what its type needs - and `SC.renderField` turns it
+into a control. Every editor of a list is written that way - the gauge, the
+bar, labels, interaction, colour and the glass. The canvas editor is not a
+list of fields at all and stays as it is. Do not add a hand-written field to
+an editor that has a field array, and do not invent a second renderer: a block
+that is not a field - a preview, a picker grid, a datalist - is
+`type: 'custom'` and hands the markup back through `render(ctx)`.
 
 ## Performance
 
