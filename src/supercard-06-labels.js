@@ -188,7 +188,7 @@ class ScLabelsEditor extends LitElement {
       { id: 'icon_color', label: 'Icon colour', type: 'color', fallback: '#ffffff',
         placeholder: 'Empty = inherit', condition: withIcon },
       // On a box that sizes the label itself, a size here would change nothing.
-      { type: 'note', condition: item => item.use_icon && this.boxSized,
+      { type: 'note', class: 'tip', condition: item => item.use_icon && this.boxSized,
         labelStyle: 'font-size:11px;color:var(--secondary-text-color)',
         label: 'The icon takes the size of its box, because "Fill the box" is on for this element.' },
       { id: 'icon_size', label: 'Icon size (CSS)', type: 'text', layout: 'row', width: '80px',
@@ -227,7 +227,7 @@ class ScLabelsEditor extends LitElement {
       { type: 'group', condition: shown,
         style: 'background:rgba(0,0,0,0.15); padding:10px; border-radius:8px; border:1px solid var(--divider-color,#333); margin-top: 4px;',
         fields: [
-          { type: 'note', class: '', bare: true,
+          { type: 'note', class: 'tip', bare: true,
             style: 'font-size: 11px; color: var(--secondary-text-color); margin-bottom: 12px; font-style: italic;',
             label: '💡 The indicator automatically uses the data source set above as its trigger.' },
           { type: 'group', class: 'row', style: 'margin-bottom: 8px;', fields: [
