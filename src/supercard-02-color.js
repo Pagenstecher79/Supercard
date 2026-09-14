@@ -592,6 +592,27 @@ class ScColorPanel extends ScColorEditor {
     this._commit(n);
   }
 
+  /**
+   * The colour stops, written the way the list editor writes them - the
+   * pattern is made first if there is none, and the stale parallel arrays go
+   * in the same edit.
+   *
+   * @param {any[]} stops
+   */
+  _applyStops(stops) {
+    const list = this._list();
+    const idx = list.findIndex(p => p.target === this.target);
+    if (idx < 0) {
+      this._commit([...list, { ...defaultColorPattern(this.target), gradient_stops: stops }]);
+      return;
+    }
+    const n = structuredClone(list);
+    delete n[idx].colors;
+    delete n[idx].stops;
+    n[idx].gradient_stops = stops;
+    this._commit(n);
+  }
+
   _switch(on) {
     const list = this._list();
     const idx = list.findIndex(p => p.target === this.target);
@@ -612,6 +633,7 @@ class ScColorPanel extends ScColorEditor {
       targets: getTargets(this.slot), usedTargets: [],
       set: (key, value) => this._apply({ [key]: value }),
       setMany: (fields2) => this._apply(fields2),
+      setStops: (stops) => this._applyStops(stops),
     });
 
     if (this.switchless) {
