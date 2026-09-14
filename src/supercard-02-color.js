@@ -44,7 +44,9 @@ function defaultColorPattern(target) {
 /**
  * Whether a target is painted from a panel of its own rather than from this
  * list. The card always is - Card & Dimensions holds its panel - and on a
- * canvas every surface is, in its element settings. Only the *first* pattern
+ * canvas a surface, a gauge and a bar are, in their own menus: a surface in
+ * its element settings, a gauge under Background, a bar under its gradient.
+ * Only the *first* pattern
  * of such a target belongs to the panel: a second one on the same target is
  * something the list made, and taking it out of the list would leave it
  * painting a card nobody could find it on.
@@ -53,7 +55,9 @@ function defaultColorPattern(target) {
  */
 function hasOwnPanel(target, slot) {
   if (target === 'main') return true;
-  return !!slot?.canvas && /^elm_surface_\d+$/.test(target);
+  // Only on a canvas: an element's pattern paints the box the renderer names
+  // as a shadow part, and without a canvas there is no renderer and no box.
+  return !!slot?.canvas && /^elm_(surface|gauge|progressbar)_\d+$/.test(target);
 }
 
 // --- THE EDITOR ---
@@ -526,11 +530,34 @@ if (!customElements.get('sc-color-editor')) {
  * there, and a second copy of them here would be a second thing to keep in
  * step. Only the name and the target are left out - a panel knows both.
  */
+/**
+ * The same field with Pump taken out of the effect list.
+ *
+ * Pump scales the pattern layer, which is the whole of a card or a surface but
+ * only the plate behind a gauge's ring or a bar's track - a pulsing backdrop
+ * under an element that stands still. The other effects paint, so they read
+ * the same wherever they are.
+ *
+ * @param {any} field
+ */
+function dropPump(field) {
+  if (Array.isArray(field.fields)) return { ...field, fields: field.fields.map(dropPump) };
+  if (field.id !== 'animation') return field;
+  // A pattern already set to Pump keeps it in the list: an option the select
+  // cannot show is a select that reads as something the config does not say.
+  const keep = (/** @type {any} */ o, /** @type {any} */ pat) =>
+    o.value !== 'pump' || pat?.animation === 'pump';
+  const options = typeof field.options === 'function'
+    ? (/** @type {any} */ pat) => field.options(pat).filter((/** @type {any} */ o) => keep(o, pat))
+    : (/** @type {any} */ pat) => field.options.filter((/** @type {any} */ o) => keep(o, pat));
+  return { ...field, options };
+}
+
 class ScColorPanel extends ScColorEditor {
   static get properties() {
     return { slot: { type: Object }, hass: { type: Object }, commitFn: { type: Function },
              target: { type: String }, label: { type: String },
-             switchless: { type: Boolean } };
+             switchless: { type: Boolean }, noPump: { type: Boolean } };
   }
 
   static get styles() {
@@ -578,7 +605,8 @@ class ScColorPanel extends ScColorEditor {
     const idx = list.findIndex(p => p.target === this.target);
     const pat = idx < 0 ? null : list[idx];
     const on = !!pat?.enabled;
-    const fields = this._fields().filter(f => f.id !== 'name' && f.id !== 'target');
+    let fields = this._fields().filter(f => f.id !== 'name' && f.id !== 'target');
+    if (this.noPump) fields = fields.map(dropPump);
     const body = (entry) => SC.renderFields(fields, {
       entry, slot: this.slot, hass: this.hass,
       targets: getTargets(this.slot), usedTargets: [],

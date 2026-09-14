@@ -1110,6 +1110,10 @@ const STYLE_FIELDS = [
   { id: 'use_gradient',        label: 'Use gradient', type: 'checkbox' },
   { id: 'gradient_as_solid',   label: 'Derive colour from gradient (dynamic)', type: 'checkbox', condition: cfg => cfg.use_gradient },
   { id: 'gradient_stops',      label: 'Gradient colour stops',    type: 'gradient-stops', condition: cfg => cfg.use_gradient },
+  // Under the colours, because it paints behind them: the pattern is the bar's
+  // backdrop and the track and fill draw on top of it. Only on a canvas, where
+  // the renderer names the box it paints.
+  { id: '_colour_pattern',     type: 'colour_pattern', condition: (cfg, slot) => !!slot?.canvas },
 
   { id: '_section_scale',      label: '── 📊 Value Range & Main Ticks', type: 'section' },
   { id: 'min',                 label: 'Minimum',               type: 'number', placeholder: '0' },
@@ -1314,12 +1318,22 @@ class ScProgressbarEditor extends LitElement {
     this.commitFn('progressbars', newBars);
   }
 
-  _renderField(field, cfg, updateDirect, updateDebounced) {
+  _renderField(field, cfg, updateDirect, updateDebounced, idx) {
     if (field.condition && !field.condition(cfg, this.slot)) return html``;
     let content;
     const val = cfg[field.id];
 
     switch (field.type) {
+      case 'colour_pattern':
+        // The pattern layer is the bar's backdrop - track, fill and pill draw
+        // over it. Pump is left out: it would scale that backdrop alone, under
+        // a bar that stays where it is.
+        content = html`
+          <sc-color-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                          .switchless=${true} .noPump=${true}
+                          .label=${'🎨 Background pattern & animation'}
+                          .target=${'elm_progressbar_' + idx}></sc-color-panel>`;
+        break;
       case 'section':
         content = html`<div class="section-title">${field.label}</div>`;
         break;
@@ -1481,7 +1495,7 @@ class ScProgressbarEditor extends LitElement {
               <span style="font-size:10px;">▼</span>
             </summary>
             <div class="inner-content">
-              ${g.fields.map(f => this._renderField(f, cfg, v => updateDirect(f.id, v), v => updateDebounced(f.id, v)))}
+              ${g.fields.map(f => this._renderField(f, cfg, v => updateDirect(f.id, v), v => updateDebounced(f.id, v), idx))}
             </div>
           </details>`;
       })}`;

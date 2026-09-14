@@ -2074,12 +2074,18 @@ class ScCanvasEditor extends LitElement {
    * in the core editor's Card & Dimensions menu rather than here, so that
    * everything above the canvas is the canvas.
    */
-  _renderDimensions() {
+  /**
+   * The snap grid and the live preview, drawn over the canvas rather than in
+   * Card & Dimensions: both describe this picture and nothing else, and both
+   * are read while looking at what they change.
+   *
+   * The grid is a proportion of the canvas, never a number of units: a unit
+   * grid survives only until the canvas is reshaped, and then every element
+   * sits between two lines. A canvas still carrying a unit grid is shown its
+   * own value as a proportion, and the first edit writes it down that way.
+   */
+  _renderCanvasSettings() {
     const c = this._canvas;
-    // The grid is a proportion of the canvas, never a number of units: a unit
-    // grid survives only until the canvas is reshaped, and then every element
-    // sits between two lines. A canvas still carrying a unit grid is shown its
-    // own value as a proportion, and the first edit writes it down that way.
     const pctGrid = c.grid_unit === 'pct';
     const gridValue = pctGrid ? (c.grid ?? unitsToGrid(c, DEFAULT_GRID))
                               : unitsToGrid(c, c.grid ?? DEFAULT_GRID);
@@ -2093,6 +2099,41 @@ class ScCanvasEditor extends LitElement {
     const snapSteps = [...new Set([1, 2, 5, 10, 20, 25, 33.3, 50,
                                    ...(typeof snapValue === 'number' && snapValue > 0 ? [snapValue] : [])])]
       .sort((a, b) => a - b);
+
+    return html`
+      <div class="row">
+        <label>Grid / snap</label>
+        <div class="ctl">
+          <select @change=${e => {
+            const v = e.target.value;
+            this._setGridPct({ snap: v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)) });
+          }}>
+            <option value="grid" ?selected=${snapValue === undefined}>Snap to grid</option>
+            <option value="free" ?selected=${snapValue === 0}>Free</option>
+            ${snapSteps.map(n => html`
+              <option value=${n} ?selected=${snapValue === n}>Step ${n}%</option>`)}
+          </select>
+          <input class="num" type="number" min="0" step="any" .value=${gridValue}
+                 @change=${e => this._setGridPct({ grid: Math.max(0, parseFloat(e.target.value) || 0) })}>
+          <span class="hint">% grid</span>
+        </div>
+      </div>
+      <div class="hint tip" style="margin:-4px 0 4px 0;">
+        Per cent of the canvas width, so the grid keeps its proportions when the canvas is
+        reshaped. ${gridValue > 0 ? html`Currently ${gridToUnits({ ...c, grid_unit: 'pct' }, gridValue)} of ${c.w} units.` : ''}
+      </div>
+
+      <div class="row">
+        <label>Live preview</label>
+        <ha-switch .checked=${this._live}
+                   @change=${e => this._send('live_preview', e.target.checked ? undefined : false)}></ha-switch>
+      </div>
+      <div class="hint tip" style="margin:-4px 0 4px 0;">${this._live
+        ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
+        : html`Plain boxes - easier to see and to grab.`}</div>`;
+  }
+
+  _renderDimensions() {
     const rows = this._rows;
     const columns = this._columns;
     const maxColumns = this._maxColumns;
@@ -2156,37 +2197,6 @@ class ScCanvasEditor extends LitElement {
               Match the card
             </button>
           </div>` : ''}
-        <div class="row">
-          <label>Grid / snap</label>
-          <div class="ctl">
-            <select @change=${e => {
-              const v = e.target.value;
-              this._setGridPct({ snap: v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)) });
-            }}>
-              <option value="grid" ?selected=${snapValue === undefined}>Snap to grid</option>
-              <option value="free" ?selected=${snapValue === 0}>Free</option>
-              ${snapSteps.map(n => html`
-                <option value=${n} ?selected=${snapValue === n}>Step ${n}%</option>`)}
-            </select>
-            <input class="num" type="number" min="0" step="any" .value=${gridValue}
-                   @change=${e => this._setGridPct({ grid: Math.max(0, parseFloat(e.target.value) || 0) })}>
-            <span class="hint">% grid</span>
-          </div>
-        </div>
-        <div class="hint tip" style="margin:-4px 0 4px 0;">
-          Per cent of the canvas width, so the grid keeps its proportions when the canvas is
-          reshaped. ${gridValue > 0 ? html`Currently ${gridToUnits({ ...c, grid_unit: 'pct' }, gridValue)} of ${c.w} units.` : ''}
-        </div>
-
-        <div class="row">
-          <label>Live preview</label>
-          <ha-switch .checked=${this._live}
-                     @change=${e => this.commitFn('live_preview', e.target.checked ? undefined : false)}></ha-switch>
-        </div>
-        <div class="hint tip" style="margin:-4px 0 4px 0;">${this._live
-          ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
-          : html`Plain boxes - easier to see and to grab.`}</div>
-
         <div class="row">
           <label>Hide tips</label>
           <ha-switch .checked=${!!this.slot.hide_tips}
@@ -2252,6 +2262,8 @@ class ScCanvasEditor extends LitElement {
                     @click=${() => { this._names = !this._names; }}>Names</button>
           </div>
         </div>
+
+        ${this._renderCanvasSettings()}
 
         <div class="canvas-wrap">
           <div class="canvas-pad"

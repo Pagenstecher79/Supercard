@@ -80,6 +80,11 @@ const STYLE_FIELDS = [
   { id: 'bg_gradient_angle',     label: 'Angle (° linear only)',      type: 'range',    min: 0, max: 360, step: 1, placeholder: '135', condition: cfg => cfg.bg_mode === 'linear' },
   { id: 'bg_manual_stops',       type: 'bg_manual_stops', condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset === 'manual' },
 
+  // Last of the section's own fields, so it sits under the background colours
+  // and above the two threshold folds. Only on a canvas: the pattern paints
+  // the box the renderer names, and without one there is no box.
+  { id: '_colour_pattern', type: 'colour_pattern', condition: (cfg, slot) => !!slot?.canvas },
+
   { id: '_section_bg_threshold',          label: '── Background Colour (Threshold)', type: 'subsection' },
   { id: 'bg_color_threshold_active',      label: 'Threshold active',            type: 'checkbox' },
   { id: 'bg_color_threshold_operator',    label: 'Operator',                     type: 'select', options: [ { value: '>', label: '> Greater than' }, { value: '<', label: '< Less than' }, { value: '>=', label: '>= Greater or equal' }, { value: '<=', label: '<= Less or equal' }, { value: '==', label: '== Equal' } ], condition: cfg => !!cfg.bg_color_threshold_active },
@@ -700,6 +705,17 @@ class ScGaugeEditor extends LitElement {
     };
 
     switch (field.type) {
+      case 'colour_pattern': {
+        // The pattern layer sits behind the gauge's own drawing, so this paints
+        // the box the gauge stands in - not its ring. Pump is left out: it
+        // would pulse that plate under a gauge that does not move with it.
+        content = html`
+          <sc-color-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                          .switchless=${true} .noPump=${true}
+                          .label=${'🎨 Background pattern & animation'}
+                          .target=${'elm_gauge_' + idx}></sc-color-panel>`;
+        break;
+      }
       case 'manual_stops': {
         const isAbsolute = entry.threshold_unit === 'absolute';
         content = html`
