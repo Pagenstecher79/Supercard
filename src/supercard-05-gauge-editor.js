@@ -72,13 +72,19 @@ const STYLE_FIELDS = [
   { id: '_section_bg',           label: '── 🖼️ Background',             type: 'section' },
   { id: 'bg_mode',               label: 'Background mode',          type: 'select', options: [ { value: 'none', label: 'None' }, { value: 'adaptive', label: 'Adaptive (theme)' }, { value: 'solid', label: 'Solid colour' }, { value: 'linear', label: 'Linear gradient' }, { value: 'radial', label: 'Radial gradient' } ] },
   { id: 'bg_gradient_preset',    label: 'Gradient type',                type: 'select', options: [ { value: 'classic', label: 'Classic (2 colours)' }, { value: 'manual', label: 'Manual (list)' } ], condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) },
-  { id: 'bg_threshold_unit',     label: 'Threshold unit',          type: 'select', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset === 'manual' },
+  { id: 'bg_threshold_unit',     label: 'Threshold unit',          type: 'select',
+    hint: 'Thresholds can be given as absolute values or in %.', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset === 'manual' },
   { id: 'bg_opacity',            label: 'Opacity',                  type: 'range',    min: 0, max: 1, step: 0.01, placeholder: '1.0' },
   { id: 'bg_color1',             label: 'Colour 1 (inner / start)',    type: 'color',  condition: cfg => ['solid', 'linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset !== 'manual' },
   { id: 'bg_color2',             label: 'Colour 2 (outer / end)',     type: 'color',  condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset !== 'manual' },
   { id: 'bg_balance',            label: 'Balance (%)',                type: 'range',    min: 0, max: 100, step: 0.1, placeholder: '50', condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset !== 'manual' },
   { id: 'bg_gradient_angle',     label: 'Angle (° linear only)',      type: 'range',    min: 0, max: 360, step: 1, placeholder: '135', condition: cfg => cfg.bg_mode === 'linear' },
   { id: 'bg_manual_stops',       type: 'bg_manual_stops', condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset === 'manual' },
+
+  // Last of the section's own fields, so it sits under the background colours
+  // and above the two threshold folds. Only on a canvas: the pattern paints
+  // the box the renderer names, and without one there is no box.
+  { id: '_colour_pattern', type: 'colour_pattern', condition: (cfg, slot) => !!slot?.canvas },
 
   { id: '_section_bg_threshold',          label: '── Background Colour (Threshold)', type: 'subsection' },
   { id: 'bg_color_threshold_active',      label: 'Threshold active',            type: 'checkbox' },
@@ -120,7 +126,8 @@ const STYLE_FIELDS = [
   { id: 'gradient_mode',     label: 'Gradient type',           type: 'select', options: [ { value: 'smooth', label: 'Smooth' }, { value: 'stepped', label: 'Stepped' } ], condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
   { id: 'gradient_resolution', label: 'Gradient resolution', type: 'select', options: [ { value: 'auto', label: 'Automatic (size-dependent)' }, { value: 'coarse', label: 'Coarse (1× colour zones)' }, { value: 'medium', label: 'Medium (12× colour zones)' }, { value: 'fine', label: 'Fine (24×) — default' }, { value: 'superfine', label: 'Superfine (48×)' }, { value: 'ultrafine', label: 'Ultrafine (96×)' }, { value: 'megafine', label: 'Megafine (192×)' }  ]},
 
-  { id: 'threshold_unit',    label: 'Threshold unit',     type: 'select', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
+  { id: 'threshold_unit',    label: 'Threshold unit',     type: 'select',
+    hint: 'Thresholds can be given as absolute values or in %.', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
   { id: 'gradient_start',    label: 'Gradient start',        type: 'number', placeholder: 'auto', condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
   { id: 'gradient_end',      label: 'Gradient end',         type: 'number', placeholder: 'auto', condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
 
@@ -688,6 +695,9 @@ class ScGaugeEditor extends LitElement {
 
     let content;
     const val = entry[field.id];
+    // A hint is a balloon on the label's mark, the same as in the shared
+    // renderer - prose under a control only pushes the next one down.
+    const label = field.hint ? html`${field.label} ${SC.tipDot(field.hint)}` : field.label;
     
     const updateDirect = (newVal) => {
       this.commitFn('gauges', SC.withPatch(gauges, idx, field.id, newVal));
@@ -700,13 +710,21 @@ class ScGaugeEditor extends LitElement {
     };
 
     switch (field.type) {
+      case 'colour_pattern': {
+        // The pattern layer sits behind the gauge's own drawing, so this paints
+        // the box the gauge stands in - not its ring. Pump is left out: it
+        // would pulse that plate under a gauge that does not move with it.
+        content = html`
+          <sc-color-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                          .switchless=${true} .noPump=${true}
+                          .label=${'🎨 Background pattern & animation'}
+                          .target=${'elm_gauge_' + idx}></sc-color-panel>`;
+        break;
+      }
       case 'manual_stops': {
         const isAbsolute = entry.threshold_unit === 'absolute';
         content = html`
           <div class="col" style="gap:8px;">
-            <div class="tip" style="font-size:12px;color:var(--secondary-text-color,#aaa);margin-bottom:4px;line-height:1.3;">
-              Tip: thresholds can be given as absolute values or in %.
-            </div>
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
               this.commitFn('gauges', SC.withPatch(gauges, idx, 'manual_stops', newStops));
             }, entry.gradient_resolution)} </div>
@@ -954,7 +972,7 @@ class ScGaugeEditor extends LitElement {
       case 'checkbox':
         content = html`
           <div class="row">
-            <label>${field.label}</label>
+            <label>${label}</label>
             <label class="toggle">
               <input type="checkbox" .checked=${!!val} @change=${e => updateDirect(e.target.checked)}>
               <span class="toggle-slider"></span>
@@ -966,7 +984,7 @@ class ScGaugeEditor extends LitElement {
         const hex = val ? (Array.isArray(val) ? '#' + val.map(x => x.toString(16).padStart(2,'0')).join('') : val) : '';
         content = html`
           <div class="col">
-            <label>${field.label}</label>
+            <label>${label}</label>
             ${SC.colorRow(hex, updateDirect, { fallback: '', placeholder: field.placeholder || '#ffffff', hexOnly: true })}
           </div>
         `;
@@ -975,7 +993,7 @@ class ScGaugeEditor extends LitElement {
       case 'select':
         content = html`
           <div class="row">
-            <label>${field.label}</label>
+            <label>${label}</label>
             <select @change=${e => updateDirect(e.target.value)}>
               ${(field.options || []).map(o => html`<option value=${o.value} ?selected=${String(val ?? '') === String(o.value)}>${o.label}</option>`)}
             </select>
@@ -989,7 +1007,7 @@ class ScGaugeEditor extends LitElement {
         // renderer.
         const shown = field.fromStored ? field.fromStored(val) : val;
         const store = v => updateDirect(field.toStored ? field.toStored(v) : v);
-        content = SC.sliderField(field.label, shown ?? field.placeholder ?? 0, store,
+        content = SC.sliderField(label, shown ?? field.placeholder ?? 0, store,
           { min: field.min ?? 0, max: field.max ?? 100, step: field.step ?? 1,
             shown: shown ?? field.placeholder ?? '' });
         break;
@@ -1003,7 +1021,7 @@ class ScGaugeEditor extends LitElement {
         ];
         content = html`
           <div class="col">
-            <label>${field.label}</label>
+            <label>${label}</label>
             <div class="sector-grid">
               ${sectors.map(s => html`
                 <div 
@@ -1020,7 +1038,7 @@ class ScGaugeEditor extends LitElement {
       default:
         content = html`
           <div class="col">
-            <label>${field.label}</label>
+            <label>${label}</label>
             <input 
               type=${field.type === 'number' ? 'number' : 'text'} 
               .value=${val ?? ''} 

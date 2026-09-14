@@ -10,6 +10,18 @@ describe('stripDeadConfig', () => {
     expect(out.progressbars[0]).toEqual({ entity: 'sensor.a', width: 80 });
   });
 
+  it('takes the dead switch off the slot itself', () => {
+    const slot = { hide_tips: true, gauges: [{ entity: 'sensor.a' }] };
+    const out = stripDeadConfig(slot);
+    expect(out).toEqual({ gauges: slot.gauges });
+    expect(slot.hide_tips).toBe(true);
+  });
+
+  it('leaves a slot that never carried the dead switch alone', () => {
+    const slot = { gauges: [{ entity: 'sensor.a' }] };
+    expect(stripDeadConfig(slot)).toBeNull();
+  });
+
   it('strips the glass debug switch but keeps manual adjustments', () => {
     const slot = { fx_glass_patterns: [
       { target: 'elm_gauge_0', enabled: true, blur: 6, manual_override: true, debug_mask: false },

@@ -154,6 +154,8 @@ declare global {
     sliderRow: (label: any, value: number, onInput: (v: number) => void, opts?: SliderOpts) => any;
     /** A slider under its label, with the value read out beside it. */
     sliderField: (label: any, value: number, onInput: (v: number) => void, opts?: SliderOpts & { shown?: any }) => any;
+    /** The ⓘ that opens one explanation in a balloon. */
+    tipDot: (text: any, opts?: { right?: boolean }) => any;
     /** One field of an editor built from a field array. */
     renderField: (field: any, ctx: EditorFieldCtx) => any;
     /** Every field of a list, in order. */

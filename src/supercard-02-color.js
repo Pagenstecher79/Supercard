@@ -44,7 +44,9 @@ function defaultColorPattern(target) {
 /**
  * Whether a target is painted from a panel of its own rather than from this
  * list. The card always is - Card & Dimensions holds its panel - and on a
- * canvas every surface is, in its element settings. Only the *first* pattern
+ * canvas a surface, a gauge and a bar are, in their own menus: a surface in
+ * its element settings, a gauge under Background, a bar under its gradient.
+ * Only the *first* pattern
  * of such a target belongs to the panel: a second one on the same target is
  * something the list made, and taking it out of the list would leave it
  * painting a card nobody could find it on.
@@ -53,7 +55,9 @@ function defaultColorPattern(target) {
  */
 function hasOwnPanel(target, slot) {
   if (target === 'main') return true;
-  return !!slot?.canvas && /^elm_surface_\d+$/.test(target);
+  // Only on a canvas: an element's pattern paints the box the renderer names
+  // as a shadow part, and without a canvas there is no renderer and no box.
+  return !!slot?.canvas && /^elm_(surface|gauge|progressbar)_\d+$/.test(target);
 }
 
 // --- THE EDITOR ---
@@ -83,8 +87,6 @@ class ScColorEditor extends LitElement {
       .color-item-row input[type="color"], .color-row input[type="color"] { width: 40px; height: 30px; padding: 0; border: none; background: none; cursor: pointer; }
       .action-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color,#555); color: var(--primary-text-color); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px; flex: 1; font-weight: bold; }
       .action-btn:hover { background: rgba(255,255,255,0.1); }
-      /* Every .info-text is prose about a control, so all of them answer to "Hide tips". */
-      .info-text { font-size: 11px; color: var(--secondary-text-color); margin-top: -8px; margin-bottom: 4px; display: var(--sc-tip-display, revert); }
       ha-selector { width: 100%; }
       .pos-preview-wrap { display: flex; align-items: center; justify-content: center; gap: 16px; width: 100%; margin: 8px 0; }
       .pos-preview { width: 140px; height: 140px; background: #111; border: 1px solid var(--divider-color,#555); border-radius: 8px; position: relative; overflow: hidden; cursor: crosshair; touch-action: none; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
@@ -150,10 +152,9 @@ class ScColorEditor extends LitElement {
         { id: 'border_radius_auto', label: 'Automatic corner radius', type: 'checkbox', value: autoBorder },
         { type: 'custom', condition: pat => !autoBorder(pat), render: ctx => this._radiusRow(ctx) },
 
-        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;', condition: waveColors,
-          label: 'The colours are calculated dynamically by the effect.' },
         { id: 'wave_count', label: 'Count (density)', type: 'range', min: 1, max: 20, int: true,
-          placeholder: 3, condition: waveColors },
+          placeholder: 3, condition: waveColors,
+          hint: 'The colours are calculated dynamically by the effect.' },
         { id: 'wave_balance', label: 'Balance (peak vs. trough)', type: 'range', min: 5, max: 95,
           int: true, placeholder: 50, condition: waveColors },
         { id: 'wave_c1', label: 'Line/wave colour (peak)', type: 'color', fallback: '#03a9f4',
@@ -172,10 +173,8 @@ class ScColorEditor extends LitElement {
           ] },
         { type: 'note', class: '', bare: true, style: caption, label: '🌊 Fluid mode (dynamic mesh)',
           condition: pat => !waveColors(pat) && fluid(pat) },
-        { type: 'note', class: 'info-text', bare: true, style: 'color:var(--secondary-text-color); margin-top:0;',
-          label: 'Generates an endless, organically flowing vector animation.',
-          condition: pat => !waveColors(pat) && fluid(pat) },
         { id: 'fluid_style', label: 'Fluid style (viscosity)', type: 'select', width: '60%',
+          hint: 'Generates an endless, organically flowing vector animation.',
           style: 'margin-top:4px;', condition: pat => !waveColors(pat) && fluid(pat), options: pat => [
             { value: 'aurora', label: 'Aurora (gentle mesh, GentleRain)', selected: !pat.fluid_style || pat.fluid_style === 'aurora' },
             { value: 'gooey', label: 'Liquid (lava/water, WbONyK)', selected: pat.fluid_style === 'gooey' },
@@ -207,9 +206,8 @@ class ScColorEditor extends LitElement {
           ] },
         ] },
 
-      { type: 'details', label: '📍 Centre / origin', condition: radialCenter, fields: [
-        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
-          label: 'Tap or drag inside the box to freely move the origin point.' },
+      { type: 'details', label: '📍 Centre / origin', condition: radialCenter,
+        hint: 'Tap or drag inside the box to freely move the origin point.', fields: [
         { type: 'custom', render: ctx => this._originPad(ctx) },
         { type: 'group', class: 'row', fields: [
           { id: 'radial_x', label: pat => 'X-axis (' + (pat.radial_x ?? 50) + '%)', type: 'range',
@@ -221,9 +219,8 @@ class ScColorEditor extends LitElement {
         ] },
       ] },
 
-      { type: 'details', label: '⚙️ Condition: show background', fields: [
-        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
-          label: 'Without a condition the background is always visible.' },
+      { type: 'details', label: '⚙️ Condition: show background',
+        hint: 'Without a condition the background is always visible.', fields: [
         { type: 'custom', render: ctx => this._conditionSelector(ctx, 'bg_condition') },
       ] },
 
@@ -259,9 +256,8 @@ class ScColorEditor extends LitElement {
         { id: 'wave_invert', label: 'Reverse direction', type: 'checkbox', condition: waveOrRipple },
       ] },
 
-      { type: 'details', label: '⚙️ Condition: run animation', condition: pat => pat.animation !== 'none', fields: [
-        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
-          label: 'Without a condition the animation is always active.' },
+      { type: 'details', label: '⚙️ Condition: run animation', condition: pat => pat.animation !== 'none',
+        hint: 'Without a condition the animation is always active.', fields: [
         { type: 'custom', render: ctx => this._conditionSelector(ctx, 'anim_condition') },
       ] },
     ];
@@ -321,13 +317,11 @@ class ScColorEditor extends LitElement {
     const setSolid = value => ctx.setStops([{ pos: stopList[0]?.pos ?? null, color: value }]);
 
     return html`
-      <div class="col"><label>Colours</label>
+      <div class="col"><label>Colours ${pat.animation === 'fluid' && gradient
+          ? SC.tipDot("A position here is the blob's radius, not a place along a line.") : ''}</label>
         ${gradient ? html`
           <sc-gradient-stops .stops=${stopList} .previewCss=${previewCss}
             .onUpdate=${list => ctx.setStops(list)}></sc-gradient-stops>
-          ${pat.animation === 'fluid' ? html`
-            <div class="info-text" style="color:var(--secondary-text-color);">A position here is the blob's radius, not a place along a line.</div>
-          ` : ''}
         ` : html`
           <div class="color-list">
             <div class="color-item"><div class="color-item-row">
@@ -526,11 +520,34 @@ if (!customElements.get('sc-color-editor')) {
  * there, and a second copy of them here would be a second thing to keep in
  * step. Only the name and the target are left out - a panel knows both.
  */
+/**
+ * The same field with Pump taken out of the effect list.
+ *
+ * Pump scales the pattern layer, which is the whole of a card or a surface but
+ * only the plate behind a gauge's ring or a bar's track - a pulsing backdrop
+ * under an element that stands still. The other effects paint, so they read
+ * the same wherever they are.
+ *
+ * @param {any} field
+ */
+function dropPump(field) {
+  if (Array.isArray(field.fields)) return { ...field, fields: field.fields.map(dropPump) };
+  if (field.id !== 'animation') return field;
+  // A pattern already set to Pump keeps it in the list: an option the select
+  // cannot show is a select that reads as something the config does not say.
+  const keep = (/** @type {any} */ o, /** @type {any} */ pat) =>
+    o.value !== 'pump' || pat?.animation === 'pump';
+  const options = typeof field.options === 'function'
+    ? (/** @type {any} */ pat) => field.options(pat).filter((/** @type {any} */ o) => keep(o, pat))
+    : (/** @type {any} */ pat) => field.options.filter((/** @type {any} */ o) => keep(o, pat));
+  return { ...field, options };
+}
+
 class ScColorPanel extends ScColorEditor {
   static get properties() {
     return { slot: { type: Object }, hass: { type: Object }, commitFn: { type: Function },
              target: { type: String }, label: { type: String },
-             switchless: { type: Boolean } };
+             switchless: { type: Boolean }, noPump: { type: Boolean } };
   }
 
   static get styles() {
@@ -565,6 +582,27 @@ class ScColorPanel extends ScColorEditor {
     this._commit(n);
   }
 
+  /**
+   * The colour stops, written the way the list editor writes them - the
+   * pattern is made first if there is none, and the stale parallel arrays go
+   * in the same edit.
+   *
+   * @param {any[]} stops
+   */
+  _applyStops(stops) {
+    const list = this._list();
+    const idx = list.findIndex(p => p.target === this.target);
+    if (idx < 0) {
+      this._commit([...list, { ...defaultColorPattern(this.target), gradient_stops: stops }]);
+      return;
+    }
+    const n = structuredClone(list);
+    delete n[idx].colors;
+    delete n[idx].stops;
+    n[idx].gradient_stops = stops;
+    this._commit(n);
+  }
+
   _switch(on) {
     const list = this._list();
     const idx = list.findIndex(p => p.target === this.target);
@@ -578,12 +616,14 @@ class ScColorPanel extends ScColorEditor {
     const idx = list.findIndex(p => p.target === this.target);
     const pat = idx < 0 ? null : list[idx];
     const on = !!pat?.enabled;
-    const fields = this._fields().filter(f => f.id !== 'name' && f.id !== 'target');
+    let fields = this._fields().filter(f => f.id !== 'name' && f.id !== 'target');
+    if (this.noPump) fields = fields.map(dropPump);
     const body = (entry) => SC.renderFields(fields, {
       entry, slot: this.slot, hass: this.hass,
       targets: getTargets(this.slot), usedTargets: [],
       set: (key, value) => this._apply({ [key]: value }),
       setMany: (fields2) => this._apply(fields2),
+      setStops: (stops) => this._applyStops(stops),
     });
 
     if (this.switchless) {

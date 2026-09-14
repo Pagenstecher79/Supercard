@@ -258,14 +258,10 @@ class ScInteractionEditor extends LitElement {
 
     return html`
       <details class="inner-section">
-        <summary>👆 Push behaviour <span style="font-size:10px">▼</span></summary>
+        <summary>👆 Push behaviour
+          ${SC.tipDot('Gauges, bars, labels and the card itself carry their push behaviour in their own editor. What is left here is the icon, the name and the state, which have none - and anything pointing at an element the card no longer has.')}
+          <span style="font-size:10px">▼</span></summary>
         <div class="inner-content">
-          <div class="hint tip" style="font-size:11px;color:var(--secondary-text-color);margin-bottom:8px;">
-            Gauges, bars, labels and the card itself carry their push behaviour
-            in their own editor. What is left here is the icon, the name and the
-            state, which have none - and anything pointing at an element the
-            card no longer has.
-          </div>
           ${homeless.map(id => html`
             <div class="pattern-card">
               <sc-push-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}

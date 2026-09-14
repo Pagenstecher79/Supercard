@@ -310,7 +310,7 @@ function paddingRow(ctx) {
   const unit = pat.padding_unit || 'px';
   return html`
     <div class="row">
-      <label>Edge distance (inset / padding)<br><span class="tip" style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
+      <label>Edge distance (inset / padding) ${SC.tipDot('A negative value makes the glass larger than the element.')}</label>
       <div style="display:flex; align-items:center; width:60%; gap:8px">
         ${SC.slider(pat.padding ?? 0, v => ctx.set('padding', v), {
           min: unit === '%' ? -100 : -50, max: unit === '%' ? 100 : 50, style: 'flex:1', int: true })}
@@ -545,13 +545,10 @@ class ScFxGlassEditor extends LitElement {
 
     return html`
       <details class="inner-section">
-        <summary>✨ FX: Frosted & Liquid Glass (other targets) <span style="font-size:10px">▼</span></summary>
+        <summary>✨ FX: Frosted & Liquid Glass (other targets)
+          ${SC.tipDot("Gauges, bars and labels carry their own Glass FX switch in their editor, and the card's is in Card & Dimensions. What is left here is the icon, surfaces and layout cells.")}
+          <span style="font-size:10px">▼</span></summary>
         <div class="inner-content">
-          <div class="hint tip" style="font-size:11px;color:var(--secondary-text-color);margin-bottom:8px;">
-            Gauges, bars and labels carry their own Glass FX switch in their
-            editor, and the card's is in Card &amp; Dimensions. What is left
-            here is the icon, surfaces and layout cells.
-          </div>
           ${rows.map(({ pat, idx }, n) => {
             const isExp = !!this._expanded[pat.id];
             let targetLabel = getLabelForTarget(pat.target);

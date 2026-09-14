@@ -648,6 +648,18 @@ class ScCanvasEditor extends LitElement {
   static get styles() {
     return [SC.editorStyles, css`
       .row { gap: 8px; }
+      /* The one line over the canvas: the grid on the left, the preview switch
+         on the right, and each label carrying its explanation in a balloon. */
+      .canvas-settings { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+                         margin: 0 0 8px 0; font-size: 13px; }
+      .canvas-settings > .gap { flex: 1; min-width: 6px; }
+      /* Narrower than the controls in Card & Dimensions on purpose: this row
+         has to hold two settings and a switch in the width of the canvas. */
+      .canvas-settings select { width: 104px; }
+      .canvas-settings .num { width: 58px; box-sizing: border-box; }
+      .canvas-settings ha-switch { margin-left: -4px; }
+      .canvas-settings .settings-label { display: inline-flex; align-items: center; gap: 4px;
+                                         color: var(--primary-text-color); }
       .canvas-wrap { position: relative; background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color,#444); border-radius: 4px; padding: 0; display: flex; justify-content: center; }
       /* The canvas' own breathing room, moved onto a strip that takes pointer
          events. A selection frame has to be able to start and end *outside*
@@ -841,9 +853,6 @@ class ScCanvasEditor extends LitElement {
       .icon-btn[disabled] { opacity: 0.3; cursor: default; }
       .icon-btn[disabled]:hover { color: var(--secondary-text-color); }
       .hint { font-size: 11px; color: var(--secondary-text-color); }
-      /* "Hide tips" sets --sc-tip-display on the editor's container; a
-         readout wearing .hint is not a tip and keeps its place. */
-      .tip { display: var(--sc-tip-display, revert); }
       .el-config { border: 1px solid var(--divider-color,#444); border-radius: 6px; background: rgba(0,0,0,0.15); }
       .el-config > summary { padding: 7px 10px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--primary-color,#03a9f4); list-style: none; display: flex; align-items: center; gap: 6px; user-select: none; }
       .el-config > summary::-webkit-details-marker { display: none; }
@@ -1982,7 +1991,8 @@ class ScCanvasEditor extends LitElement {
     const fit = !!el.font_fit;
     return html`
       <div class="row" style="padding:4px 4px 0;">
-        <label>Fill the box<br><span class="hint tip">Text and icon take the size of the box they are in, instead of the card's own font size. Drag the box bigger and they grow with it.</span></label>
+        <label>Fill the box ${SC.tipDot('Text and icon take the size of the box they are in, '
+          + "instead of the card's own font size. Drag the box bigger and they grow with it.")}</label>
         <ha-switch .checked=${fit} @change=${e => this._setEl(idx, { font_fit: e.target.checked || undefined })}></ha-switch>
       </div>
       ${fit ? html`
@@ -2034,12 +2044,12 @@ class ScCanvasEditor extends LitElement {
     // pattern pointed at either, so offering one would be offering a setting
     // that deletes itself.
     const glassable = el?.surface || id === 'icon';
-    return wrap(el?.surface ? 'Surface settings' : 'Element settings', html`
-      <div class="hint tip" style="padding:4px 4px 8px;">${el?.surface
-        ? html`A surface draws nothing of its own - it is a box for a colour or
-               glass pattern to paint, and for a push to land on.`
-        : html`<code>${id}</code> comes from the card's main entity, so what it
-               shows is the card's. What it does when pushed is its own.`}</div>
+    const what = el?.surface
+      ? 'A surface draws nothing of its own - it is a box for a colour or glass pattern to '
+        + 'paint, and for a push to land on.'
+      : `${id} comes from the card's main entity, so what it shows is the card's. What it does `
+        + 'when pushed is its own.';
+    return wrap(html`${el?.surface ? 'Surface settings' : 'Element settings'} ${SC.tipDot(what)}`, html`
       ${el?.surface ? html`
         <div style="padding:0 4px 8px;">
           <sc-color-panel .hass=${props.hass} .slot=${props.slot} .switchless=${true}
@@ -2074,12 +2084,25 @@ class ScCanvasEditor extends LitElement {
    * in the core editor's Card & Dimensions menu rather than here, so that
    * everything above the canvas is the canvas.
    */
-  _renderDimensions() {
+  /**
+   * The snap grid and the live preview, drawn over the canvas rather than in
+   * Card & Dimensions: both describe this picture and nothing else, and both
+   * are read while looking at what they change.
+   *
+   * One line, with the prose in a balloon on the ⓘ rather than under the row:
+   * the space over the canvas is the space the canvas wants, and an
+   * explanation that is read once should not hold a line of it for good. The
+   * balloon answers to hover and to focus, so it is reachable from a keyboard
+   * and on a touch screen, and it stays when the card's tips are hidden -
+   * it costs no height, which is what "Hide tips" is about.
+   *
+   * The grid is a proportion of the canvas, never a number of units: a unit
+   * grid survives only until the canvas is reshaped, and then every element
+   * sits between two lines. A canvas still carrying a unit grid is shown its
+   * own value as a proportion, and the first edit writes it down that way.
+   */
+  _renderCanvasSettings() {
     const c = this._canvas;
-    // The grid is a proportion of the canvas, never a number of units: a unit
-    // grid survives only until the canvas is reshaped, and then every element
-    // sits between two lines. A canvas still carrying a unit grid is shown its
-    // own value as a proportion, and the first edit writes it down that way.
     const pctGrid = c.grid_unit === 'pct';
     const gridValue = pctGrid ? (c.grid ?? unitsToGrid(c, DEFAULT_GRID))
                               : unitsToGrid(c, c.grid ?? DEFAULT_GRID);
@@ -2093,6 +2116,37 @@ class ScCanvasEditor extends LitElement {
     const snapSteps = [...new Set([1, 2, 5, 10, 20, 25, 33.3, 50,
                                    ...(typeof snapValue === 'number' && snapValue > 0 ? [snapValue] : [])])]
       .sort((a, b) => a - b);
+
+    const gridTip = 'Per cent of the canvas width, so the grid keeps its proportions when '
+      + 'the canvas is reshaped.'
+      + (gridValue > 0 ? ` Currently ${gridToUnits({ ...c, grid_unit: 'pct' }, gridValue)} of ${c.w} units.` : '');
+    const liveTip = this._live
+      ? "The real gauges and bars. Text sizes are the card's, not this preview's."
+      : 'Plain boxes - easier to see and to grab.';
+
+    return html`
+      <div class="canvas-settings">
+        <span class="settings-label">Grid / snap ${SC.tipDot(gridTip)}</span>
+        <select @change=${e => {
+          const v = e.target.value;
+          this._setGridPct({ snap: v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)) });
+        }}>
+          <option value="grid" ?selected=${snapValue === undefined}>Snap to grid</option>
+          <option value="free" ?selected=${snapValue === 0}>Free</option>
+          ${snapSteps.map(n => html`
+            <option value=${n} ?selected=${snapValue === n}>Step ${n}%</option>`)}
+        </select>
+        <input class="num" type="number" min="0" step="any" .value=${gridValue}
+               @change=${e => this._setGridPct({ grid: Math.max(0, parseFloat(e.target.value) || 0) })}>
+        <span class="hint">%</span>
+        <span class="gap"></span>
+        <span class="settings-label">Live preview ${SC.tipDot(liveTip, { right: true })}</span>
+        <ha-switch .checked=${this._live}
+                   @change=${e => this._send('live_preview', e.target.checked ? undefined : false)}></ha-switch>
+      </div>`;
+  }
+
+  _renderDimensions() {
     const rows = this._rows;
     const columns = this._columns;
     const maxColumns = this._maxColumns;
@@ -2102,7 +2156,9 @@ class ScCanvasEditor extends LitElement {
     return html`
       <div class="col">
         <div class="row">
-          <label>Card width</label>
+          <label>Card width ${SC.tipDot('A width here is one column of the section. The Layout '
+            + 'tab counts in cells of three columns unless its Precise mode is on - so this field '
+            + 'is like that switch already on.')}</label>
           <div class="ctl">
             <select @change=${e => this._setFullWidth(e.target.value === 'full')}>
               <option value="columns" ?selected=${!full}>of ${maxColumns} columns</option>
@@ -2121,13 +2177,14 @@ class ScCanvasEditor extends LitElement {
             <span class="hint">${Math.round(gridColumnsToPx(columns, maxColumns))} px</span>
           </div>
         </div>
-        <div class="hint tip" style="margin:-4px 0 4px 0;">
-          A width here is one column of the section. The <b>Layout</b> tab
-          counts in cells of three columns unless its <b>Precise mode</b> is
-          on - so this field is like that switch already on.
-        </div>
         <div class="row">
-          <label>Card height</label>
+          <label>Card height ${SC.tipDot(rows === null
+            ? 'The canvas is as wide as its columns and a third of that tall, at any width - so '
+              + 'the card keeps its proportions and nothing letterboxes. For a shape of your own, '
+              + 'set a fixed height in rows.'
+            : "Auto height is off, so the card's height is pinned in the Layout tab and the canvas "
+              + 'is reshaped to match it. Turn it back on to let the shape decide the height '
+              + 'again.')}</label>
           <div class="ctl">
             <select @change=${e => this._setAutoHeight(e.target.value === 'auto')}>
               <option value="auto" ?selected=${rows === null}>Auto height</option>
@@ -2139,16 +2196,6 @@ class ScCanvasEditor extends LitElement {
               <span class="hint">${gridRowsToPx(rows)} px</span>`}
           </div>
         </div>
-        <div class="hint tip" style="margin:-4px 0 4px 0;">
-          ${rows === null
-            ? html`The canvas is as wide as its columns and a third of that
-                   tall, at any width - so the card keeps its proportions and
-                   nothing letterboxes. For a shape of your own, set a fixed
-                   height in rows.`
-            : html`Auto height is off, so the card's height is pinned in the
-                   <b>Layout</b> tab and the canvas is reshaped to match it.
-                   Turn it back on to let the shape decide the height again.`}
-        </div>
         ${mismatch ? html`
           <div class="hint" style="margin:-4px 0 4px 0; display:flex; gap:8px; align-items:center;">
             <span style="flex:1">The canvas is a different shape from the card, so it letterboxes inside it.</span>
@@ -2156,46 +2203,6 @@ class ScCanvasEditor extends LitElement {
               Match the card
             </button>
           </div>` : ''}
-        <div class="row">
-          <label>Grid / snap</label>
-          <div class="ctl">
-            <select @change=${e => {
-              const v = e.target.value;
-              this._setGridPct({ snap: v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)) });
-            }}>
-              <option value="grid" ?selected=${snapValue === undefined}>Snap to grid</option>
-              <option value="free" ?selected=${snapValue === 0}>Free</option>
-              ${snapSteps.map(n => html`
-                <option value=${n} ?selected=${snapValue === n}>Step ${n}%</option>`)}
-            </select>
-            <input class="num" type="number" min="0" step="any" .value=${gridValue}
-                   @change=${e => this._setGridPct({ grid: Math.max(0, parseFloat(e.target.value) || 0) })}>
-            <span class="hint">% grid</span>
-          </div>
-        </div>
-        <div class="hint tip" style="margin:-4px 0 4px 0;">
-          Per cent of the canvas width, so the grid keeps its proportions when the canvas is
-          reshaped. ${gridValue > 0 ? html`Currently ${gridToUnits({ ...c, grid_unit: 'pct' }, gridValue)} of ${c.w} units.` : ''}
-        </div>
-
-        <div class="row">
-          <label>Live preview</label>
-          <ha-switch .checked=${this._live}
-                     @change=${e => this.commitFn('live_preview', e.target.checked ? undefined : false)}></ha-switch>
-        </div>
-        <div class="hint tip" style="margin:-4px 0 4px 0;">${this._live
-          ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
-          : html`Plain boxes - easier to see and to grab.`}</div>
-
-        <div class="row">
-          <label>Hide tips</label>
-          <ha-switch .checked=${!!this.slot.hide_tips}
-                     @change=${e => this.commitFn('hide_tips', e.target.checked || undefined)}></ha-switch>
-        </div>
-        <div class="hint tip" style="margin:-4px 0 4px 0;">
-          Takes the explanatory lines out of every menu of this card, which makes
-          the editors a good deal shorter once you know your way around.
-        </div>
       </div>
     `;
   }
@@ -2231,9 +2238,13 @@ class ScCanvasEditor extends LitElement {
             </button>
             ${this._menu ? this._renderAddMenu() : ''}
           </div>
-          <span class="hint tip" style="flex:1">${this._placing
-            ? html`Click on the canvas to place the ${this._placingLabel}. Escape cancels.`
-            : html`Later in the list draws on top. A gauge and a round bar stay square and fill their box.`}</span>
+          ${this._placing
+            // The one line of prose that is not an explanation but an
+            // instruction for a mode the editor is in, so it stays on screen.
+            ? html`<span class="hint" style="flex:1">Click on the canvas to place the
+                   ${this._placingLabel}. Escape cancels.</span>`
+            : html`${SC.tipDot('Later in the list draws on top. A gauge and a round bar stay '
+                     + 'square and fill their box.')}<span style="flex:1"></span>`}
           <div class="names history">
             <button title=${this._undoStack.length
                       ? 'Undo the last change to the canvas or its elements'
@@ -2252,6 +2263,8 @@ class ScCanvasEditor extends LitElement {
                     @click=${() => { this._names = !this._names; }}>Names</button>
           </div>
         </div>
+
+        ${this._renderCanvasSettings()}
 
         <div class="canvas-wrap">
           <div class="canvas-pad"
@@ -2394,7 +2407,7 @@ class ScCanvasEditor extends LitElement {
             </div>`;
                })}
         </div>
-        <div class="hint tip">${selected.length > 1
+        <div class="hint">${selected.length > 1
           ? html`${selected.length} selected - dragging one moves them all, and the buttons under the canvas copy them or even out the gaps. An element's own settings are back when it is the only one selected.`
           : (sel
             ? html`Click the canvas background to list every element again. Shift-click a second element to move them together.`
