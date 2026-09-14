@@ -711,11 +711,35 @@ count, and the card that needs none of it is the one left on `auto`.
 
 ### One box, set in either place
 
-The canvas editor now sets **both** halves of that box — *Card width* in
-columns and *Card height* in rows — through `commitFn('__card__', …)`, so they
-are the same `grid_options` the Layout tab writes. Changing either one there
-also reshapes the canvas to match, via `rescaleCanvas`, which scales the
-element coordinates by the same two factors.
+The canvas editor sets that box itself — *Card width* in columns, *Card
+height* in rows — through `commitFn('__card__', …)`, so they are the same
+`grid_options` the Layout tab writes, and it mirrors all three of Home
+Assistant's own switches: **Auto height**, **Full width**, **Precise mode**.
+The first two are offered as the second half of the field they belong to, and
+the number disappears when the mode has no use for one: a full-width card has
+no column count to type, and an auto-height card's rows come from its columns.
+Precise mode is the switch it is in HA, and off it rounds a width **up** to the
+next quarter of the section, exactly as HA does — the spare is width the card
+can use, where the column it would lose crops it.
+
+With auto height on, the shape *is* the width: **a third of the columns,
+rounded up**. That ratio is the same at every card width — 12 × 4 is 1.94, 9 ×
+3 is 1.95, 6 × 2 is 1.97 — so a card keeps its proportions wherever it is put,
+which is the whole reason the row count is not a free number there. The card
+still reports `rows: "auto"`, so its height follows its real width on every
+viewport and nothing letterboxes. `defaultShapeRows` is that rule, and it is
+read against the *reference* section width, never the measured one: a shape
+read off this viewport would be a different shape on the next.
+
+Fixed rows is the other half. There the row count is a height in pixels, the
+canvas is reshaped to the box that height really makes here — measured width,
+not reference — and `pinnedToShape` writes the shape it is leaving into
+`canvas.free` so that turning auto height back on returns to it. Under auto
+height there is nothing to remember: the columns say what the shape is, and the
+key is dropped.
+
+A columns change reshapes the canvas in both modes, via `rescaleCanvas`, which
+scales the element coordinates by the same two factors.
 
 Nothing is re-squared there, and that is deliberate. A gauge is drawn as
 `100cqmin` inside its box — already the largest square that fits, sitting
@@ -725,14 +749,6 @@ for good: a card taken to four rows and back came home with every gauge half
 its size and holes where the arrangement had been. Two factors are exactly
 invertible; a minimum is not. Squaring stays on a user's edit — a drag, a
 typed size, a bar turned into a ring.
-
-Going back the other way needs a memory, because a card on *Fit the canvas*
-has no height of its own to match. `pinnedToShape` therefore writes the shape
-it is leaving into `canvas.free`, once, and `unpinnedCanvas` reshapes to it and
-deletes the key when the row count goes away. A second row count reshapes from
-wherever the canvas is now and still comes home to the shape the user drew.
-Typing the canvas' own width or height forgets it: that note was about where
-the canvas came from, and this is the user saying where it is now.
 
 The trip costs whole units and nothing else — a canvas is 400 units across, so
 one of them is a quarter of a percent, and an element can come back a unit
@@ -748,10 +764,18 @@ shapes actually differ. A card that rewrites its own config for being displayed
 can corrupt a dashboard while nobody is watching; the editor asking once is the
 version of that which cannot.
 
-With the height on *Fit the canvas* there is no row count to match, and the
-button does not appear: the canvas is the height in that mode, and deriving one
-from the other in both directions is a circle. Switching *to* that mode still
-reshapes, to the remembered shape — that is a change the user made, not a
+With auto height there is no row count to match, and the button does not
+appear: the canvas is the height in that mode, and deriving one from the other
+in both directions is a circle.
+
+### The grid is a proportion, never a number of units
+
+The snap grid is stored as a per cent of the canvas width (`grid_unit: 'pct'`)
+and the editor offers no other unit. A grid of *n* units survives only until
+the canvas is reshaped — and under this model a reshape is one column change
+away — after which every element sits between two lines and the next drag
+moves it. A canvas still carrying a unit grid is *shown* its own value as a
+proportion, and the first edit writes it down that way; nothing is converted on
 render.
 
 ## 8. The preview draws the real thing

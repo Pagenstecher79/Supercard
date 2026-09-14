@@ -164,7 +164,15 @@ result; only the ratio against `gridRowsToPx` is used. `canvasFromBox` is the
 same thing from a box that has been measured, which is what the card itself
 can offer. The canvas editor sets columns and rows itself and reshapes the
 canvas with `rescaleCanvas` when they change - but only on a user's edit,
-never on render. See §7.
+never on render.
+
+With auto height the shape is not a free number: it is the columns and a third
+of them, rounded up (`defaultShapeRows`), read against the reference width so
+the same card is the same shape on every viewport. A row count of the user's
+own means fixed rows, which is a height in pixels and is matched against the
+*measured* width instead. The snap grid is stored as a per cent of the canvas
+for the same reason - a grid in units does not survive the next reshape. See
+§7.
 
 **One layout model.** The canvas is the only one. The rows-and-cells model it
 replaced had its renderer and its editor removed in v2.1.0, but its

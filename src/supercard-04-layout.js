@@ -3,7 +3,7 @@ import { resolveSnap, gridToUnits, unitsToGrid, applyDrag, applyGroupDrag, distr
          elementsInRect, duplicateElements,
          isSquareLocked, isPinned, DEFAULT_CANVAS, DEFAULT_GRID,
          gridRowsToPx, gridColumnsToPx, gridSize, canvasFromGrid, canvasFromCard,
-         pinnedToShape, unpinnedCanvas,
+         pinnedToShape, rescaleCanvas, rowsForShape, defaultShapeRows,
          sectionColumns, sectionWidthPx,
          canDuplicate, reorderElement, overlappingElements,
          alignElements, restorePatch,
@@ -609,6 +609,8 @@ class ScCanvasEditor extends LitElement {
     const grid = this.cardConfig?.grid_options || {};
     const before = was.grid_options || {};
     if (grid.columns === before.columns && grid.rows === before.rows) return;
+    // `was` is the config before Home Assistant's own tab changed it, so this
+    // is the row count the canvas was worth under the old column span.
     const shaped = this._reshapedFor();
     if (shaped) this._commit(shaped);
   }
@@ -623,7 +625,7 @@ class ScCanvasEditor extends LitElement {
          wholly inside a frame - the press that draws it would already have to
          be past the edge. The strip is also where a drag that overshoots the
          canvas keeps being tracked. */
-      .canvas-pad { flex: 1; min-width: 0; padding: 12px 8px; touch-action: none;
+      .canvas-pad { flex: 1; min-width: 0; padding: 24px 16px; touch-action: none;
                     display: flex; justify-content: center; }
       /* The window the canvas is zoomed inside. It keeps the footprint the
          canvas has at 100% - width of the strip, shape of the canvas - so
@@ -759,6 +761,20 @@ class ScCanvasEditor extends LitElement {
       .handle { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; background: rgba(255,255,255,0.85); border-radius: 100% 0 0 0; cursor: nwse-resize; touch-action: none; }
       .handle::after { content: ''; position: absolute; right: -10px; bottom: -10px; width: 22px; height: 22px; }
       .num { width: 68px; }
+      /* The card's box controls read as one column: the mode first, always the
+         same width, then the number it needs - which several of them do not,
+         so an inline width would leave the rows out of step with each other. */
+      .ctl {
+        display: grid; grid-template-columns: 126px 76px 64px;
+        gap: 10px; align-items: center; justify-items: start;
+      }
+      .ctl > select { width: 126px; }
+      /* Its own column, so the unit beside it cannot end up on top of it. */
+      .ctl > .num { width: 76px; box-sizing: border-box; }
+      /* Third column whether or not the second is filled: a row without a
+         number would otherwise slide its unit under the number of the row
+         above it. */
+      .ctl > .hint { grid-column: 3; }
       /* Only the selected row wraps, and it has to: its number inputs and four
          buttons need more than 500px, and Home Assistant's card editor is
          nowhere near that wide - unwrapped, the remove button sat outside the
@@ -961,6 +977,17 @@ class ScCanvasEditor extends LitElement {
   get _sectionPx() { return sectionWidthPx(this); }
 
   /**
+   * Whether widths are set in single columns rather than quarters. Not stored
+   * anywhere - HA does not store it either, it reads it back off a width that
+   * is not on a quarter, which is the only width that could have needed it.
+   */
+  get _preciseMode() {
+    if (typeof this._precise === 'boolean') return this._precise;
+    const columns = this._columns;
+    return typeof columns === 'number' && columns % 3 !== 0;
+  }
+
+  /**
    * Writes HA's own `grid_options` rather than fields of our own, so these
    * controls and the layout tab are two views of one value instead of two
    * settings that have to be kept in step.
@@ -988,19 +1015,83 @@ class ScCanvasEditor extends LitElement {
     this._send('__batch__', writes);
   }
 
-  _setRows(rows) { this._setGrid({ rows }); }
+  /**
+   * Full width is not the number that happens to equal it today: a section made
+   * wider later takes a `full` card with it, and leaves a numbered one behind.
+   */
+  _setFullWidth(full) {
+    this._setGrid({ columns: full ? 'full' : this._maxColumns });
+  }
+
+  /**
+   * Home Assistant's own switch, mirrored: on, the card reports `rows: "auto"`
+   * and its height is whatever the canvas' shape makes of its width; off, the
+   * height is pinned to a row count and the canvas is reshaped to that box.
+   *
+   * Turning it off pins the row count the card is already worth *here*, at the
+   * width this section really has - so the card does not change height at the
+   * moment the switch is thrown.
+   */
+  _setAutoHeight(auto) {
+    if (auto) { this._setGrid({ rows: null }); return; }
+    this._setGrid({ rows: rowsForShape(this._canvas, this._columns, this._maxColumns, this._sectionPx) });
+  }
+
+  /** A pinned height in rows. Under auto height the shape sets it instead. */
+  _setShapeRows(rows) { this._setGrid({ rows }); }
+
+  /**
+   * Home Assistant's third switch: off, a width is a quarter of the section,
+   * and a card that is not on a quarter is rounded up to the next one - which
+   * is what HA does to it too, rather than cropping the card.
+   */
+  _setPrecise(precise) {
+    this._precise = precise;
+    const columns = this._columns;
+    if (!precise && typeof columns === 'number' && columns % 3 !== 0) {
+      this._setGrid({ columns: Math.min(this._maxColumns, 3 * Math.ceil(columns / 3)) });
+    }
+    this.requestUpdate();
+  }
 
   /**
    * The canvas as a card box wants it, or null when it is already that.
    *
-   * With a row count that is the shape of the box; without one the card has no
-   * height of its own, so there is no shape to match and the canvas goes back
-   * to the one it was drawn at instead.
+   * Two readings of the same arithmetic, and the difference is whether the row
+   * count is the card's *height* or the canvas' *shape*.
+   *
+   * Pinned - a number in `grid_options.rows` - it is the height, and the shape
+   * is made to match the box so the canvas does not letterbox inside it. The
+   * shape it had before is remembered, because the pin is a state to come back
+   * from.
+   *
+   * With auto height the shape *is* the width: a third of the columns, rounded
+   * up, which is the same proportion at every card width. There is nothing to
+   * come back from, so the canvas is rescaled and any remembered shape dropped.
+   *
+   * Null when there is nothing to do, which is what stops the commit this
+   * causes from causing another.
+   *
+   * @param {any} cardConfig
    */
   _reshapedFor(cardConfig = this.cardConfig) {
     const c = structuredClone(this._canvas);
-    if (typeof cardConfig?.grid_options?.rows !== 'number') return unpinnedCanvas(c);
-    return pinnedToShape(c, canvasFromGrid(cardConfig, this.slot, 400, this._maxColumns, this._sectionPx));
+    const rows = cardConfig?.grid_options?.rows;
+    // The measured section width belongs to the pinned case alone, where a real
+    // height in pixels has to be met by a real width. Under auto height the row
+    // count is a *shape*, and a shape read off this viewport would be a
+    // different one on the next: there the reference width is the whole point.
+    const shape = canvasFromGrid({ ...cardConfig, grid_options: {
+      ...(cardConfig?.grid_options || {}),
+      rows: typeof rows === 'number' ? rows
+        : defaultShapeRows(gridSize(cardConfig, this.slot).columns, this._maxColumns),
+    } }, this.slot, 400, this._maxColumns, typeof rows === 'number' ? this._sectionPx : 0);
+
+    if (typeof rows === 'number') return pinnedToShape(c, shape);
+
+    const { free, ...rest } = c;
+    if (rest.w === shape.w && rest.h === shape.h) return free ? rest : null;
+    return rescaleCanvas(rest, shape);
   }
 
   /** Reshape the canvas to the card's grid box, carrying the layout with it. */
@@ -1065,17 +1156,23 @@ class ScCanvasEditor extends LitElement {
    * the step down, not a different step - someone picking per cent wants
    * their grid to survive a reshape, not to lose it on the way there.
    */
-  _setGridUnit(unit) {
+  /**
+   * The grid and its snap step, written as proportions of the canvas.
+   *
+   * A canvas still carrying them in units is converted on the way past: one
+   * commit, because the conversion and the edit are the same edit, and two
+   * commits in a tick would lose the first.
+   */
+  _setGridPct(patch) {
     const c = structuredClone(this._canvas);
-    const toPct = unit === 'pct';
-    if (toPct === (c.grid_unit === 'pct')) return;
-    const convert = v => (typeof v === 'number' && v > 0
-      ? (toPct ? unitsToGrid(c, v) : gridToUnits({ ...c, grid_unit: 'pct' }, v))
-      : v);
-    if (typeof c.grid === 'number') c.grid = convert(c.grid);
-    else if (toPct) c.grid = unitsToGrid(c, DEFAULT_GRID);
-    if (typeof c.snap === 'number') c.snap = convert(c.snap);
-    if (toPct) c.grid_unit = 'pct'; else delete c.grid_unit;
+    if (c.grid_unit !== 'pct') {
+      if (typeof c.grid === 'number' && c.grid > 0) c.grid = unitsToGrid(c, c.grid);
+      if (typeof c.snap === 'number' && c.snap > 0) c.snap = unitsToGrid(c, c.snap);
+      c.grid_unit = 'pct';
+    }
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) delete c[k]; else c[k] = v;
+    }
     this._commit(c);
   }
 
@@ -1916,18 +2013,32 @@ class ScCanvasEditor extends LitElement {
     const els = Array.isArray(c.elements) ? c.elements : [];
     const step = resolveSnap(c);
     const pctGrid = c.grid_unit === 'pct';
-    // A step converted from the other unit is rarely one of the offered ones,
-    // and a select with nothing selected shows its first option instead - the
-    // step in force has to be in the list for the field to read true.
-    // Per cent runs up to a half canvas because at that size the step is the
-    // layout: 50 divides the canvas in two, 33.3 in three, 25 in four.
-    const snapSteps = [...new Set([...(pctGrid ? [1, 2, 5, 10, 20, 25, 33.3, 50] : [1, 2, 5, 25]),
-                                   ...(typeof c.snap === 'number' && c.snap > 0 ? [c.snap] : [])])]
+    // The grid is a proportion of the canvas, never a number of units: a unit
+    // grid survives only until the canvas is reshaped, and then every element
+    // sits between two lines. A canvas still carrying a unit grid is shown its
+    // own value as a proportion, and the first edit writes it down that way.
+    const gridValue = pctGrid ? (c.grid ?? unitsToGrid(c, DEFAULT_GRID))
+                              : unitsToGrid(c, c.grid ?? DEFAULT_GRID);
+    const snapValue = typeof c.snap === 'number' && c.snap > 0
+      ? (pctGrid ? c.snap : unitsToGrid(c, c.snap)) : c.snap;
+    // A step the canvas already carries is rarely one of the offered ones, and
+    // a select with nothing selected shows its first option instead - the step
+    // in force has to be in the list for the field to read true. The list runs
+    // up to a half canvas because at that size the step is the layout: 50
+    // divides the canvas in two, 33.3 in three, 25 in four.
+    const snapSteps = [...new Set([1, 2, 5, 10, 20, 25, 33.3, 50,
+                                   ...(typeof snapValue === 'number' && snapValue > 0 ? [snapValue] : [])])]
       .sort((a, b) => a - b);
     const rows = this._rows;
     const columns = this._columns;
     const maxColumns = this._maxColumns;
     const mismatch = this._gridMismatch;
+    // The row count the canvas' own shape is worth. With auto height on there
+    // is no `rows` in the card config to read, and this is the number that
+    // produced the shape - or, for a canvas typed in as two numbers before
+    // this control existed, the nearest whole row to it.
+    const precise = this._preciseMode;
+    const full = columns === 'full';
     const gridPct = (c.grid > 0 ? gridToUnits(c, c.grid) : step) / c.w * 100;
     const pct = (v, total) => `${v / total * 100}%`;
     // The list below the canvas shows the selected elements alone, so an id
@@ -1942,49 +2053,62 @@ class ScCanvasEditor extends LitElement {
       <div class="col">
         <div class="row">
           <label>Card width</label>
-          <div style="display:flex; gap:6px; align-items:center;">
-            <input class="num" type="number" min="1" max=${maxColumns} .value=${columns === 'full' ? maxColumns : columns}
-                   @change=${e => {
-                     const n = Math.max(1, Math.min(maxColumns, parseInt(e.target.value) || 1));
-                     // lit writes .value only when the bound value changes, so a
-                     // number that clamps back to the one already set would leave
-                     // the field showing what was typed instead.
-                     e.target.value = String(n);
-                     // The whole width is `full` in HA's own tab, which is not the
-                     // same as the number that happens to equal it today: a section
-                     // made wider later takes a `full` card with it.
-                     this._setGrid({ columns: columns === 'full' && n === maxColumns ? 'full' : n });
-                   }}>
-            <span class="hint">of ${maxColumns} columns · ${Math.round(gridColumnsToPx(columns, maxColumns))} px</span>
+          <div class="ctl">
+            <select @change=${e => this._setFullWidth(e.target.value === 'full')}>
+              <option value="columns" ?selected=${!full}>of ${maxColumns} columns</option>
+              <option value="full" ?selected=${full}>Full width</option>
+            </select>
+            ${full ? '' : html`
+              <input class="num" type="number" min="1" max=${maxColumns} step=${precise ? 1 : 3}
+                     .value=${columns}
+                     @change=${e => {
+                       let n = Math.max(1, Math.min(maxColumns, parseInt(e.target.value) || 1));
+                       // Off a quarter with precise mode off, round *up*: the
+                       // spare is width the card can use, where the column it
+                       // would lose crops it. Home Assistant rounds up too.
+                       if (!precise && n % 3 !== 0) n = Math.min(maxColumns, 3 * Math.ceil(n / 3));
+                       // lit writes .value only when the bound value changes, so a
+                       // number that clamps back to the one already set would leave
+                       // the field showing what was typed instead.
+                       e.target.value = String(n);
+                       this._setGrid({ columns: n });
+                     }}>`}
+            <span class="hint">${Math.round(gridColumnsToPx(columns, maxColumns))} px</span>
           </div>
         </div>
         <div class="row">
+          <label>Precise mode</label>
+          <div class="ctl">
+            <ha-switch .checked=${precise} ?disabled=${full}
+                       @change=${e => this._setPrecise(e.target.checked)}></ha-switch>
+          </div>
+        </div>
+        <div class="hint" style="margin:-4px 0 4px 0;">
+          A width is a quarter of the section unless precise mode is on, which
+          sets it in single columns. Same switch as the <b>Layout</b> tab's.
+        </div>
+        <div class="row">
           <label>Card height</label>
-          <div style="display:flex; gap:6px; align-items:center;">
-            <select style="width:110px" @change=${e => this._setRows(e.target.value === 'auto' ? null : (this._rows ?? 4))}>
-              <option value="auto" ?selected=${rows === null}>Fit the canvas</option>
-              <option value="rows" ?selected=${rows !== null}>Fixed rows</option>
+          <div class="ctl">
+            <select @change=${e => this._setAutoHeight(e.target.value === 'auto')}>
+              <option value="auto" ?selected=${rows === null}>Auto height</option>
+              <option value="rows" ?selected=${rows !== null}>rows, fixed</option>
             </select>
-            ${rows !== null ? html`
+            ${rows === null ? '' : html`
               <input class="num" type="number" min="1" max="50" .value=${rows}
-                     @change=${e => this._setRows(Math.max(1, parseInt(e.target.value) || 1))}>
-              <span class="hint">${gridRowsToPx(rows)} px</span>` : ''}
+                     @change=${e => this._setShapeRows(Math.max(1, parseInt(e.target.value) || 1))}>
+              <span class="hint">${gridRowsToPx(rows)} px</span>`}
           </div>
         </div>
         <div class="hint" style="margin:-4px 0 4px 0;">
           ${rows === null
-            ? html`The card is as wide as its columns and exactly as tall as the canvas shape makes it. Both are the same settings as in the <b>Layout</b> tab.`
-            : html`Both are the same settings as in the <b>Layout</b> tab. Changing one here reshapes the canvas to match, so nothing letterboxes; going back to <b>Fill the canvas</b> restores the shape it had before.`}
-        </div>
-        <div class="row">
-          <label>Canvas</label>
-          <div style="display:flex; gap:6px; align-items:center;">
-            <input class="num" type="number" min="1" .value=${c.w}
-                   @change=${e => this._setCanvas('w', Math.max(1, parseInt(e.target.value) || DEFAULT_CANVAS.w))}>
-            <span class="hint">×</span>
-            <input class="num" type="number" min="1" .value=${c.h}
-                   @change=${e => this._setCanvas('h', Math.max(1, parseInt(e.target.value) || DEFAULT_CANVAS.h))}>
-          </div>
+            ? html`The canvas is as wide as its columns and a third of that
+                   tall, at any width - so the card keeps its proportions and
+                   nothing letterboxes. For a shape of your own, set a fixed
+                   height in rows.`
+            : html`Auto height is off, so the card's height is pinned in the
+                   <b>Layout</b> tab and the canvas is reshaped to match it.
+                   Turn it back on to let the shape decide the height again.`}
         </div>
         ${mismatch ? html`
           <div class="hint" style="margin:-4px 0 4px 0; display:flex; gap:8px; align-items:center;">
@@ -1995,30 +2119,25 @@ class ScCanvasEditor extends LitElement {
           </div>` : ''}
         <div class="row">
           <label>Grid / snap</label>
-          <div style="display:flex; gap:6px; align-items:center;">
-            <input class="num" type="number" min="0" step=${pctGrid ? 'any' : '1'} .value=${c.grid ?? DEFAULT_GRID}
-                   @change=${e => this._setCanvas('grid', Math.max(0,
-                     (pctGrid ? parseFloat(e.target.value) : parseInt(e.target.value)) || 0))}>
-            <select style="width:60px" @change=${e => this._setGridUnit(e.target.value)}>
-              <option value="px" ?selected=${!pctGrid}>px</option>
-              <option value="pct" ?selected=${pctGrid}>%</option>
-            </select>
-            <select style="width:110px" @change=${e => {
+          <div class="ctl">
+            <select @change=${e => {
               const v = e.target.value;
-              this._setCanvas('snap', v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)));
+              this._setGridPct({ snap: v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)) });
             }}>
-              <option value="grid" ?selected=${c.snap === undefined}>Snap to grid</option>
-              <option value="free" ?selected=${c.snap === 0}>Free</option>
+              <option value="grid" ?selected=${snapValue === undefined}>Snap to grid</option>
+              <option value="free" ?selected=${snapValue === 0}>Free</option>
               ${snapSteps.map(n => html`
-                <option value=${n} ?selected=${c.snap === n}>Step ${n}${pctGrid ? '%' : ''}</option>`)}
+                <option value=${n} ?selected=${snapValue === n}>Step ${n}%</option>`)}
             </select>
+            <input class="num" type="number" min="0" step="any" .value=${gridValue}
+                   @change=${e => this._setGridPct({ grid: Math.max(0, parseFloat(e.target.value) || 0) })}>
+            <span class="hint">% grid</span>
           </div>
         </div>
-        ${pctGrid ? html`
-          <div class="hint" style="margin:-4px 0 4px 0;">
-            Per cent of the canvas width, so the grid keeps its proportions when the canvas is
-            reshaped. ${c.grid > 0 ? html`Currently ${gridToUnits(c, c.grid)} of ${c.w} units.` : ''}
-          </div>` : ''}
+        <div class="hint" style="margin:-4px 0 4px 0;">
+          Per cent of the canvas width, so the grid keeps its proportions when the canvas is
+          reshaped. ${gridValue > 0 ? html`Currently ${gridToUnits({ ...c, grid_unit: 'pct' }, gridValue)} of ${c.w} units.` : ''}
+        </div>
 
         <div class="row">
           <label>Live preview</label>

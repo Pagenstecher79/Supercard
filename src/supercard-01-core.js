@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
-import { reportedRows, isHeightPinned, canvasFromGrid } from "./canvas-model.js";
+import { reportedRows, isHeightPinned, canvasFromGrid, defaultShapeRows } from "./canvas-model.js";
 import { stripDeadConfig, migrateSlotKey } from "./config-cleanup.js";
 import { rowsAsCanvas } from "./rows-compat.js";
 
@@ -561,25 +561,30 @@ class SupercardCore extends LitElement {
    * percentage of the shorter side here, so it follows the card when Home
    * Assistant's layout gives it a different box.
    *
-   * The full width of the section, and half the height that shape asks for.
-   * `canvasFromGrid` reproduces the box the card occupies, which is the right
-   * answer when converting a card that already draws something - but Home
-   * Assistant's own default box is three columns by three rows, and empty that
-   * is a tall blank rectangle in a quarter-width column. `full` rather than
-   * the twelve that equals it today, so a section made wider later takes the
-   * card with it. The card reports `rows: "auto"`, so the canvas' ratio *is*
-   * its height: in a 480px section a new card is 480 x 92 rather than
-   * 114 x 160. Nothing nags about the mismatch, because `_gridMismatch` only
-   * speaks when a row count has actually been set; setting one, in either tab,
-   * reshapes the canvas to the box as before.
+   * The full width of the section, and the row count a card that wide starts
+   * at - `defaultShapeRows`, a third of the columns, which is 2:1 at every
+   * width. `full` rather than the twelve that equals it today, so a section
+   * made wider later takes the card with it.
+   *
+   * Home Assistant's own default box is three columns by three rows, and empty
+   * that is a tall blank rectangle in a quarter-width column.
+   *
+   * No `rows` in `grid_options`. The row count describes the canvas' *shape*,
+   * not the card's height: a number there would pin the height in pixels while
+   * the width goes on following the viewport, and the canvas would sit in the
+   * middle of it with bands down the sides. Reporting `rows: "auto"` instead
+   * makes the ratio the height, so the card scales and nothing letterboxes.
    */
   static getStubConfig() {
     const slot = { layout_active: true, border_radius: 12,
                    border_radius_unit: '%', border_radius_ref: 'min' };
     const grid_options = { columns: 'full' };
-    const shape = canvasFromGrid({ grid_options }, slot);
+    const rows = defaultShapeRows('full');
+    const shape = canvasFromGrid({ grid_options: { ...grid_options, rows } }, slot);
     return { entity: '', grid_options, gauge_studio: { ...slot,
-      canvas: { w: shape.w, h: Math.round(shape.h / 2), elements: [] } } };
+      // A grid in per cent, because the canvas is reshaped whenever the card's
+      // columns change and a grid in units would not survive it.
+      canvas: { w: shape.w, h: shape.h, grid: 2.5, grid_unit: 'pct', elements: [] } } };
   }
 
   static get styles() {
