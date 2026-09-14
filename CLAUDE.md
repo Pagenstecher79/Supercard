@@ -277,13 +277,12 @@ the gain:
 
 **One editor architecture.** An editor is a field array: a field is a record -
 `{ id, label, type }` plus what its type needs - and `SC.renderField` turns it
-into a control. The gauge and the bar were written that way from the start;
-labels and interaction were converted to it. Colour and fx-glass still write
-their markup by hand and are next; the canvas editor is not a list of fields
-at all and stays as it is. Do not add a hand-written field to an editor that
-has a field array, and do not invent a second renderer: a block that is not a
-field - a preview, a picker grid, a datalist - is `type: 'custom'` and hands
-the markup back through `render(ctx)`.
+into a control. Every editor of a list is written that way - the gauge, the
+bar, labels, interaction, colour and the glass. The canvas editor is not a
+list of fields at all and stays as it is. Do not add a hand-written field to
+an editor that has a field array, and do not invent a second renderer: a block
+that is not a field - a preview, a picker grid, a datalist - is
+`type: 'custom'` and hands the markup back through `render(ctx)`.
 
 ## Performance
 

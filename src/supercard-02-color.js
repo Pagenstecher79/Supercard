@@ -84,6 +84,300 @@ class ScColorEditor extends LitElement {
     this._expanded = { ...this._expanded, [id]: !this._expanded[id] };
   }
 
+  /** What the pattern's own settings look like, as a field array. */
+  _fields() {
+    const waveOrRipple = pat => ['ripple', 'waves'].includes(pat.animation);
+    const wobble = pat => ['wobble_radial', 'wobble_linear'].includes(pat.animation);
+    const waveColors = pat => waveOrRipple(pat) || wobble(pat);
+    const radialCenter = pat => pat.bg_type === 'radial' || pat.animation === 'ripple' || pat.animation === 'wobble_radial';
+    const angled = pat => pat.bg_type === 'linear' || pat.animation === 'waves' || pat.animation === 'wobble_linear';
+    // The card's own corner is the sensible default for the card, and a plain
+    // off for anything drawn inside it.
+    const autoBorder = pat => pat.border_radius_auto === undefined ? (pat.target === 'main') : pat.border_radius_auto;
+    const fluid = pat => pat.animation === 'fluid';
+    const caption = 'font-size:11px; font-weight:bold; color:var(--primary-color); margin-top:4px;';
+    const small = 'font-size:11px; color:var(--secondary-text-color);';
+
+    return [
+      { id: 'name', label: 'Name (internal)', type: 'text' },
+      { id: 'target', label: 'Target container', type: 'select', width: '60%',
+        options: (pat, ctx) => ctx.targets.map(t => {
+          const locked = t.id !== 'none' && t.id !== pat.target && ctx.usedTargets.includes(t.id);
+          return { value: t.id, disabled: locked, selected: pat.target === t.id,
+                   label: locked ? t.label + ' (Already in use)' : t.label };
+        }) },
+
+      { type: 'details', label: '🎨 Design & Colors', style: 'margin-top: 4px; margin-bottom: 0;', fields: [
+        { id: 'border_radius_auto', label: 'Automatic corner radius', type: 'checkbox', value: autoBorder },
+        { type: 'custom', condition: pat => !autoBorder(pat), render: ctx => this._radiusRow(ctx) },
+
+        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;', condition: waveColors,
+          label: 'The colors are calculated dynamically by the effect.' },
+        { id: 'wave_count', label: 'Count (density)', type: 'range', min: 1, max: 20, int: true,
+          placeholder: 3, condition: waveColors },
+        { id: 'wave_balance', label: 'Balance (peak vs. trough)', type: 'range', min: 5, max: 95,
+          int: true, placeholder: 50, condition: waveColors },
+        { id: 'wave_c1', label: 'Line/wave color (peak)', type: 'color', fallback: '#03a9f4',
+          textFallback: true, condition: waveColors },
+        { id: 'wave_c2', label: 'Background color (trough)', type: 'color', fallback: 'transparent',
+          textFallback: true, condition: waveColors },
+        { type: 'note', class: '', bare: true, style: caption, label: 'Gradient preview', condition: waveColors },
+        { type: 'custom', condition: waveColors, render: ctx => this._wavePreview(ctx, angled(ctx.entry)) },
+
+        { id: 'bg_type', label: 'Background type', type: 'select', width: '60%',
+          condition: pat => !waveColors(pat) && !fluid(pat), options: pat => [
+            { value: 'solid', label: 'Solid (static)', selected: pat.bg_type === 'solid' },
+            { value: 'solid_gradient', label: 'Solid (dynamic from gradient)', selected: pat.bg_type === 'solid_gradient' },
+            { value: 'linear', label: 'Gradient (linear)', selected: pat.bg_type === 'linear' },
+            { value: 'radial', label: 'Gradient (radial)', selected: pat.bg_type === 'radial' },
+          ] },
+        { type: 'note', class: '', bare: true, style: caption, label: '🌊 Fluid mode (dynamic mesh)',
+          condition: pat => !waveColors(pat) && fluid(pat) },
+        { type: 'note', class: 'info-text', bare: true, style: 'color:var(--secondary-text-color); margin-top:0;',
+          label: 'Generates an endless, organically flowing vector animation.',
+          condition: pat => !waveColors(pat) && fluid(pat) },
+        { id: 'fluid_style', label: 'Fluid style (viscosity)', type: 'select', width: '60%',
+          style: 'margin-top:4px;', condition: pat => !waveColors(pat) && fluid(pat), options: pat => [
+            { value: 'aurora', label: 'Aurora (gentle mesh, GentleRain)', selected: !pat.fluid_style || pat.fluid_style === 'aurora' },
+            { value: 'gooey', label: 'Liquid (lava/water, WbONyK)', selected: pat.fluid_style === 'gooey' },
+            { value: 'smoke', label: 'Smoke / fog', selected: pat.fluid_style === 'smoke' },
+            { value: 'particles', label: 'Particles / stardust', selected: pat.fluid_style === 'particles' },
+          ] },
+        { type: 'custom', condition: pat => !waveColors(pat), render: ctx => this._colorsBlock(ctx) },
+
+        { id: 'gradient_angle', label: 'Angle (degrees)', type: 'range', min: 0, max: 360, int: true,
+          placeholder: 90, style: 'margin-top:8px;', condition: angled },
+        { id: 'opacity', label: 'Opacity (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 100 },
+      ] },
+
+      { type: 'details', label: '📊 Data source for color calculation',
+        condition: pat => pat.bg_type === 'solid_gradient' && !fluid(pat), fields: [
+          { id: 'global_id', label: 'Data source', type: 'select', layout: 'col',
+            style: 'margin-bottom: 4px;', labelStyle: small,
+            controlStyle: 'width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color);',
+            options: pat => this._sourceOptions(pat) },
+          { type: 'custom', condition: pat => !pat.global_id || pat.global_id === 'manual',
+            render: ctx => this._manualSource(ctx) },
+          { type: 'group', class: 'row', style: 'margin-top:4px; gap:12px;', fields: [
+            { id: 'gradient_entity_min', label: 'Min (0%)', type: 'number', layout: 'col',
+              style: 'flex:1;', labelStyle: small, controlStyle: '', step: '0.1',
+              value: pat => pat.gradient_entity_min ?? 0 },
+            { id: 'gradient_entity_max', label: 'Max (100%)', type: 'number', layout: 'col',
+              style: 'flex:1;', labelStyle: small, controlStyle: '', step: '0.1',
+              value: pat => pat.gradient_entity_max ?? 100 },
+          ] },
+        ] },
+
+      { type: 'details', label: '📍 Center / origin', condition: radialCenter, fields: [
+        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
+          label: 'Tap or drag inside the box to freely move the origin point.' },
+        { type: 'custom', render: ctx => this._originPad(ctx) },
+        { type: 'group', class: 'row', fields: [
+          { id: 'radial_x', label: pat => 'X-axis (' + (pat.radial_x ?? 50) + '%)', type: 'range',
+            layout: 'col', style: 'flex:1;margin-right:8px', labelStyle: 'font-size:10px',
+            min: 0, max: 100, int: true, width: '100%', placeholder: 50 },
+          { id: 'radial_y', label: pat => 'Y-axis (' + (pat.radial_y ?? 50) + '%)', type: 'range',
+            layout: 'col', style: 'flex:1', labelStyle: 'font-size:10px',
+            min: 0, max: 100, int: true, width: '100%', placeholder: 50 },
+        ] },
+      ] },
+
+      { type: 'details', label: '⚙️ Condition: show background', fields: [
+        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
+          label: 'Without a condition the background is always visible.' },
+        { type: 'custom', render: ctx => this._conditionSelector(ctx, 'bg_condition') },
+      ] },
+
+      { type: 'details', label: '🎬 Animation & mode', fields: [
+        { id: 'animation', label: 'Effect', type: 'select', width: '60%', options: pat => [
+          { value: 'none', label: 'None (background only)', selected: pat.animation === 'none' },
+          { value: 'pulse', label: 'Pulse (opacity)', selected: pat.animation === 'pulse' },
+          { value: 'pump', label: 'Pump (scale in/out)', selected: pat.animation === 'pump' },
+          { value: 'ripple', label: 'Rings (concentric)', selected: pat.animation === 'ripple' },
+          { value: 'waves', label: 'Waves (linear traveling)', selected: pat.animation === 'waves' },
+          { value: 'wobble_radial', label: 'Water drop (radial fade-out)', selected: pat.animation === 'wobble_radial' },
+          { value: 'wobble_linear', label: 'Shockwave (linear fade-out)', selected: pat.animation === 'wobble_linear' },
+          { value: 'fluid', label: 'Liquid (undulating mesh)', selected: pat.animation === 'fluid' },
+        ] },
+
+        { type: 'group', class: 'row', condition: wobble,
+          style: 'background:rgba(3,169,244,0.1); padding:8px; border-radius:6px; margin-top:4px;', fields: [
+            { type: 'group', class: 'col', style: 'width:100%; gap:12px;', fields: [
+              { id: 'wobble_amplitude', label: 'Start amplitude (contrast)', type: 'range',
+                style: 'margin:0', min: 1, max: 100, int: true, placeholder: 100 },
+              { id: 'wobble_freq', label: 'Range (spread)', type: 'range',
+                style: 'margin:0', min: 1, max: 10, int: true, placeholder: 4 },
+              { id: 'wobble_pause', label: 'Pause after effect (sec.)', type: 'range',
+                style: 'margin:0', min: 0, max: 10, step: 0.5, placeholder: 2 },
+            ] },
+          ] },
+
+        { id: 'anim_duration', type: 'range', min: 0.5, max: 20, step: 0.1, placeholder: 3,
+          style: 'margin-top:4px', condition: pat => pat.animation !== 'none',
+          label: pat => wobble(pat) ? 'Fade-out time (duration in sec.)' : 'Speed (sec.)' },
+        { id: 'pump_scale', label: 'Pump expansion', type: 'range', min: 1.0, max: 1.2, step: 0.001,
+          placeholder: 1.1, condition: pat => pat.animation === 'pump' },
+        { id: 'wave_invert', label: 'Reverse direction', type: 'checkbox', condition: waveOrRipple },
+      ] },
+
+      { type: 'details', label: '⚙️ Condition: run animation', condition: pat => pat.animation !== 'none', fields: [
+        { type: 'note', class: 'info-text', bare: true, style: 'margin-top:0;',
+          label: 'Without a condition the animation is always active.' },
+        { type: 'custom', render: ctx => this._conditionSelector(ctx, 'anim_condition') },
+      ] },
+    ];
+  }
+
+  /** The corner radius, and the unit it is in. */
+  _radiusRow(ctx) {
+    const pat = ctx.entry;
+    return html`
+      <div class="row">
+        <label>Corner radius (manual)</label>
+        <div style="display:flex;width:60%;gap:4px">
+          <input type="number" style="flex:1" .value=${pat.border_radius ?? ''}
+                 @input=${e => ctx.set('border_radius', e.target.value)}>
+          <select style="width:60px" @change=${e => ctx.set('border_radius_unit', e.target.value)}>
+            <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
+            <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
+          </select>
+        </div>
+      </div>`;
+  }
+
+  /** What an effect's two colours look like where they meet. */
+  _wavePreview(ctx, angled) {
+    const pat = ctx.entry;
+    const c1 = pat.wave_c1 || '#03a9f4';
+    const c2 = pat.wave_c2 || 'transparent';
+    const bg = angled
+      ? 'repeating-linear-gradient(' + (pat.gradient_angle ?? 90) + 'deg, ' + c1 + ' 0%, ' + c2 + ' 50%, ' + c1 + ' 100%)'
+      : 'repeating-radial-gradient(circle at ' + (pat.radial_x ?? 50) + '% ' + (pat.radial_y ?? 50) + '%, ' + c1 + ' 0%, ' + c2 + ' 50%, ' + c1 + ' 100%)';
+    return html`<div style="height:10px;border-radius:5px; background:${bg}"></div>`;
+  }
+
+  /**
+   * The pattern's colours.
+   *
+   * A solid background is one colour, so it keeps the plain swatch; everything
+   * else - a gradient, or the fluid mesh whose positions are blob radii - is a
+   * stop list, and gets the shared editor.
+   */
+  _colorsBlock(ctx) {
+    const pat = ctx.entry;
+    const gradient = pat.bg_type !== 'solid' || pat.animation === 'fluid';
+    const stopList = normalizeStops(
+      pat.gradient_stops ?? { colors: pat.colors, stops: pat.stops }, { fill: false });
+    const solidColor = stopList[0]?.color || '#ff9800';
+    // The preview strip is the one in the stop editor, so a pattern hands it
+    // the gradient it actually paints - its angle, or the radial's centre -
+    // rather than a left-to-right stand-in.
+    const previewCss = pat.animation === 'fluid'
+      ? ''
+      : pat.bg_type === 'radial'
+        ? 'radial-gradient(circle at ' + (pat.radial_x ?? 50) + '% '
+          + (pat.radial_y ?? 50) + '%, ' + stopsToCss(stopList) + ')'
+        : 'linear-gradient(' + (pat.gradient_angle ?? 90) + 'deg, '
+          + stopsToCss(stopList) + ')';
+    const setSolid = value => ctx.setStops([{ pos: stopList[0]?.pos ?? null, color: value }]);
+
+    return html`
+      <div class="col"><label>Colors</label>
+        ${gradient ? html`
+          <sc-gradient-stops .stops=${stopList} .previewCss=${previewCss}
+            .onUpdate=${list => ctx.setStops(list)}></sc-gradient-stops>
+          ${pat.animation === 'fluid' ? html`
+            <div class="info-text" style="color:var(--secondary-text-color);">A position here is the blob's radius, not a place along a line.</div>
+          ` : ''}
+        ` : html`
+          <div class="color-list">
+            <div class="color-item"><div class="color-item-row">
+              <input type="color" .value=${solidColor} @input=${e => setSolid(e.target.value)}>
+              <input type="text" .value=${solidColor} style="flex:1" @input=${e => setSolid(e.target.value)}>
+            </div></div>
+          </div>
+        `}
+      </div>`;
+  }
+
+  /** Where the value driving a dynamic colour comes from: an alias, or here. */
+  _sourceOptions(pat) {
+    const options = [{ value: 'manual', label: 'Manual selection',
+                       selected: pat.global_id === 'manual' || !pat.global_id }];
+    (this.slot?.global_entities || []).forEach(ge => {
+      const stateObj = ge.entity ? this.hass.states[ge.entity] : null;
+      const name = ge.alias || stateObj?.attributes?.friendly_name || ge.entity || 'Unnamed';
+      let val = stateObj ? stateObj.state : '-';
+      if (stateObj && ge.attribute && stateObj.attributes[ge.attribute] !== undefined) {
+        val = stateObj.attributes[ge.attribute];
+      }
+      const uom = (!ge.attribute && stateObj?.attributes?.unit_of_measurement) ? ` ${stateObj.attributes.unit_of_measurement}` : '';
+      const attrLabel = ge.attribute ? ` (${ge.attribute})` : '';
+      options.push({ value: ge.id, selected: pat.global_id === ge.id,
+                     label: `[${ge.alias || 'Alias'}] ${name}${attrLabel}: ${val}${uom}` });
+    });
+    return options;
+  }
+
+  /** An entity and an attribute of this pattern's own. */
+  _manualSource(ctx) {
+    const pat = ctx.entry;
+    return html`
+      <div style="background:rgba(0,0,0,0.15); padding:10px; border-radius:8px; border:1px solid var(--divider-color,#333);">
+        <ha-selector .hass=${this.hass} .selector=${{entity:{}}}
+          .value=${pat.gradient_entity||''} .label=${'Entity (value source)'}
+          @value-changed=${e => ctx.set('gradient_entity', e.detail.value)}>
+        </ha-selector>
+        <div style="margin-top:8px;">
+          <ha-selector .hass=${this.hass}
+            .selector=${{attribute:{entity_id: pat.gradient_entity||''}}}
+            .value=${pat.gradient_entity_attribute||''} .label=${'Attribute (optional)'}
+            @value-changed=${e => ctx.set('gradient_entity_attribute', e.detail.value || undefined)}>
+          </ha-selector>
+        </div>
+      </div>`;
+  }
+
+  /** The origin of a radial gradient, dragged in a box. */
+  _originPad(ctx) {
+    const pat = ctx.entry;
+    return html`
+      <div class="pos-preview-wrap">
+        <div class="pos-preview"
+          @pointerdown=${e => {
+            e.stopPropagation();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const updatePos = (ev) => {
+              ev.stopPropagation();
+              const rect = ev.currentTarget.getBoundingClientRect();
+              let pctX = Math.round((Math.max(0,Math.min(ev.clientX-rect.left,rect.width)) / rect.width) * 100);
+              let pctY = Math.round((Math.max(0,Math.min(ev.clientY-rect.top,rect.height)) / rect.height) * 100);
+              if (pctX !== (pat.radial_x ?? 50) || pctY !== (pat.radial_y ?? 50)) {
+                ctx.setMany({ radial_x: pctX, radial_y: pctY });
+              }
+            };
+            updatePos(e);
+            e.currentTarget.onpointermove = updatePos;
+          }}
+          @pointerup=${e => { e.stopPropagation(); e.currentTarget.onpointermove = null; e.currentTarget.releasePointerCapture(e.pointerId); }}
+          @pointercancel=${e => { e.stopPropagation(); e.currentTarget.onpointermove = null; }}>
+          <div class="pos-dot" style="left:${pat.radial_x ?? 50}%;top:${pat.radial_y ?? 50}%"></div>
+        </div>
+        <button class="icon-btn" title="Center (50/50)"
+          @click=${() => ctx.setMany({ radial_x: 50, radial_y: 50 })}>
+          <ha-icon icon="mdi:crosshairs-gps" style="--mdc-icon-size:20px"></ha-icon>
+        </button>
+      </div>`;
+  }
+
+  /** Home Assistant's own condition editor, for one of the two conditions. */
+  _conditionSelector(ctx, key) {
+    return html`
+      <ha-selector .hass=${this.hass} .selector=${{ condition: {} }} .value=${ctx.entry[key]}
+        @value-changed=${e => ctx.set(key, e.detail.value)}>
+      </ha-selector>`;
+  }
+
   render() {
     if (!this.slot) return html``;
     const patterns = Array.isArray(this.slot.color_patterns) ? this.slot.color_patterns : [];
@@ -97,33 +391,6 @@ class ScColorEditor extends LitElement {
           ${patterns.map((pat, idx) => {
             const isExp = !!this._expanded[pat.id];
             const targetLabel = targets.find(t => t.id === pat.target)?.label || 'Unknown target';
-
-            const isWaveOrRipple = ['ripple', 'waves'].includes(pat.animation);
-            const isWobble       = ['wobble_radial', 'wobble_linear'].includes(pat.animation);
-            const usesWaveColors = isWaveOrRipple || isWobble;
-
-            const needsRadialCenter = pat.bg_type === 'radial' || pat.animation === 'ripple' || pat.animation === 'wobble_radial';
-            const needsAngle        = pat.bg_type === 'linear' || pat.animation === 'waves' || pat.animation === 'wobble_linear';
-
-            const isAutoBorder = pat.border_radius_auto === undefined ? (pat.target === 'main') : pat.border_radius_auto;
-
-            // A solid background is one colour, so it keeps the plain swatch;
-            // everything else - a gradient, or the fluid mesh whose positions
-            // are blob radii - is a stop list, and gets the shared editor.
-            const gradient   = pat.bg_type !== 'solid' || pat.animation === 'fluid';
-            const stopList   = normalizeStops(
-              pat.gradient_stops ?? { colors: pat.colors, stops: pat.stops }, { fill: false });
-            const solidColor = stopList[0]?.color || '#ff9800';
-            // The preview strip is the one in the stop editor, so a pattern
-            // hands it the gradient it actually paints - its angle, or the
-            // radial's centre - rather than a left-to-right stand-in.
-            const previewCss = pat.animation === 'fluid'
-              ? ''
-              : pat.bg_type === 'radial'
-                ? 'radial-gradient(circle at ' + (pat.radial_x ?? 50) + '% '
-                  + (pat.radial_y ?? 50) + '%, ' + stopsToCss(stopList) + ')'
-                : 'linear-gradient(' + (pat.gradient_angle ?? 90) + 'deg, '
-                  + stopsToCss(stopList) + ')';
 
             return html`
               <div class="pattern-card">
@@ -159,298 +426,16 @@ class ScColorEditor extends LitElement {
 
                 ${isExp ? html`
                   <div class="pattern-content" style="display:flex; flex-direction:column; gap:8px;">
-                    <div class="col">
-                      <label>Name (internal)</label>
-                      <input type="text" .value=${pat.name || ''} @input=${e => { this._set(patterns, idx, 'name', e.target.value); }}>
-                    </div>
-                    <div class="row">
-                      <label>Target container</label>
-                      <select style="width:60%" @change=${e => { this._set(patterns, idx, 'target', e.target.value); }}>
-                        ${targets.map(t => {
-                          const isLocked = t.id !== 'none' && t.id !== pat.target && usedTargets.includes(t.id);
-                          return html`<option value=${t.id} ?selected=${pat.target === t.id} ?disabled=${isLocked}>
-                            ${t.label} ${isLocked ? '(Already in use)' : ''}
-                          </option>`;
-                        })}
-                      </select>
-                    </div>
-
-                    <details class="inner-section"  style="margin-top: 4px; margin-bottom: 0;">
-                      <summary style="font-size: 13px; color: var(--primary-color);"><span>🎨 Design &amp; Colors</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
-                      <div class="inner-content" style="gap: 8px;">
-                        <div class="row">
-                          <label>Automatic corner radius</label>
-                          <ha-switch .checked=${isAutoBorder}
-                            @change=${e => { this._set(patterns, idx, 'border_radius_auto', e.target.checked); }}>
-                          </ha-switch>
-                        </div>
-
-                        ${!isAutoBorder ? html`
-                          <div class="row">
-                            <label>Corner radius (manual)</label>
-                            <div style="display:flex;width:60%;gap:4px">
-                              <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} @input=${e => { this._set(patterns, idx, 'border_radius', e.target.value); }}>
-                              <select style="width:60px" @change=${e => { this._set(patterns, idx, 'border_radius_unit', e.target.value); }}>
-                                <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
-                                <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
-                              </select>
-                            </div>
-                          </div>
-                        ` : ''}
-
-                        ${usesWaveColors ? html`
-                          <div class="info-text" style="margin-top:0;">The colors are calculated dynamically by the effect.</div>
-                          <div class="row"><label>Count (density)</label>
-                            ${SC.slider(pat.wave_count ?? 3, v => this._set(patterns, idx, 'wave_count', v), { min: 1, max: 20, width: '60%', int: true })}
-                          </div>
-                          <div class="row"><label>Balance (peak vs. trough)</label>
-                            ${SC.slider(pat.wave_balance ?? 50, v => this._set(patterns, idx, 'wave_balance', v), { min: 5, max: 95, width: '60%', int: true })}
-                          </div>
-                          <div class="col"><label>Line/wave color (peak)</label>
-                            ${SC.colorRow(pat.wave_c1 || '', v => this._set(patterns, idx, 'wave_c1', v), { fallback: '#03a9f4', textFallback: true })}
-                          </div>
-                          <div class="col"><label>Background color (trough)</label>
-                            ${SC.colorRow(pat.wave_c2 || '', v => this._set(patterns, idx, 'wave_c2', v), { fallback: 'transparent', textFallback: true })}
-                          </div>
-                          <div style="font-size:11px; font-weight:bold; color:var(--primary-color); margin-top:4px;">Gradient preview</div>
-                          <div style="height:10px;border-radius:5px; background:${
-                            needsAngle
-                            ? `repeating-linear-gradient(${pat.gradient_angle ?? 90}deg, ${pat.wave_c1||'#03a9f4'} 0%, ${pat.wave_c2||'transparent'} 50%, ${pat.wave_c1||'#03a9f4'} 100%)`
-                            : `repeating-radial-gradient(circle at ${pat.radial_x??50}% ${pat.radial_y??50}%, ${pat.wave_c1||'#03a9f4'} 0%, ${pat.wave_c2||'transparent'} 50%, ${pat.wave_c1||'#03a9f4'} 100%)`
-                          }"></div>
-                        ` : html`
-                          ${pat.animation !== 'fluid' ? html`
-                            <div class="row"><label>Background type</label>
-                              <select style="width:60%" @change=${e => { this._set(patterns, idx, 'bg_type', e.target.value); }}>
-                                <option value="solid"          ?selected=${pat.bg_type === 'solid'}>Solid (static)</option>
-                                <option value="solid_gradient" ?selected=${pat.bg_type === 'solid_gradient'}>Solid (dynamic from gradient)</option>
-                                <option value="linear"         ?selected=${pat.bg_type === 'linear'}>Gradient (linear)</option>
-                                <option value="radial"         ?selected=${pat.bg_type === 'radial'}>Gradient (radial)</option>
-                              </select>
-                            </div>
-                          ` : html`
-                            <div style="font-size:11px; font-weight:bold; color:var(--primary-color); margin-top:4px;">🌊 Fluid mode (dynamic mesh)</div>
-                            <div class="info-text" style="color:var(--secondary-text-color); margin-top:0;">Generates an endless, organically flowing vector animation.</div>
-                            <div class="row" style="margin-top:4px;">
-                              <label>Fluid style (viscosity)</label>
-                              <select style="width:60%" @change=${e => { this._set(patterns, idx, 'fluid_style', e.target.value); }}>
-                                <option value="aurora" ?selected=${!pat.fluid_style || pat.fluid_style === 'aurora'}>Aurora (gentle mesh, GentleRain)</option>
-                                <option value="gooey"  ?selected=${pat.fluid_style === 'gooey'}>Liquid (lava/water, WbONyK)</option>
-                                <option value="smoke"     ?selected=${pat.fluid_style === 'smoke'}>Smoke / fog</option>
-                                <option value="particles" ?selected=${pat.fluid_style === 'particles'}>Particles / stardust</option>
-                                </select>
-                            </div>
-                          `}
-
-                          <div class="col"><label>Colors</label>
-                            ${gradient ? html`
-                              <sc-gradient-stops .stops=${stopList} .previewCss=${previewCss}
-                                .onUpdate=${list => this._setStops(patterns, idx, list)}></sc-gradient-stops>
-                              ${pat.animation === 'fluid' ? html`
-                                <div class="info-text" style="color:var(--secondary-text-color);">A position here is the blob's radius, not a place along a line.</div>
-                              ` : ''}
-                            ` : html`
-                              <div class="color-list">
-                                <div class="color-item"><div class="color-item-row">
-                                  <input type="color" .value=${solidColor}
-                                    @input=${e => this._setStops(patterns, idx, [{ pos: stopList[0]?.pos ?? null, color: e.target.value }])}>
-                                  <input type="text" .value=${solidColor} style="flex:1"
-                                    @input=${e => this._setStops(patterns, idx, [{ pos: stopList[0]?.pos ?? null, color: e.target.value }])}>
-                                </div></div>
-                              </div>
-                            `}
-                          </div>
-                        `}
-
-                        ${needsAngle ? html`
-                          <div class="row" style="margin-top:8px;"><label>Angle (degrees)</label>
-                            ${SC.slider(pat.gradient_angle ?? 90, v => this._set(patterns, idx, 'gradient_angle', v), { min: 0, max: 360, width: '60%', int: true })}
-                          </div>` : ''}
-
-                        <div class="row">
-                          <label>Opacity (%)</label>
-                          ${SC.slider(pat.opacity ?? 100, v => this._set(patterns, idx, 'opacity', v), { min: 0, max: 100, width: '60%', int: true })}
-                        </div>
-                      </div>
-                    </details>
-
-                    ${pat.bg_type === 'solid_gradient' && pat.animation !== 'fluid' ? html`
-                      <details class="inner-section" style="margin-bottom: 0;">
-                        <summary style="font-size: 13px; color: var(--primary-color);"><span>📊 Data source for color calculation</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
-                        <div class="inner-content" style="gap: 8px;">
-
-                          <div class="col" style="margin-bottom: 4px;">
-                            <label style="font-size:11px; color:var(--secondary-text-color);">Data source</label>
-                            <select style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color, #2b2b2b); color: var(--primary-text-color);" @change=${e => { this._set(patterns, idx, 'global_id', e.target.value); }}>
-                              <option value="manual" ?selected=${pat.global_id === 'manual' || !pat.global_id}>Manual selection</option>
-                              ${(this.slot?.global_entities || []).map(ge => {
-                                const stateObj = ge.entity ? this.hass.states[ge.entity] : null;
-                                const name = ge.alias || stateObj?.attributes?.friendly_name || ge.entity || 'Unnamed';
-                                let val = stateObj ? stateObj.state : '-';
-                                if (stateObj && ge.attribute && stateObj.attributes[ge.attribute] !== undefined) {
-                                  val = stateObj.attributes[ge.attribute];
-                                }
-                                const uom = (!ge.attribute && stateObj?.attributes?.unit_of_measurement) ? ` ${stateObj.attributes.unit_of_measurement}` : '';
-                                const attrLabel = ge.attribute ? ` (${ge.attribute})` : '';
-                                const label = `[${ge.alias || 'Alias'}] ${name}${attrLabel}: ${val}${uom}`;
-
-                                return html`<option value=${ge.id} ?selected=${pat.global_id === ge.id}>${label}</option>`;
-                              })}
-                            </select>
-                          </div>
-
-                          ${(!pat.global_id || pat.global_id === 'manual') ? html`
-                            <div style="background:rgba(0,0,0,0.15); padding:10px; border-radius:8px; border:1px solid var(--divider-color,#333);">
-                              <ha-selector .hass=${this.hass} .selector=${{entity:{}}}
-                                .value=${pat.gradient_entity||''} .label=${'Entity (value source)'}
-                                @value-changed=${e => { const n=structuredClone(patterns); n[idx].gradient_entity=e.detail.value; this._commit(n); }}>
-                              </ha-selector>
-                              <div style="margin-top:8px;">
-                                <ha-selector .hass=${this.hass}
-                                  .selector=${{attribute:{entity_id: pat.gradient_entity||''}}}
-                                  .value=${pat.gradient_entity_attribute||''} .label=${'Attribute (optional)'}
-                                  @value-changed=${e => { const n=structuredClone(patterns); n[idx].gradient_entity_attribute=e.detail.value||undefined; this._commit(n); }}>
-                                </ha-selector>
-                              </div>
-                            </div>
-                          ` : ''}
-
-                          <div class="row" style="margin-top:4px; gap:12px;">
-                            <div class="col" style="flex:1;">
-                              <label style="font-size:11px; color:var(--secondary-text-color);">Min (0%)</label>
-                              <input type="number" step="0.1" .value=${pat.gradient_entity_min??0}
-                                @input=${e=>{ const n=structuredClone(patterns); n[idx].gradient_entity_min=parseFloat(e.target.value); this._commit(n); }}>
-                            </div>
-                            <div class="col" style="flex:1;">
-                              <label style="font-size:11px; color:var(--secondary-text-color);">Max (100%)</label>
-                              <input type="number" step="0.1" .value=${pat.gradient_entity_max??100}
-                                @input=${e=>{ const n=structuredClone(patterns); n[idx].gradient_entity_max=parseFloat(e.target.value); this._commit(n); }}>
-                            </div>
-                          </div>
-                        </div>
-                      </details>
-                    ` : ''}
-
-                    ${needsRadialCenter ? html`
-                      <details class="inner-section" style="margin-bottom: 0;">
-                        <summary style="font-size: 13px; color: var(--primary-color);"><span>📍 Center / origin</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
-                        <div class="inner-content" style="gap: 8px;">
-                          <div class="info-text" style="margin-top:0;">Tap or drag inside the box to freely move the origin point.</div>
-                          <div class="pos-preview-wrap">
-                            <div class="pos-preview"
-                              @pointerdown=${e => {
-                                e.stopPropagation();
-                                e.currentTarget.setPointerCapture(e.pointerId);
-                                const updatePos = (ev) => {
-                                  ev.stopPropagation();
-                                  const rect = ev.currentTarget.getBoundingClientRect();
-                                  let pctX = Math.round((Math.max(0,Math.min(ev.clientX-rect.left,rect.width)) / rect.width) * 100);
-                                  let pctY = Math.round((Math.max(0,Math.min(ev.clientY-rect.top,rect.height)) / rect.height) * 100);
-                                  if (pctX !== (pat.radial_x ?? 50) || pctY !== (pat.radial_y ?? 50)) {
-                                    const n = structuredClone(patterns);
-                                    n[idx].radial_x = pctX; n[idx].radial_y = pctY;
-                                    this._commit(n);
-                                  }
-                                };
-                                updatePos(e);
-                                e.currentTarget.onpointermove = updatePos;
-                              }}
-                              @pointerup=${e => { e.stopPropagation(); e.currentTarget.onpointermove = null; e.currentTarget.releasePointerCapture(e.pointerId); }}
-                              @pointercancel=${e => { e.stopPropagation(); e.currentTarget.onpointermove = null; }}>
-                              <div class="pos-dot" style="left:${pat.radial_x ?? 50}%;top:${pat.radial_y ?? 50}%"></div>
-                            </div>
-                            <button class="icon-btn" title="Center (50/50)"
-                              @click=${() => { const n = structuredClone(patterns); n[idx].radial_x = 50; n[idx].radial_y = 50; this._commit(n); }}>
-                              <ha-icon icon="mdi:crosshairs-gps" style="--mdc-icon-size:20px"></ha-icon>
-                            </button>
-                          </div>
-                          <div class="row">
-                            <div class="col" style="flex:1;margin-right:8px">
-                              <label style="font-size:10px">X-axis (${pat.radial_x ?? 50}%)</label>
-                              ${SC.slider(pat.radial_x ?? 50, v => this._set(patterns, idx, 'radial_x', v), { min: 0, max: 100, width: '100%', int: true })}
-                            </div>
-                            <div class="col" style="flex:1">
-                              <label style="font-size:10px">Y-axis (${pat.radial_y ?? 50}%)</label>
-                              ${SC.slider(pat.radial_y ?? 50, v => this._set(patterns, idx, 'radial_y', v), { min: 0, max: 100, width: '100%', int: true })}
-                            </div>
-                          </div>
-                        </div>
-                      </details>
-                    ` : ''}
-
-                    <details class="inner-section" style="margin-bottom: 0;">
-                      <summary style="font-size: 13px; color: var(--primary-color);"><span>⚙️ Condition: show background</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
-                      <div class="inner-content" style="gap: 8px;">
-                        <div class="info-text" style="margin-top:0;">Without a condition the background is always visible.</div>
-                        <ha-selector .hass=${this.hass} .selector=${{ condition: {} }} .value=${pat.bg_condition}
-                          @value-changed=${e => { this._set(patterns, idx, 'bg_condition', e.detail.value); }}>
-                        </ha-selector>
-                      </div>
-                    </details>
-
-                    <details class="inner-section" style="margin-bottom: 0;">
-                      <summary style="font-size: 13px; color: var(--primary-color);"><span>🎬 Animation &amp; mode</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
-                      <div class="inner-content" style="gap: 8px;">
-                        <div class="row"><label>Effect</label>
-                          <select style="width:60%" @change=${e => { this._set(patterns, idx, 'animation', e.target.value); }}>
-                            <option value="none"           ?selected=${pat.animation==='none'}>None (background only)</option>
-                            <option value="pulse"          ?selected=${pat.animation==='pulse'}>Pulse (opacity)</option>
-                            <option value="pump"           ?selected=${pat.animation==='pump'}>Pump (scale in/out)</option>
-                            <option value="ripple"         ?selected=${pat.animation==='ripple'}>Rings (concentric)</option>
-                            <option value="waves"          ?selected=${pat.animation==='waves'}>Waves (linear traveling)</option>
-                            <option value="wobble_radial"  ?selected=${pat.animation==='wobble_radial'}>Water drop (radial fade-out)</option>
-                            <option value="wobble_linear"  ?selected=${pat.animation==='wobble_linear'}>Shockwave (linear fade-out)</option>
-                            <option value="fluid"          ?selected=${pat.animation==='fluid'}>Liquid (undulating mesh)</option>
-                          </select>
-                        </div>
-
-                        ${isWobble ? html`
-                          <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px; margin-top:4px;">
-                            <div class="col" style="width:100%; gap:12px;">
-                              <div class="row" style="margin:0"><label>Start amplitude (contrast)</label>
-                                ${SC.slider(pat.wobble_amplitude ?? 100, v => this._set(patterns, idx, 'wobble_amplitude', v), { min: 1, max: 100, width: '60%', int: true })}
-                              </div>
-                              <div class="row" style="margin:0"><label>Range (spread)</label>
-                                ${SC.slider(pat.wobble_freq ?? 4, v => this._set(patterns, idx, 'wobble_freq', v), { min: 1, max: 10, width: '60%', int: true })}
-                              </div>
-                              <div class="row" style="margin:0"><label>Pause after effect (sec.)</label>
-                                ${SC.slider(pat.wobble_pause ?? 2, v => this._set(patterns, idx, 'wobble_pause', v), { step: 0.5, min: 0, max: 10, width: '60%' })}
-                              </div>
-                            </div>
-                          </div>
-                        ` : ''}
-
-                        ${pat.animation !== 'none' ? html`
-                          <div class="row" style="margin-top:4px"><label>${isWobble ? 'Fade-out time (duration in sec.)' : 'Speed (sec.)'}</label>
-                            ${SC.slider(pat.anim_duration ?? 3, v => this._set(patterns, idx, 'anim_duration', v), { step: 0.1, min: 0.5, max: 20, width: '60%' })}
-                          </div>` : ''}
-
-                        ${pat.animation === 'pump' ? html`
-                          <div class="row"><label>Pump expansion</label>
-                            ${SC.slider(pat.pump_scale ?? 1.1, v => this._set(patterns, idx, 'pump_scale', v), { step: 0.001, min: 1.0, max: 1.2, width: '60%' })}
-                          </div>` : ''}
-
-                        ${isWaveOrRipple ? html`
-                          <div class="row"><label>Reverse direction</label>
-                            <ha-switch .checked=${!!pat.wave_invert}
-                              @change=${e => { this._set(patterns, idx, 'wave_invert', e.target.checked); }}>
-                            </ha-switch>
-                          </div>` : ''}
-                      </div>
-                    </details>
-
-                    ${pat.animation !== 'none' ? html`
-                      <details class="inner-section" style="margin-bottom: 0;">
-                        <summary style="font-size: 13px; color: var(--primary-color);"><span>⚙️ Condition: run animation</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
-                        <div class="inner-content" style="gap: 8px;">
-                          <div class="info-text" style="margin-top:0;">Without a condition the animation is always active.</div>
-                          <ha-selector .hass=${this.hass} .selector=${{ condition: {} }} .value=${pat.anim_condition}
-                            @value-changed=${e => { this._set(patterns, idx, 'anim_condition', e.detail.value); }}>
-                          </ha-selector>
-                        </div>
-                      </details>
-                    ` : ''}
-
+                    ${SC.renderFields(this._fields(), {
+                      entry: pat, slot: this.slot, hass: this.hass, targets, usedTargets,
+                      set: (key, value) => this._set(patterns, idx, key, value),
+                      setMany: fields => {
+                        const n = structuredClone(patterns);
+                        Object.assign(n[idx], fields);
+                        this._commit(n);
+                      },
+                      setStops: stops => this._setStops(patterns, idx, stops),
+                    })}
                   </div>
                 ` : ''}
               </div>

@@ -170,7 +170,7 @@ class ScLabelsEditor extends LitElement {
       { id: 'decimals', label: 'Decimal places', type: 'number', width: '60px',
         min: 0, max: 5, placeholder: 'Auto', int: true, condition: withEntity },
       { id: 'show_name', label: 'Show label / entity name', type: 'checkbox',
-        checked: item => item.show_name !== false, condition: withEntity },
+        value: item => item.show_name !== false, condition: withEntity },
       { id: 'use_override', label: 'Use manual text as name (override)', type: 'checkbox',
         condition: item => item.use_entity && item.show_name !== false },
 

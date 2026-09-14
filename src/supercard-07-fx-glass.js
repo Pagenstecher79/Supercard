@@ -190,7 +190,7 @@ function getTargets(slot) {
  * @param {any} [slot] the card's own config, for the controls only a circular
  *   bar has - which orientation a bar has is not in the pattern's target
  */
-function glassBody(pat, set, setMany, slot) {
+function glassFields() {
   /*
    * An element's glass fits itself: `inset: 0` on the element made
    * `position: relative`, or a centred `100cqmin` square where the element is
@@ -204,16 +204,127 @@ function glassBody(pat, set, setMany, slot) {
    * them outright - there the glass covers a container rather than a thing,
    * and where its edge falls is a real question.
    */
-  const isDirectElement = !!pat.target && pat.target.startsWith('elm_');
-  const showManualControls = !isDirectElement || pat.manual_override;
+  const isDirect = pat => !!pat.target && pat.target.startsWith('elm_');
+  const manual = pat => !isDirect(pat) || pat.manual_override;
 
-  /*
-   * The sun is the bevel's, but the relief below borrows it: both are lit from
-   * the same direction, and a relief on flat glass would otherwise be lit by a
-   * pad nobody can see. So the pad is one thing shown in whichever section is
-   * currently the one that uses it.
-   */
-  const sunPad = html`
+  return [
+    { type: 'heading', label: '📏 Dimensions & Shape' },
+
+    { id: 'manual_override', label: 'Manual adjustments', type: 'checkbox', condition: isDirect,
+      hint: "The glass fits the element by itself. Turn this on to depart from that - a negative edge distance makes it larger than the element, and the radius stops following the element's own." },
+
+    { id: 'force_square', label: 'Lock shape (1:1 aspect ratio)', type: 'checkbox', condition: manual,
+      hint: 'Forces a perfect square/circle (cqmin).',
+      style: 'background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;',
+      labelStyle: 'color:var(--primary-color)' },
+    { type: 'custom', condition: manual, render: ctx => paddingRow(ctx) },
+    { type: 'custom', condition: manual, render: ctx => radiusRow(ctx) },
+
+    { type: 'heading', label: '🍩 Ring / Donut Mask' },
+    { id: 'ring_effect', label: 'Hide center (hard edge)', type: 'checkbox',
+      hint: 'Blur & color only affect the edge exactly.', labelStyle: 'color:var(--primary-color)' },
+    { id: 'use_custom_ring_width', label: 'Use custom mask thickness', type: 'checkbox',
+      style: 'padding-top: 4px;', condition: pat => !!pat.ring_effect,
+      hint: pat => 'Off = thickness matches the bevel width exactly (' + (pat.bevel_width ?? pat.bevel_size ?? 2) + 'px)' },
+    { id: 'ring_width', label: 'Mask thickness (px)', type: 'range', min: 1, max: 50, step: 0.5,
+      placeholder: 5, condition: pat => pat.ring_effect && pat.use_custom_ring_width },
+    { id: 'ring_center_opacity', label: 'Effect strength in center (%)', type: 'range',
+      min: 0, max: 100, int: true, placeholder: 0, condition: pat => !!pat.ring_effect,
+      hint: '0 = blur & color completely hollow' },
+
+    { type: 'heading', label: '🔍 Optics (Magnifier & Curvature)' },
+    { id: 'zoom', label: 'Magnify content (zoom)', type: 'range', min: 1, max: 1.5, step: 0.01, placeholder: 1 },
+    { id: 'glare', label: 'Convex 3D shine (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 0 },
+    { id: 'refraction', label: 'Edge refraction (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 0,
+      hint: 'Bends what is behind the edge, the way real glass does. With blur at 0 this is clear glass: what is underneath stays readable and only the rim curls. Not shown by Safari or Firefox, which draw the pane without it.' },
+
+    { type: 'heading', label: '💧 Glass & Blur' },
+    { id: 'blur', label: 'Blur strength (px)', type: 'range', min: 0, max: 2, step: 0.01, placeholder: 10 },
+    { id: 'opacity', label: 'Background opacity (%)', type: 'range', min: 0, max: 100, int: true, placeholder: 10 },
+    { type: 'custom', render: ctx => html`
+      <div class="row"><label>Color (hex picker)</label>
+        <input type="color" .value=${ctx.entry.bg_rgb || '#ffffff'}
+               @input=${e => ctx.set('bg_rgb', e.target.value)}>
+      </div>` },
+
+    { type: 'heading', label: '🌒 Light Refraction & Bevel (Physics)' },
+    { id: 'shadow_style', label: 'Glass style', type: 'select', options: pat => [
+      { value: 'none', label: 'Flat (no edges)', selected: pat.shadow_style === 'none' },
+      { value: 'frosted', label: 'Frosted (soft edges)', selected: pat.shadow_style === 'frosted' },
+      { value: 'liquid', label: 'Liquid (physical refraction)', selected: pat.shadow_style === 'liquid' },
+    ] },
+
+    { type: 'custom', condition: pat => pat.shadow_style !== 'none', render: ctx => sunPad(ctx) },
+    { id: 'bevel_width', label: 'Bevel width (px)', type: 'range', min: 0, max: 30, step: 0.1,
+      hint: 'Extent of the edge inward', condition: pat => pat.shadow_style !== 'none',
+      value: pat => pat.bevel_width ?? pat.bevel_size ?? 2 },
+    { id: 'glass_thickness', label: 'Glass thickness (depth)', type: 'range', min: 0, max: 20, step: 0.5,
+      placeholder: 5, hint: 'Controls the steepness & refraction',
+      condition: pat => pat.shadow_style !== 'none' },
+    { id: 'light_brightness', label: 'Base brightness (light)', type: 'range', min: 0, max: 1, step: 0.001,
+      placeholder: 0.4, condition: pat => pat.shadow_style !== 'none' },
+
+    { type: 'heading', label: '⛰️ Relief', condition: (pat, slot) => isReliefTarget(pat.target, slot) },
+    { id: 'segment_relief', label: 'Light the ring too', type: 'checkbox',
+      condition: (pat, slot) => isReliefTarget(pat.target, slot),
+      hint: 'Gives the ring an edge of its own, lit from the same sun as the glass - each pill on a segmented bar, the stroke on a continuous one.' },
+    // The sun belongs to the bevel, but the relief borrows it: both are lit
+    // from the same direction, so the pad is shown in whichever section is
+    // currently the one that uses it.
+    { type: 'custom', render: ctx => sunPad(ctx),
+      condition: (pat, slot) => isReliefTarget(pat.target, slot) && pat.segment_relief && pat.shadow_style === 'none' },
+    { id: 'segment_relief_mode', label: 'Relief', type: 'select',
+      condition: (pat, slot) => isReliefTarget(pat.target, slot) && pat.segment_relief,
+      options: pat => [
+        { value: 'raised', label: 'Raised (standing out of the glass)', selected: pat.segment_relief_mode !== 'engraved' },
+        { value: 'engraved', label: 'Engraved (cut into the glass)', selected: pat.segment_relief_mode === 'engraved' },
+      ] },
+    { id: 'segment_relief_depth', label: 'Relief depth', type: 'range', min: 0, max: 3, step: 0.1,
+      placeholder: 0.6, condition: (pat, slot) => isReliefTarget(pat.target, slot) && pat.segment_relief,
+      hint: "In the bar's own unit, so it keeps its look as the ring resizes" },
+  ];
+}
+
+/** The edge distance: a slider, what it reads, and the unit it is in. */
+function paddingRow(ctx) {
+  const pat = ctx.entry;
+  const unit = pat.padding_unit || 'px';
+  return html`
+    <div class="row">
+      <label>Edge distance (inset / padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
+      <div style="display:flex; align-items:center; width:60%; gap:8px">
+        ${SC.slider(pat.padding ?? 0, v => ctx.set('padding', v), {
+          min: unit === '%' ? -100 : -50, max: unit === '%' ? 100 : 50, style: 'flex:1', int: true })}
+        <span style="font-size:11px; min-width:24px; text-align:right;">${pat.padding ?? 0}</span>
+        <select style="width:60px" @change=${e => ctx.set('padding_unit', e.target.value)}>
+          <option value="px" ?selected=${pat.padding_unit === 'px' || !pat.padding_unit}>px</option>
+          <option value="%" ?selected=${pat.padding_unit === '%'}>%</option>
+        </select>
+      </div>
+    </div>`;
+}
+
+/** The corner radius, and the unit it is in. */
+function radiusRow(ctx) {
+  const pat = ctx.entry;
+  return html`
+    <div class="row">
+      <label>Corner radius (border-radius)</label>
+      <div style="display:flex;width:60%;gap:4px">
+        <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} placeholder="Auto"
+               @input=${e => ctx.set('border_radius', e.target.value)}>
+        <select style="width:60px" @change=${e => ctx.set('border_radius_unit', e.target.value)}>
+          <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
+          <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
+        </select>
+      </div>
+    </div>`;
+}
+
+/** The direction the light falls from, as a pad with a lit sample in it. */
+function sunPad(ctx) {
+  const pat = ctx.entry;
+  return html`
     <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px dashed var(--divider-color, #444); display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 8px 0;">
       <label style="align-self: flex-start; margin-bottom: -4px;">Light source (sun)</label>
       <sc-shadow-pad
@@ -221,142 +332,29 @@ function glassBody(pat, set, setMany, slot) {
         .distance=${pat.shadow_distance ?? 1}
         .maxDistance=${5}
         .pattern=${pat}
-        @pad-change=${e => setMany({ shadow_angle: e.detail.angle, shadow_distance: e.detail.distance })}
+        @pad-change=${e => ctx.setMany({ shadow_angle: e.detail.angle, shadow_distance: e.detail.distance })}
       ></sc-shadow-pad>
       <div style="display: flex; gap: 16px; font-size: 11px; color: var(--secondary-text-color);">
         <span>Angle: <b style="color:var(--primary-color)">${pat.shadow_angle ?? 90}°</b></span>
         <span>Distance offset: <b style="color:var(--primary-color)">${pat.shadow_distance ?? 1}x</b></span>
       </div>
-    </div>
-  `;
-  return html`
-  <div class="section-title">📏 Dimensions & Shape</div>
+    </div>`;
+}
 
-  ${isDirectElement ? html`
-    <div class="row">
-      <label>Manual adjustments<br><span style="font-size:10px;color:var(--secondary-text-color)">The glass fits the element by itself. Turn this on to depart from that - a negative edge distance makes it larger than the element, and the radius stops following the element's own.</span></label>
-      <ha-switch .checked=${pat.manual_override ?? false} @change=${e => { set('manual_override', e.target.checked); }}></ha-switch>
-    </div>
-  ` : ''}
-
-  ${showManualControls ? html`
-    <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px;">
-      <label style="color:var(--primary-color)">Lock shape (1:1 aspect ratio)<br><span style="font-size:10px;color:var(--secondary-text-color)">Forces a perfect square/circle (cqmin).</span></label>
-      <ha-switch .checked=${pat.force_square ?? false} @change=${e => { set('force_square', e.target.checked); }}></ha-switch>
-    </div>
-    <div class="row">
-      <label>Edge distance (inset / padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
-      <div style="display:flex; align-items:center; width:60%; gap:8px">
-        ${SC.slider(pat.padding ?? 0, v => set('padding', v), {
-          min: (pat.padding_unit || 'px') === '%' ? -100 : -50,
-          max: (pat.padding_unit || 'px') === '%' ? 100 : 50,
-          style: 'flex:1', int: true })}
-        <span style="font-size:11px; min-width:24px; text-align:right;">${pat.padding ?? 0}</span>
-        <select style="width:60px" @change=${e => { set('padding_unit', e.target.value); }}>
-          <option value="px" ?selected=${pat.padding_unit === 'px' || !pat.padding_unit}>px</option>
-          <option value="%" ?selected=${pat.padding_unit === '%'}>%</option>
-        </select>
-      </div>
-    </div>
-    <div class="row">
-      <label>Corner radius (border-radius)</label>
-      <div style="display:flex;width:60%;gap:4px">
-        <input type="number" style="flex:1" .value=${pat.border_radius ?? ''} placeholder="Auto" @input=${e => { set('border_radius', e.target.value); }}>
-        <select style="width:60px" @change=${e => { set('border_radius_unit', e.target.value); }}>
-          <option value="px" ?selected=${pat.border_radius_unit === 'px'}>px</option>
-          <option value="%" ?selected=${pat.border_radius_unit === '%'}>%</option>
-        </select>
-      </div>
-    </div>
-  ` : ''}
-
-  <div class="section-title">🍩 Ring / Donut Mask</div>
-  <div class="row">
-    <label style="color:var(--primary-color)">Hide center (hard edge)<br><span style="font-size:10px;color:var(--secondary-text-color)">Blur & color only affect the edge exactly.</span></label>
-    <ha-switch .checked=${pat.ring_effect ?? false} @change=${e => { set('ring_effect', e.target.checked); }}></ha-switch>
-  </div>
-  ${pat.ring_effect ? html`
-    <div class="row" style="padding-top: 4px;">
-      <label>Use custom mask thickness<br><span style="font-size:10px;color:var(--secondary-text-color)">Off = thickness matches the bevel width exactly (${pat.bevel_width ?? pat.bevel_size ?? 2}px)</span></label>
-      <ha-switch .checked=${pat.use_custom_ring_width ?? false} @change=${e => { set('use_custom_ring_width', e.target.checked); }}></ha-switch>
-    </div>
-    ${pat.use_custom_ring_width ? html`
-      <div class="row"><label>Mask thickness (px)</label>
-        ${SC.slider(pat.ring_width ?? 5, v => set('ring_width', v), { min: 1, max: 50, step: 0.5, width: '60%' })}
-      </div>
-    ` : ''}
-    <div class="row"><label>Effect strength in center (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = blur & color completely hollow</span></label>
-      ${SC.slider(pat.ring_center_opacity ?? 0, v => set('ring_center_opacity', v), { min: 0, max: 100, width: '60%', int: true })}
-    </div>
-  ` : ''}
-
-  <div class="section-title">🔍 Optics (Magnifier & Curvature)</div>
-  <div class="row"><label>Magnify content (zoom)</label>
-    ${SC.slider(pat.zoom ?? 1, v => set('zoom', v), { step: 0.01, min: 1, max: 1.5, width: '60%' })}
-  </div>
-  <div class="row"><label>Convex 3D shine (%)</label>
-    ${SC.slider(pat.glare ?? 0, v => set('glare', v), { min: 0, max: 100, width: '60%', int: true })}
-  </div>
-  <div class="row"><label>Edge refraction (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">Bends what is behind the edge, the way real glass does. With blur at 0 this is clear glass: what is underneath stays readable and only the rim curls. Not shown by Safari or Firefox, which draw the pane without it.</span></label>
-    ${SC.slider(pat.refraction ?? 0, v => set('refraction', v), { min: 0, max: 100, width: '60%', int: true })}
-  </div>
-
-  <div class="section-title">💧 Glass & Blur</div>
-  <div class="row"><label>Blur strength (px)</label>
-    ${SC.slider(pat.blur ?? 10, v => set('blur', v), { step: 0.01, min: 0, max: 2, width: '60%' })}
-  </div>
-  <div class="row"><label>Background opacity (%)</label>
-    ${SC.slider(pat.opacity ?? 10, v => set('opacity', v), { min: 0, max: 100, width: '60%', int: true })}
-  </div>
-  <div class="row"><label>Color (hex picker)</label>
-    <input type="color" .value=${pat.bg_rgb || '#ffffff'} @input=${e => { set('bg_rgb', e.target.value); }}>
-  </div>
-
-  <div class="section-title">🌒 Light Refraction & Bevel (Physics)</div>
-  <div class="row"><label>Glass style</label>
-    <select style="width:60%" @change=${e => { set('shadow_style', e.target.value); }}>
-      <option value="none" ?selected=${pat.shadow_style === 'none'}>Flat (no edges)</option>
-      <option value="frosted" ?selected=${pat.shadow_style === 'frosted'}>Frosted (soft edges)</option>
-      <option value="liquid" ?selected=${pat.shadow_style === 'liquid'}>Liquid (physical refraction)</option>
-    </select>
-  </div>
-
-  ${pat.shadow_style !== 'none' ? html`
-    ${sunPad}
-
-    <div class="row"><label>Bevel width (px)<br><span style="font-size:10px;color:var(--secondary-text-color)">Extent of the edge inward</span></label>
-      ${SC.slider(pat.bevel_width ?? pat.bevel_size ?? 2, v => set('bevel_width', v), { step: 0.1, min: 0, max: 30, width: '60%' })}
-    </div>
-
-    <div class="row"><label>Glass thickness (depth)<br><span style="font-size:10px;color:var(--secondary-text-color)">Controls the steepness & refraction</span></label>
-      ${SC.slider(pat.glass_thickness ?? 5, v => set('glass_thickness', v), { step: 0.5, min: 0, max: 20, width: '60%' })}
-    </div>
-
-    <div class="row"><label>Base brightness (light)</label>
-      ${SC.slider(pat.light_brightness ?? 0.4, v => set('light_brightness', v), { step: 0.001, min: 0, max: 1, width: '60%' })}
-    </div>
-  ` : ''}
-
-  ${isReliefTarget(pat.target, slot) ? html`
-    <div class="section-title">⛰️ Relief</div>
-    <div class="row">
-      <label>Light the ring too<br><span style="font-size:10px;color:var(--secondary-text-color)">Gives the ring an edge of its own, lit from the same sun as the glass - each pill on a segmented bar, the stroke on a continuous one.</span></label>
-      <ha-switch .checked=${pat.segment_relief ?? false} @change=${e => { set('segment_relief', e.target.checked); }}></ha-switch>
-    </div>
-    ${pat.segment_relief ? html`
-      ${pat.shadow_style === 'none' ? sunPad : ''}
-      <div class="row"><label>Relief</label>
-        <select style="width:60%" @change=${e => { set('segment_relief_mode', e.target.value); }}>
-          <option value="raised" ?selected=${pat.segment_relief_mode !== 'engraved'}>Raised (standing out of the glass)</option>
-          <option value="engraved" ?selected=${pat.segment_relief_mode === 'engraved'}>Engraved (cut into the glass)</option>
-        </select>
-      </div>
-      <div class="row"><label>Relief depth<br><span style="font-size:10px;color:var(--secondary-text-color)">In the bar's own unit, so it keeps its look as the ring resizes</span></label>
-        ${SC.slider(pat.segment_relief_depth ?? 0.6, v => set('segment_relief_depth', v), { step: 0.1, min: 0, max: 3, width: '60%' })}
-      </div>
-    ` : ''}
-  ` : ''}
-  `;
+/**
+ * Every control of one glass pattern except the two that only make sense in a
+ * list: which element it is for, and whether it is switched on. Both the list
+ * editor and the per-element switch draw the same body from here, so a slider
+ * added once shows up in both.
+ *
+ * @param {any} pat the pattern being edited
+ * @param {(key: string, value: any) => void} set commit one field
+ * @param {(fields: Record<string, any>) => void} setMany commit several at once
+ * @param {any} [slot] the card's own config, for the controls only a circular
+ *   bar has - which orientation a bar has is not in the pattern's target
+ */
+function glassBody(pat, set, setMany, slot) {
+  return SC.renderFields(glassFields(), { entry: pat, slot, set: (k, v) => set(k, v), setMany });
 }
 
 /** A fresh pattern for `target`, with the defaults the Add button used to set. */

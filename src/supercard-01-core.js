@@ -494,13 +494,19 @@ Object.assign(window.SupercardUtils, (() => {
     if (!field) return html``;
     if (field.condition && !field.condition(ctx.entry, ctx.slot)) return html``;
 
-    const val = ctx.entry?.[field.id];
+    // A field usually reads its own key; `value` is for the few that do not -
+    // a default that falls back through an older key, a switch that is on
+    // unless it was switched off.
+    const val = field.value ? field.value(ctx.entry, ctx) : ctx.entry?.[field.id];
     const set = v => ctx.set(field.id, v);
     const setSlow = v => (ctx.setDebounced || ctx.set)(field.id, v);
     const width = field.width || '60%';
-    const label = field.hint
-      ? html`${field.label}<br><span style="font-size:10px;color:var(--secondary-text-color)">${field.hint}</span>`
-      : field.label;
+    // A hint may be a function, for the ones that quote a value back.
+    const hint = typeof field.hint === 'function' ? field.hint(ctx.entry, ctx) : field.hint;
+    const text = typeof field.label === 'function' ? field.label(ctx.entry, ctx) : field.label;
+    const label = hint
+      ? html`${text}<br><span style="font-size:10px;color:var(--secondary-text-color)">${hint}</span>`
+      : text;
     const box = (cls, control) => html`
       <div class=${cls} style=${field.style || nothing}>
         <label style=${field.labelStyle || nothing}>${label}</label>${control}
@@ -510,21 +516,32 @@ Object.assign(window.SupercardUtils, (() => {
     /** A field sits in a row unless it says otherwise; a few default to col. */
     const place = (c, dflt) => ((field.layout || dflt || 'row') === 'col' ? col : row)(c);
     /** An explicit control style wins over the one the type would write. */
-    const control = dflt => field.controlStyle || dflt || nothing;
+    const control = dflt =>
+      (field.controlStyle != null ? field.controlStyle : dflt) || nothing;
 
     switch (field.type) {
       case 'custom':
         return field.render(ctx);
 
       case 'heading':
-        return html`<div class="section-title">${field.label}</div>`;
+        return html`<div class="section-title">${text}</div>`;
+
+      // A section that folds away, with fields of its own.
+      case 'details':
+        return html`
+          <details class="inner-section" style=${field.style || 'margin-bottom: 0;'}>
+            <summary style="font-size: 13px; color: var(--primary-color);"><span>${text}</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
+            <div class="inner-content" style=${field.contentStyle || 'gap: 8px;'}>
+              ${(field.fields || []).map(f => renderField(f, ctx))}
+            </div>
+          </details>`;
 
       // A frame with a label and fields of its own - an action block, a group
       // of settings that belong together.
       case 'group':
         return html`
           <div class=${field.class || nothing} style=${field.style || nothing}>
-            ${field.label ? html`<label style=${field.labelStyle || nothing}>${field.label}</label>` : ''}
+            ${field.label ? html`<label style=${field.labelStyle || nothing}>${text}</label>` : ''}
             ${(field.fields || []).map(f => renderField(f, ctx))}
           </div>`;
 
@@ -535,8 +552,8 @@ Object.assign(window.SupercardUtils, (() => {
         const cls = field.class ?? 'row';
         return html`
           <div class=${cls || nothing} style=${field.style || nothing}>
-            ${field.bare ? field.label
-              : html`<label style=${field.labelStyle || nothing}>${field.label}</label>`}
+            ${field.bare ? text
+              : html`<label style=${field.labelStyle || nothing}>${text}</label>`}
           </div>`;
       }
 
@@ -569,8 +586,7 @@ Object.assign(window.SupercardUtils, (() => {
 
       case 'checkbox':
         return place(html`
-          <ha-switch .checked=${field.checked ? !!field.checked(ctx.entry) : !!val}
-                     @change=${e => set(e.target.checked)}></ha-switch>`);
+          <ha-switch .checked=${!!val} @change=${e => set(e.target.checked)}></ha-switch>`);
 
       case 'range':
         return place(slider(val ?? field.placeholder ?? 0, set,
@@ -595,7 +611,7 @@ Object.assign(window.SupercardUtils, (() => {
       case 'number':
         return place(html`
           <input type="number" style=${control('width:' + (field.width || '80px'))}
-                 min=${field.min ?? nothing} max=${field.max ?? nothing}
+                 min=${field.min ?? nothing} max=${field.max ?? nothing} step=${field.step ?? nothing}
                  placeholder=${field.placeholder || nothing}
                  .value=${field.blankZero ? (val || '') : (val ?? '')}
                  @input=${e => {
