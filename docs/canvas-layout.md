@@ -713,14 +713,16 @@ count, and the card that needs none of it is the one left on `auto`.
 
 The canvas editor sets that box itself — *Card width* in columns, *Card
 height* in rows — through `commitFn('__card__', …)`, so they are the same
-`grid_options` the Layout tab writes, and it mirrors all three of Home
-Assistant's own switches: **Auto height**, **Full width**, **Precise mode**.
-The first two are offered as the second half of the field they belong to, and
-the number disappears when the mode has no use for one: a full-width card has
-no column count to type, and an auto-height card's rows come from its columns.
-Precise mode is the switch it is in HA, and off it rounds a width **up** to the
-next quarter of the section, exactly as HA does — the spare is width the card
-can use, where the column it would lose crops it.
+`grid_options` the Layout tab writes, and it mirrors Home Assistant's own
+**Auto height** and **Full width** as the second half of the field each
+belongs to. The number disappears when the mode has no use for one: a
+full-width card has no column count to type, and an auto-height card's rows
+come from its columns.
+
+There is no *Precise mode* switch here. HA's Layout tab counts in cells of
+three columns until that switch is on; a width typed here is one column, which
+is the same thing as having it on — so the field says so and the state stays
+HA's to hold.
 
 With auto height on, the shape *is* the width: **a third of the columns,
 rounded up**. That ratio is the same at every card width — 12 × 4 is 1.94, 9 ×

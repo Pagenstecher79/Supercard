@@ -977,17 +977,6 @@ class ScCanvasEditor extends LitElement {
   get _sectionPx() { return sectionWidthPx(this); }
 
   /**
-   * Whether widths are set in single columns rather than quarters. Not stored
-   * anywhere - HA does not store it either, it reads it back off a width that
-   * is not on a quarter, which is the only width that could have needed it.
-   */
-  get _preciseMode() {
-    if (typeof this._precise === 'boolean') return this._precise;
-    const columns = this._columns;
-    return typeof columns === 'number' && columns % 3 !== 0;
-  }
-
-  /**
    * Writes HA's own `grid_options` rather than fields of our own, so these
    * controls and the layout tab are two views of one value instead of two
    * settings that have to be kept in step.
@@ -1039,20 +1028,6 @@ class ScCanvasEditor extends LitElement {
 
   /** A pinned height in rows. Under auto height the shape sets it instead. */
   _setShapeRows(rows) { this._setGrid({ rows }); }
-
-  /**
-   * Home Assistant's third switch: off, a width is a quarter of the section,
-   * and a card that is not on a quarter is rounded up to the next one - which
-   * is what HA does to it too, rather than cropping the card.
-   */
-  _setPrecise(precise) {
-    this._precise = precise;
-    const columns = this._columns;
-    if (!precise && typeof columns === 'number' && columns % 3 !== 0) {
-      this._setGrid({ columns: Math.min(this._maxColumns, 3 * Math.ceil(columns / 3)) });
-    }
-    this.requestUpdate();
-  }
 
   /**
    * The canvas as a card box wants it, or null when it is already that.
@@ -2037,7 +2012,6 @@ class ScCanvasEditor extends LitElement {
     // is no `rows` in the card config to read, and this is the number that
     // produced the shape - or, for a canvas typed in as two numbers before
     // this control existed, the nearest whole row to it.
-    const precise = this._preciseMode;
     const full = columns === 'full';
     const gridPct = (c.grid > 0 ? gridToUnits(c, c.grid) : step) / c.w * 100;
     const pct = (v, total) => `${v / total * 100}%`;
@@ -2059,14 +2033,9 @@ class ScCanvasEditor extends LitElement {
               <option value="full" ?selected=${full}>Full width</option>
             </select>
             ${full ? '' : html`
-              <input class="num" type="number" min="1" max=${maxColumns} step=${precise ? 1 : 3}
-                     .value=${columns}
+              <input class="num" type="number" min="1" max=${maxColumns} step="1" .value=${columns}
                      @change=${e => {
-                       let n = Math.max(1, Math.min(maxColumns, parseInt(e.target.value) || 1));
-                       // Off a quarter with precise mode off, round *up*: the
-                       // spare is width the card can use, where the column it
-                       // would lose crops it. Home Assistant rounds up too.
-                       if (!precise && n % 3 !== 0) n = Math.min(maxColumns, 3 * Math.ceil(n / 3));
+                       const n = Math.max(1, Math.min(maxColumns, parseInt(e.target.value) || 1));
                        // lit writes .value only when the bound value changes, so a
                        // number that clamps back to the one already set would leave
                        // the field showing what was typed instead.
@@ -2076,16 +2045,10 @@ class ScCanvasEditor extends LitElement {
             <span class="hint">${Math.round(gridColumnsToPx(columns, maxColumns))} px</span>
           </div>
         </div>
-        <div class="row">
-          <label>Precise mode</label>
-          <div class="ctl">
-            <ha-switch .checked=${precise} ?disabled=${full}
-                       @change=${e => this._setPrecise(e.target.checked)}></ha-switch>
-          </div>
-        </div>
         <div class="hint" style="margin:-4px 0 4px 0;">
-          A width is a quarter of the section unless precise mode is on, which
-          sets it in single columns. Same switch as the <b>Layout</b> tab's.
+          A width here is one column of the section. The <b>Layout</b> tab
+          counts in cells of three columns unless its <b>Precise mode</b> is
+          on - so this field is like that switch already on.
         </div>
         <div class="row">
           <label>Card height</label>
