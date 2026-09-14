@@ -1,3 +1,5 @@
+import { normalizeStops } from "./gradient-stops.js";
+
 /**
  * Settings that saved cards still carry and nothing reads any more.
  *
@@ -107,6 +109,70 @@ function withoutKeysDeep(value, keys) {
   return touched ? next : value;
 }
 
+
+/**
+ * The keys whose value is a list of gradient stops.
+ *
+ * All three used to be written `{value, color}` by the gauge and
+ * `{pos, color}` by the progressbar. One shape is read now
+ * (`gradient-stops.js`), so the other one is rewritten on the next edit.
+ *
+ * @type {readonly string[]}
+ */
+const STOP_LIST_KEYS = Object.freeze(['manual_stops', 'bg_manual_stops', 'gradient_stops']);
+
+/**
+ * The value with every stop list in the one shape, itself when nothing changed.
+ *
+ * Two shapes are translated: a stop that carries `value` where the reader now
+ * looks for `pos`, and a colour pattern's parallel `colors` / `stops` arrays,
+ * which become one `gradient_stops` list. Both are lossless - a colour keeps
+ * its position, and a colour nobody positioned keeps saying so with `null`.
+ *
+ * @param {any} value
+ * @returns {any}
+ */
+function withStopShapes(value) {
+  if (Array.isArray(value)) {
+    let touched = false;
+    const next = value.map(item => {
+      const shaped = withStopShapes(item);
+      if (shaped !== item) touched = true;
+      return shaped;
+    });
+    return touched ? next : value;
+  }
+  if (!value || typeof value !== 'object') return value;
+
+  let touched = false;
+  /** @type {Record<string, any>} */
+  const next = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (STOP_LIST_KEYS.includes(k) && Array.isArray(v)) {
+      const stops = v.map(st => {
+        if (!st || typeof st !== 'object' || 'pos' in st || !('value' in st)) return st;
+        const { value: pos, ...rest } = st;
+        return { pos, ...rest };
+      });
+      if (stops.some((st, i) => st !== v[i])) { touched = true; next[k] = stops; continue; }
+      next[k] = v;
+      continue;
+    }
+    const shaped = withStopShapes(v);
+    if (shaped !== v) touched = true;
+    next[k] = shaped;
+  }
+
+  // A colour pattern only: `bg_type` is what says this object is one, and
+  // nothing else in a slot carries a bare list of colours.
+  if (Array.isArray(next.colors) && 'bg_type' in next && !Array.isArray(next.gradient_stops)) {
+    const { colors, stops, ...rest } = next;
+    return { ...rest, gradient_stops: normalizeStops({ colors, stops }, { fill: false }) };
+  }
+
+  return touched ? next : value;
+}
+
 /**
  * Entries a list still holds that name something the card cannot use.
  *
@@ -165,7 +231,10 @@ export function stripDeadConfig(slot) {
     if (next.length !== list.length) lists[key] = next;
   }
 
-  return Object.keys(lists).length ? { ...slot, ...lists } : null;
+  const cleaned = Object.keys(lists).length ? { ...slot, ...lists } : slot;
+  const shaped = withStopShapes(cleaned);
+  if (shaped !== cleaned) return shaped;
+  return cleaned === slot ? null : cleaned;
 }
 
 /**

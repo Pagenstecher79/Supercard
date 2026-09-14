@@ -286,9 +286,6 @@ class ScGaugeEditor extends LitElement {
   /** Remember a fold without committing anything. */
   _setUnfolded(key, open) { this._expanded[key] = open; }
 
-  /** Fold every entry of one list, for an add button that opens the new one. */
-  _foldAll(key, count) { for (let i = 0; i < count; i++) this._expanded[`${key}:${i}`] = false; }
-
   static get styles() {
     return [SC.formStyles, css`
       input[type="text"], input[type="number"], select { transition: border-color 0.2s; }
@@ -598,153 +595,18 @@ class ScGaugeEditor extends LitElement {
   }
 
 
-  _renderStopsEditor(stopsArray, isAbsolute, onUpdate, resolution, stateKey = 'stops') {
-    const mStops = Array.isArray(stopsArray) ? stopsArray : [];
+  /**
+   * The shared stops editor. This gauge's own version of it is what the shared
+   * one was lifted from, so nothing is lost here - the fold state moved inside
+   * the element, which is why `stateKey` is gone.
+   */
+  _renderStopsEditor(stopsArray, isAbsolute, onUpdate, resolution) {
     return html`
-      <div class="col" style="gap:8px; margin-top:4px;">
-        
-        <div style="display:flex; gap:8px; margin-bottom:4px;">
-          <button type="button" style="flex:1; padding:6px; border-radius:6px; border:1px dashed var(--primary-color,#03a9f4); background:none; color:var(--primary-color,#03a9f4); cursor:pointer; font-size:12px;" @click=${(e) => {
-            e.preventDefault();
-            const n = structuredClone(mStops);
-            this._foldAll(stateKey, n.length);
-
-            // Dynamic default color (safe palette)
-            const palette = ['#4caf50', '#fdd835', '#fb8c00', '#f44336', '#9c27b0', '#03a9f4'];
-            const newColor = palette[n.length % palette.length];
-
-            // Value logic
-            let newVal = 0;
-            if (n.length > 0) {
-              newVal = isAbsolute ? Math.max(...n.map(s => parseFloat(s.value) || 0)) : 100;
-            }
-            n.push({ value: newVal, color: newColor });
-            this._setUnfolded(`${stateKey}:${n.length - 1}`, true);
-            onUpdate(n);
-          }}>＋ Add color stop</button>
-
-          <button type="button" style="flex:1; padding:6px; border-radius:6px; border:1px dashed var(--divider-color,#555); background:none; color:var(--primary-text-color); cursor:pointer; font-size:12px; opacity: ${mStops.length > 1 ? '1' : '0.4'};"
-            ?disabled=${mStops.length < 2}
-            title="Distributes the colors (for coarse: blocks, for others: gradient points)"
-            @click=${(e) => {
-            e.preventDefault();
-            if (mStops.length < 2) return;
-            const n = structuredClone(mStops);
-            
-            
-            const isCoarse = resolution === 'coarse';
-
-            if (!isAbsolute) {
-              if (isCoarse) {
-                // FORMULA FOR "COARSE": Each block gets equal space (100 / count)
-                // Example with 5 colors: 0, 20, 40, 60, 80
-                const step = 100 / n.length;
-                n.forEach((st, i) => {
-                  st.value = Math.round((i * step) * 10) / 10;
-                });
-              } else {
-                // FORMULA FOR EVERYTHING ELSE: start 0, end 100 (100 / (count - 1))
-                // Example with 5 colors: 0, 25, 50, 75, 100
-                const step = 100 / (n.length - 1);
-                n.forEach((st, i) => {
-                  st.value = Math.round((i * step) * 10) / 10;
-                });
-              }
-            } else {
-              // Absolute mode keeps distributing between the current extreme values
-              n.sort((a, b) => (parseFloat(a.value) || 0) - (parseFloat(b.value) || 0));
-              const start = parseFloat(n[0].value) || 0;
-              const end = parseFloat(n[n.length - 1].value) || 0;
-              if (start !== end) {
-                const step = (end - start) / (n.length - 1);
-                n.forEach((st, i) => {
-                  st.value = Math.round((start + (i * step)) * 10) / 10;
-                });
-              }
-            }
-            onUpdate(n);
-          }}>⬌ Distribute evenly</button>
-        </div>
-
-        ${mStops.map((st, sIdx) => {
-          const foldKey = `${stateKey}:${sIdx}`;
-          return html`
-            <details class="inner-section" style="margin-bottom:0;" 
-              ?open=${this._isUnfolded(foldKey)} 
-              @toggle=${e => this._setUnfolded(foldKey, e.target.open)}
-              @dragstart=${(e) => {
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('stopIdx', sIdx);
-                setTimeout(() => e.target.style.opacity = '0.3', 0);
-              }}
-              @dragover=${(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                e.currentTarget.style.borderTop = '3px dashed var(--primary-color, #03a9f4)';
-              }}
-              @dragleave=${(e) => { e.currentTarget.style.borderTop = ''; }}
-              @drop=${(e) => {
-                e.preventDefault();
-                e.currentTarget.style.borderTop = '';
-                const draggedIdx = parseInt(e.dataTransfer.getData('stopIdx'));
-                if (draggedIdx !== sIdx && !isNaN(draggedIdx)) {
-                  const n = structuredClone(mStops);
-                  const [movedItem] = n.splice(draggedIdx, 1);
-                  n.splice(sIdx, 0, movedItem);
-                  onUpdate(n);
-                }
-              }}
-              @dragend=${(e) => {
-                e.target.style.opacity = '1';
-                e.target.removeAttribute('draggable');
-              }}
-            >
-              <summary style="padding:10px 12px; display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-weight:600;color:var(--primary-color,#03a9f4); flex:1; display:flex; align-items:center;">
-                  <span
-                    style="cursor: grab; padding: 0 12px 0 0; color: var(--secondary-text-color, #aaa); font-size: 16px; user-select: none;"
-                    title="Move stop"
-                    @mousedown=${(e) => e.target.closest('details').setAttribute('draggable', 'true')}
-                    @mouseup=${(e) => e.target.closest('details').removeAttribute('draggable')}
-                  >⋮⋮</span>
-                  Stop ${sIdx+1}
-                  <span style="font-weight:normal;color:var(--secondary-text-color,#aaa);font-size:11px; margin-left:6px;">[Value: ${st.value ?? 0}]</span>
-                  <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${st.color ?? '#03a9f4'}; margin-left:8px; box-shadow: 0 0 2px rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2);"></span>
-                </div>
-                <div style="display:flex; gap:12px; align-items:center;" @click=${e => e.stopPropagation()}>
-                  <button title="Remove" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--error-color,#f44);padding:0;" @click=${(e) => {
-                    e.preventDefault();
-                    const n = structuredClone(mStops);
-                    n.splice(sIdx, 1);
-                    onUpdate(n);
-                  }}>🗑</button>
-                </div>
-              </summary>
-              <div class="inner-content" style="padding-top:4px; gap:8px;">
-                ${isAbsolute ? html`
-                  <div class="row">
-                    <label>Threshold (absolute)</label>
-                    <input type="number" step="any" style="width:50%" .value=${st.value ?? ''} @input=${e => { const n = structuredClone(mStops); n[sIdx].value = parseFloat(e.target.value); onUpdate(n); }}>
-                  </div>
-                ` : html`
-                  <div class="col">
-                    <label>Threshold (%) <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${st.value ?? 0}</span></label>
-                    <input type="range" min="0" max="100" step="1" .value=${st.value ?? 0} @input=${e => { const n = structuredClone(mStops); n[sIdx].value = parseFloat(e.target.value); onUpdate(n); }}>
-                  </div>
-                `}
-                <div class="col"><label>Color</label>
-                  <div class="color-row">
-                    <input type="color" .value=${st.color ?? '#03a9f4'} @input=${e => { const n = structuredClone(mStops); n[sIdx].color = e.target.value; onUpdate(n); }}>
-                    <input type="text" .value=${st.color ?? '#03a9f4'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(mStops); n[sIdx].color = e.target.value; onUpdate(n); } }}>
-                  </div>
-                </div>
-              </div>
-            </details>
-          `;
-        })}
-      </div>
-    `;
+      <sc-gradient-stops .stops=${stopsArray} .absolute=${isAbsolute}
+                         .blocks=${resolution === 'coarse'}
+                         .onUpdate=${onUpdate}></sc-gradient-stops>`;
   }
+
   _renderFieldsGroup(fields, entry, idx, gauges) {
     const rootSections = [];
     let currentSection = { isRoot: true, items: [], subsections: [] };
@@ -843,7 +705,7 @@ class ScGaugeEditor extends LitElement {
             </div>
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
               this.commitFn('gauges', SC.withPatch(gauges, idx, 'manual_stops', newStops));
-            }, entry.gradient_resolution, `g${idx}_stops`)} </div>
+            }, entry.gradient_resolution)} </div>
         `;
         break;
       }
@@ -853,7 +715,7 @@ class ScGaugeEditor extends LitElement {
           <div class="col" style="gap:8px;">
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {
               this.commitFn('gauges', SC.withPatch(gauges, idx, 'bg_manual_stops', newStops));
-            }, entry.gradient_resolution, `g${idx}_bgstops`)} </div>
+            }, entry.gradient_resolution)} </div>
         `;
         break;
       }
@@ -920,18 +782,15 @@ class ScGaugeEditor extends LitElement {
                         }, 500);
                     }}>
                   </div>
-                    <div class="row"><label>Length</label><input type="range" min="0" max="10" step="0.1" style="width:50%" .value=${ct.length ?? 4} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].length = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Width</label><input type="range" min="0" max="2" step="0.1" style="width:50%" .value=${ct.width ?? 1} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].width = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Offset from ring</label><input type="range" min="-15" max="0" step="0.1" style="width:50%" .value=${ct.offset ?? 0} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    ${SC.sliderRow('Length', ct.length ?? 4, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].length = v; this.commitFn('gauges', n); }, { min: 0, max: 10, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Width', ct.width ?? 1, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].width = v; this.commitFn('gauges', n); }, { min: 0, max: 2, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Offset from ring', ct.offset ?? 0, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].offset = v; this.commitFn('gauges', n); }, { min: -15, max: 0, step: 0.1, width: '50%' })}
                     <div class="col"><label>Color</label>
-                      <div class="color-row">
-                        <input type="color" .value=${ct.color ?? '#ff0000'} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); }}>
-                        <input type="text" .value=${ct.color ?? '#ff0000'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
-                      </div>
+                      ${SC.colorRow(ct.color ?? '#ff0000', v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].color = v; this.commitFn('gauges', n); }, { fallback: '#ff0000', hexOnly: true, textFallback: true })}
                     </div>
                     <div class="row"><label>Label text</label><input type="text" style="width:50%" .value=${ct.label ?? ''} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label = e.target.value; this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Label offset</label><input type="range" min="-15" max="4" step="0.1" style="width:50%" .value=${ct.label_offset ?? 10} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Label size</label><input type="range" min="1" max="20" step="0.1" style="width:50%" .value=${ct.label_font_size ?? 7} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_font_size = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    ${SC.sliderRow('Label offset', ct.label_offset ?? 10, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_offset = v; this.commitFn('gauges', n); }, { min: -15, max: 4, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Label size', ct.label_font_size ?? 7, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_font_size = v; this.commitFn('gauges', n); }, { min: 1, max: 20, step: 0.1, width: '50%' })}
                   </div>
                 </details>
               `;
@@ -1000,19 +859,16 @@ class ScGaugeEditor extends LitElement {
                     </div>
                   </summary>
                   <div class="inner-content" style="padding-top:4px; gap:8px;">
-                    <div class="row"><label>Start (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.start_percent ?? 75} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].start_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Length (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.length_percent ?? 25} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].length_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Inner radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.inner_radius ?? 12} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].inner_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Outer radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.outer_radius ?? 22} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].outer_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Opacity</label><input type="range" min="0" max="1" step="0.05" style="width:50%" .value=${sec.opacity ?? 0.85} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].opacity = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    ${SC.sliderRow('Start (%)', sec.start_percent ?? 75, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].start_percent = v; this.commitFn('gauges', n); }, { min: 0, max: 100, step: 1, width: '50%' })}
+                    ${SC.sliderRow('Length (%)', sec.length_percent ?? 25, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].length_percent = v; this.commitFn('gauges', n); }, { min: 0, max: 100, step: 1, width: '50%' })}
+                    ${SC.sliderRow('Inner radius', sec.inner_radius ?? 12, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].inner_radius = v; this.commitFn('gauges', n); }, { min: 0, max: 50, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Outer radius', sec.outer_radius ?? 22, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].outer_radius = v; this.commitFn('gauges', n); }, { min: 0, max: 50, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Opacity', sec.opacity ?? 0.85, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].opacity = v; this.commitFn('gauges', n); }, { min: 0, max: 1, step: 0.05, width: '50%' })}
 
                     <div style="border-top:1px dashed var(--divider-color,#444); margin:4px 0;"></div>
 
                     <div class="col"><label>Color (start)</label>
-                      <div class="color-row">
-                        <input type="color" .value=${sec.color ?? '#dc3232'} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); }}>
-                        <input type="text" .value=${sec.color ?? '#dc3232'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(gauges); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
-                      </div>
+                      ${SC.colorRow(sec.color ?? '#dc3232', v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color = v; this.commitFn('gauges', n); }, { fallback: '#dc3232', hexOnly: true, textFallback: true })}
                     </div>
 
                     <div class="row">
@@ -1031,10 +887,7 @@ class ScGaugeEditor extends LitElement {
 
                     ${secPreset === 'classic' ? html`
                       <div class="col"><label>Color (end)</label>
-                        <div class="color-row">
-                          <input type="color" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); }}>
-                          <input type="text" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(gauges); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); } }}>
-                        </div>
+                        ${SC.colorRow(sec.color_end ?? '#ffeb3b', v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color_end = v; this.commitFn('gauges', n); }, { fallback: '#ffeb3b', hexOnly: true, textFallback: true })}
                       </div>
                     ` : ''}
 
@@ -1052,16 +905,11 @@ class ScGaugeEditor extends LitElement {
                       </div>
 
                       ${sec.resolution_auto === false ? html`
-                        <div class="row">
-                          <label>Manual precision (degrees)</label>
-                          <input type="range" min="0.1" max="5" step="0.1" style="width:50%"
-                            .value=${sec.resolution ?? 1.5}
-                            @input=${e => {
-                              const n = structuredClone(gauges);
-                              n[idx].sectors[sIdx].resolution = parseFloat(e.target.value);
-                              this.commitFn('gauges', n);
-                            }}>
-                        </div>
+                        ${SC.sliderRow('Manual precision (degrees)', sec.resolution ?? 1.5, v => {
+                          const n = structuredClone(gauges);
+                          n[idx].sectors[sIdx].resolution = v;
+                          this.commitFn('gauges', n);
+                        }, { min: 0.1, max: 5, step: 0.1 })}
                       ` : ''}
                     ` : ''}
 
@@ -1081,7 +929,7 @@ class ScGaugeEditor extends LitElement {
                         const n = structuredClone(gauges);
                         n[idx].sectors[sIdx].manual_stops = newStops;
                         this.commitFn('gauges', n);
-                      }, undefined, `g${idx}_sec${sIdx}_stops`)}
+                      })}
                     ` : ''}
 
                   </div>
@@ -1115,12 +963,7 @@ class ScGaugeEditor extends LitElement {
         content = html`
           <div class="col">
             <label>${field.label}</label>
-            <div class="color-row">
-              <input type="color" .value=${hex} @input=${e => updateDirect(e.target.value)}>
-              <input type="text" placeholder=${field.placeholder || '#ffffff'} .value=${hex} @input=${e => {
-                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) updateDirect(e.target.value);
-              }}>
-            </div>
+            ${SC.colorRow(hex, updateDirect, { fallback: '', placeholder: field.placeholder || '#ffffff', hexOnly: true })}
           </div>
         `;
         break;
@@ -1142,12 +985,9 @@ class ScGaugeEditor extends LitElement {
         // renderer.
         const shown = field.fromStored ? field.fromStored(val) : val;
         const store = v => updateDirect(field.toStored ? field.toStored(v) : v);
-        content = html`
-          <div class="col">
-            <label>${field.label} <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${shown ?? field.placeholder ?? ''}</span></label>
-            <input type="range" min=${field.min ?? 0} max=${field.max ?? 100} step=${field.step ?? 1} .value=${shown ?? field.placeholder ?? 0} @input=${e => store(parseFloat(e.target.value))}>
-          </div>
-        `;
+        content = SC.sliderField(field.label, shown ?? field.placeholder ?? 0, store,
+          { min: field.min ?? 0, max: field.max ?? 100, step: field.step ?? 1,
+            shown: shown ?? field.placeholder ?? '' });
         break;
       }
 

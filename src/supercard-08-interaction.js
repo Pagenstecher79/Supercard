@@ -31,26 +31,11 @@ function getTargets(slot) {
     });
   }
 
-  // Layout cells - not on a canvas, where the parts these name are gone. A
-  // surface is deliberately not offered here either: .sc-surface is
-  // pointer-events: none, so a decorative box does not eat the clicks meant
-  // for what is drawn over it.
-  if (!slot?.canvas && Array.isArray(slot.layout_rows)) {
-    const els = getAvailableElements(slot);
-    slot.layout_rows.forEach((row, rIdx) => {
-      row.cells.forEach((cell, cIdx) => {
-        let typeLabel = els[cell.content] || 'Empty';
-        if (cell.content !== 'empty') {
-            typeLabel = typeLabel.split(':')[0]; // Shortens "Label: XY" to "Label" in the grid
-        }
-        targets.push({ id: `r${rIdx}c${cIdx}`, label: `R${rIdx+1}C${cIdx+1} (${typeLabel})`, group: 'Layout grid (cells)' });
-      });
-    });
-  }
-
+  // A surface is deliberately not offered: .sc-surface is pointer-events: none,
+  // so a decorative box does not eat the clicks meant for what is drawn over it.
+  //
   // An element the canvas does not place is not on the card at all, so there is
-  // nothing there to click. showsElement passes everything on a rows card, so
-  // this only bites on a canvas.
+  // nothing there to click.
   return targets.filter(t => !t.group.startsWith('Elements') || SC.showsElement(slot, t.id));
 }
 
@@ -281,13 +266,11 @@ class ScInteractionEditor extends LitElement {
                     <div class="section-title">🎬 Visual animations (GPU)</div>
                     <div class="row">
                       <label>Click depth (scale)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Max. press depth</span></label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.scale_depth ?? 50}
-                        @input=${e => { this._set(patterns, idx, 'scale_depth', parseInt(e.target.value)); }}>
+                      ${SC.slider(pat.scale_depth ?? 50, v => this._set(patterns, idx, 'scale_depth', v), { min: 0, max: 100, width: '60%', int: true })}
                     </div>
                     <div class="row">
                       <label>Continuous rotation<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Very fast</span></label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.rotate_speed ?? 0}
-                        @input=${e => { this._set(patterns, idx, 'rotate_speed', parseInt(e.target.value)); }}>
+                      ${SC.slider(pat.rotate_speed ?? 0, v => this._set(patterns, idx, 'rotate_speed', v), { min: 0, max: 100, width: '60%', int: true })}
                     </div>
                   </div>
                 ` : ''}

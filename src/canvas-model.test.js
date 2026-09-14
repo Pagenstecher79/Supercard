@@ -34,10 +34,11 @@ import {
   sectionWidthPx,
   gridSize,
   canvasFromGrid,
+  defaultShapeRows,
+  rowsForShape,
   canvasFromCard,
   rescaleCanvas,
   pinnedToShape,
-  unpinnedCanvas,
   applyGroupDrag,
   elementsInRect,
   duplicateElements,
@@ -1393,35 +1394,6 @@ describe('pinnedToShape', () => {
   });
 });
 
-describe('unpinnedCanvas', () => {
-  it('goes back to the remembered shape and drops the note', () => {
-    const canvas = { w: 400, h: 400, elements: [
-      { id: 'gauge_0', x: 100, y: 200, w: 100, h: 100 },
-      { id: 'label_0', x: 0, y: 0, w: 400, h: 40 },
-    ] };
-    const pinned = pinnedToShape(canvas, { w: 400, h: 207 });
-    const out = unpinnedCanvas(pinned);
-    expect(out).toMatchObject({ w: 400, h: 400 });
-    expect('free' in out).toBe(false);
-    // Whole units are what the round trip costs, and all it costs: a canvas
-    // is 400 units across, so one of them is a quarter of a percent.
-    out.elements.forEach((el, i) => {
-      for (const k of ['x', 'y', 'w', 'h']) {
-        expect(Math.abs(el[k] - canvas.elements[i][k])).toBeLessThanOrEqual(1);
-      }
-    });
-  });
-
-  it('is null when nothing was remembered', () => {
-    expect(unpinnedCanvas({ w: 400, h: 200, elements: [] })).toBe(null);
-  });
-
-  it('drops the note even when the shape is already back', () => {
-    const out = unpinnedCanvas({ w: 400, h: 400, elements: [], free: { w: 400, h: 400 } });
-    expect(out).toEqual({ w: 400, h: 400, elements: [] });
-  });
-});
-
 describe('roundBox', () => {
   it('rounds the box and leaves everything else alone', () => {
     expect(roundBox({ id: 'a', surface: true, inner: 'tl',
@@ -2316,5 +2288,62 @@ describe('restorePatch', () => {
   it('is null when nothing differs', () => {
     const slot = { canvas: { w: 1 }, gauges: [] };
     expect(restorePatch(slot, structuredClone(slot), KEYS)).toBe(null);
+  });
+});
+
+describe('defaultShapeRows', () => {
+  it('is a third of the columns, which holds the shape at 2:1', () => {
+    expect(defaultShapeRows('full')).toBe(4);
+    expect(defaultShapeRows(12)).toBe(4);
+    expect(defaultShapeRows(9)).toBe(3);
+    expect(defaultShapeRows(6)).toBe(2);
+    expect(defaultShapeRows(3)).toBe(1);
+  });
+
+  it('rounds a width that is not a multiple of three up', () => {
+    expect(defaultShapeRows(4)).toBe(2);
+    expect(defaultShapeRows(5)).toBe(2);
+    expect(defaultShapeRows(7)).toBe(3);
+    expect(defaultShapeRows(11)).toBe(4);
+  });
+
+  it('never returns less than one row, however narrow the card', () => {
+    expect(defaultShapeRows(1)).toBe(1);
+    expect(defaultShapeRows(0)).toBe(1);
+    expect(defaultShapeRows(undefined)).toBe(1);
+  });
+
+  it('reads `full` against the section it is given, not against twelve', () => {
+    expect(defaultShapeRows('full', 24)).toBe(8);
+  });
+
+  // The point of the rule: the same shape at any width.
+  it('produces a ratio within a few per cent of 2:1 at every multiple of three', () => {
+    for (const columns of [3, 6, 9, 12]) {
+      const shape = canvasFromGrid({ grid_options: { columns, rows: defaultShapeRows(columns) } }, {});
+      expect(shape.w / shape.h).toBeGreaterThan(1.85);
+      expect(shape.w / shape.h).toBeLessThan(2.1);
+    }
+  });
+});
+
+describe('rowsForShape', () => {
+  it('inverts the shape a row count produced', () => {
+    for (const columns of [3, 6, 9, 12]) {
+      for (const rows of [1, 2, 3, 4, 6]) {
+        const shape = canvasFromGrid({ grid_options: { columns, rows } }, {});
+        expect(rowsForShape(shape, columns)).toBe(rows);
+      }
+    }
+  });
+
+  it('answers with the nearest whole row for a shape nobody derived', () => {
+    expect(rowsForShape({ w: 400, h: 200 }, 'full')).toBe(4);
+    expect(rowsForShape({ w: 400, h: 400 }, 'full')).toBe(8);
+  });
+
+  it('has no shape to read from a canvas with no area', () => {
+    expect(rowsForShape({ w: 0, h: 0 }, 'full')).toBe(1);
+    expect(rowsForShape(undefined, 'full')).toBe(1);
   });
 });

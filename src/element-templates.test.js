@@ -85,11 +85,11 @@ describe('manual stop lists', () => {
     for (const t of withStops) {
       let last = -1;
       for (const s of t.entry.manual_stops) {
-        expect(s.value, t.id).toBeGreaterThanOrEqual(0);
-        expect(s.value, t.id).toBeLessThanOrEqual(100);
-        expect(s.value, t.id).toBeGreaterThanOrEqual(last);
+        expect(s.pos, t.id).toBeGreaterThanOrEqual(0);
+        expect(s.pos, t.id).toBeLessThanOrEqual(100);
+        expect(s.pos, t.id).toBeGreaterThanOrEqual(last);
         expect(s.color, t.id).toMatch(/^#[0-9a-f]{6}$/i);
-        last = s.value;
+        last = s.pos;
       }
     }
   });

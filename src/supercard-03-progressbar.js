@@ -1,4 +1,5 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { normalizeStops, stopsToCss } from "./gradient-stops.js";
 import { squareBarOnCanvas } from "./canvas-model.js";
 import { lightParams, reliefPattern, reliefShadow, reliefLayers } from "./glass-light.js";
 import { isLiquidEffect, pillLensFraction, liquidPillCSS, liquidPadding } from "./pill-glass.js";
@@ -395,14 +396,16 @@ class ScProgressbar extends LitElement {
     const bgOpacity = safeFloat(this._get('bg_opacity', 10), 10);
     const bgColor = `color-mix(in srgb, ${bgColorRaw} ${bgOpacity}%, transparent)`;
 
-    const resolvedStops = this._get('gradient_stops', [{ color: this._get('color1', '#2196f3'), pos: 0 }, { color: this._get('color2', '#4caf50'), pos: 100 }]);
+    const resolvedStops = normalizeStops(this._get('gradient_stops',
+      [{ color: this._get('color1', '#2196f3'), pos: 0 },
+       { color: this._get('color2', '#4caf50'), pos: 100 }]));
     let fillColor = this._get('fill_color', 'var(--primary-color)');
     
     if (this._get('use_gradient', false)) {
       if (this._get('gradient_as_solid', false)) {
         fillColor = sampleGradient(resolvedStops, renderPct);
       } else {
-        fillColor = `linear-gradient(${isHoriz ? '90deg' : '0deg'}, ${resolvedStops.map(s => `${s.color} ${s.pos}%`).join(', ')})`;
+        fillColor = `linear-gradient(${isHoriz ? '90deg' : '0deg'}, ${stopsToCss(resolvedStops)})`;
       }
     }
     const exactHexColor = this._get('use_gradient', false) ? sampleGradient(resolvedStops, renderPct) : extractHex(fillColor);
@@ -1083,7 +1086,15 @@ const STYLE_FIELDS = [
   { id: 'circular_stroke_width', label: 'Ring thickness / segment height (%)', type: 'range', min: 1, max: 50, step: 1, placeholder: '10', condition: cfg => isCirc(cfg) },
   { id: 'circular_scale',        label: 'Ring scale (%)', type: 'range', min: 10, max: 100, step: 1, placeholder: '100', condition: cfg => isCirc(cfg) },
   { id: 'circular_glow',         label: 'Neon glow effect',      type: 'checkbox', condition: cfg => isCirc(cfg) },
-  { id: 'width',               label: 'Width (CSS)',          type: 'text',   placeholder: '100% or 20px' },
+  // A bar on the canvas is as wide as the box it sits in: the canvas writes
+  // `width: 100% !important` on the host, and an important declaration from
+  // the outer tree beats the `:host` rule this component writes - measured on
+  // a live card, a bar configured at 20px came out the box's 30.4px, and even
+  // an inline width could not move it. Offering the field there is offering a
+  // control that does nothing. Height is *not* overridden - only capped with
+  // `max-height` - so the 20px line inside a taller box is still available.
+  { id: 'width',               label: 'Width (CSS)',          type: 'text',   placeholder: '100% or 20px',
+    condition: (cfg, slot) => !SC.onCanvas(slot) },
   { id: 'height',              label: 'Height (CSS)',            type: 'text',   placeholder: '20px or 100%' },
   { id: 'border_radius',       label: 'Corner radius',           type: 'range',  min: 0, max: 50, step: 0.1,   placeholder: '4px', condition: cfg => isLin(cfg) },
   { id: 'circular_border_radius', label: 'Background corner radius (%)', type: 'range', min: 0, max: 50, step: 1, placeholder: '50', condition: cfg => isCirc(cfg) },
@@ -1267,7 +1278,6 @@ class ScProgressbarEditor extends LitElement {
       .stop-row input[type="text"] { flex: 1; min-width: 0; font-size: 11px; }
       .stop-row input[type="number"] { width: 50px; font-size: 11px; }
       .stop-row .del-btn { background: none; border: none; color: #f44; cursor: pointer; font-size: 14px; padding: 0; }
-      .stops-preview { height: 8px; border-radius: 4px; margin: 4px 0; }
       .field-wrapper { display: flex; flex-direction: column; gap: 4px; }
       .sector-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 90px; margin: 4px 0; }
       .sector-btn { aspect-ratio: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color, #444); border-radius: 3px; cursor: pointer; transition: all 0.2s ease; }
@@ -1325,63 +1335,34 @@ class ScProgressbarEditor extends LitElement {
           </div>`;
         break;
       }
-      case 'range':
-        content = html`
-          <div class="col">
-            <label>${field.label} <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;">${val ?? field.placeholder ?? ''}</span></label>
-            <input type="range" 
-              min=${field.min ?? 0} 
-              max=${field.max ?? 100} 
-              step=${field.dynamic_step ? ((val ?? field.placeholder ?? 0) < 10 ? "0.1" : "1") : (field.step ?? 1)} 
-              .value=${val ?? field.placeholder ?? 0} 
-              @input=${e => {
-                let v = parseFloat(e.target.value);
-                if (field.dynamic_step) e.target.step = v < 10 ? "0.1" : "1";
-                updateDirect(v);
-              }}>
-          </div>`;
+      case 'range': {
+        // A dynamic step is fine-grained below ten and whole above it, and it
+        // has to follow the value as it is dragged, not only per render.
+        const shown = val ?? field.placeholder ?? 0;
+        const step = field.dynamic_step ? (shown < 10 ? '0.1' : '1') : (field.step ?? 1);
+        content = SC.sliderField(field.label, shown, v => updateDirect(v),
+          { min: field.min ?? 0, max: field.max ?? 100, step,
+            shown: val ?? field.placeholder ?? '', dynamicStep: !!field.dynamic_step });
         break;
+      }
       case 'color':
         content = html`
           <div class="col">
             <label>${field.label}</label>
-            <div class="color-row">
-              <input type="color" .value=${val || '#000000'} @input=${e => updateDirect(e.target.value)}>
-              <input type="text" .value=${val || ''} placeholder="${field.placeholder || ''}" @input=${e => updateDebounced(e.target.value)}>
-            </div>
+            ${SC.colorRow(val || '', updateDirect, { fallback: '#000000',
+              placeholder: field.placeholder || '', onText: updateDebounced })}
           </div>`;
         break;
-      case 'gradient-stops': {
-        const stops = Array.isArray(val) && val.length > 0
-          ? val : [{ color: '#2196f3', pos: 0 }, { color: '#4caf50', pos: 100 }];
-        const previewGrad = stops.map(s => `${s.color} ${s.pos}%`).join(', ');
-        const updStop = n => updateDirect(n);
-        
-        const distributeStops = () => {
-          if (stops.length < 2) return;
-          const step = 100 / (stops.length - 1);
-          updStop(stops.map((s, i) => ({ ...s, pos: Math.round(i * step) })));
-        };
-
+      case 'gradient-stops':
         content = html`
           <div class="col">
             <label>${field.label}</label>
-            <div class="stops-preview" style="background: linear-gradient(90deg, ${previewGrad})"></div>
-            ${stops.map((s, si) => html`
-              <div class="stop-row">
-                <input type="color" .value=${s.color} @input=${e => updStop(stops.map((x,i) => i===si ? {...x, color: e.target.value} : x))}>
-                <input type="text"  .value=${s.color} @input=${e => updStop(stops.map((x,i) => i===si ? {...x, color: e.target.value} : x))}>
-                <input type="number" min="0" max="100" .value=${s.pos} @input=${e => updStop(stops.map((x,i) => i===si ? {...x, pos: parseInt(e.target.value)||0} : x))}>
-                <span style="font-size:10px;opacity:.6">%</span>
-                ${stops.length > 2 ? html`<button class="del-btn" @click=${() => updStop(stops.filter((_,i) => i !== si))}>✕</button>` : ''}
-              </div>`)}
-            <div style="display:flex; gap:6px; margin-top:4px;">
-              <button type="button" class="add-btn" style="flex:1; margin-top:0;" @click=${() => updStop([...stops, { color: '#ffffff', pos: 100 }])}>＋ Stop</button>
-              <button type="button" class="add-btn" style="flex:1; margin-top:0; border-color:var(--secondary-text-color); color:var(--secondary-text-color);" @click=${distributeStops}>⇿ Distribute</button>
-            </div>
+            <sc-gradient-stops .onUpdate=${n => updateDirect(n)}
+              .stops=${Array.isArray(val) && val.length ? val
+                : [{ color: cfg.color1 || '#2196f3', pos: 0 },
+                   { color: cfg.color2 || '#4caf50', pos: 100 }]}></sc-gradient-stops>
           </div>`;
         break;
-      }
       case 'custom-ticks': {
         const ct = Array.isArray(val) ? val : [];
         const updCt = n => updateDirect(n);

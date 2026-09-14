@@ -251,18 +251,29 @@ The legacy shapes in §1 are resolved **first**, by running the existing
 way there is exactly one place that understands the old field names, and it is
 the one already proven against real configurations.
 
-### Migration runs on Convert, and only there
+### Migration runs on read, and is written down by the editor
 
-Migration is one button's job. The renderer takes the new path only for a
-config that already carries a `canvas`; nothing migrates on the way in.
+Migration was one button's job — **Convert** — for as long as both models had
+renderers to compare. Since v2.1.0 only the canvas has one, so a card carrying
+`layout_rows` is migrated on read instead: `rows-compat.js` answers with the
+canvas those rows describe, once per render, and the card draws that.
 
-This was originally drafted the other way — migrate on read, hand the result
-to the renderer, write it back at the user's next save — and `resolveCanvas()`
-existed for it. Nothing ever called it. Convert is the better answer to the
-same worry: a card that rewrites someone's stored config just for being
-displayed can corrupt a dashboard while nobody is watching, and a button
-cannot. It also keeps the two paths comparable while both exist, which is the
-only way to check that the new one puts things where the old one did.
+The worry that made a button the right answer at the time still holds: a card
+that rewrites someone's stored config just for being displayed can corrupt a
+dashboard while nobody is watching. So the read-time migration writes nothing —
+it cannot, a Lovelace card has no way to persist its own config outside the
+editor. Opening the editor stages the same canvas as an ordinary edit, which
+**Save** writes and **Cancel** discards.
+
+Reading it at render time is also more accurate than the button was. Convert
+ran inside the edit dialog, where the card is not on screen, so it inferred the
+card's shape from `grid_options` and a reference section width. The card has
+measured itself, so `canvasFromBox` takes the ratio it actually has.
+
+A card that never had a layout is *not* migrated. There the canvas is built
+from what the card draws and arranged as bands, which is a new arrangement
+however faithful the contents — so it stays an offer, with a button that says
+so, and the two models it sits between are the content row and the canvas.
 
 Keep `layout_rows` in the config after converting. It costs a few hundred
 bytes and it is the only way back if the migration turns out to be wrong for a
@@ -605,9 +616,10 @@ already being drawn as a centred square of the smaller side; after squaring,
 the element *is* that square. Nothing moves. What changes is that the box now
 means something: drag it bigger and the gauge gets bigger.
 
-Because migration only runs when someone presses **Convert**, this affects
-conversions from here on and never rewrites a card that is already converted.
-Existing canvas cards keep their boxes until a gauge in them is resized.
+Because migration builds a fresh canvas from the rows each time, this affects
+every card that is still on rows, and never rewrites one whose canvas has
+already been written. Existing canvas cards keep their boxes until a gauge in
+them is resized.
 
 ### The size lives in one place
 
@@ -639,6 +651,20 @@ The one behaviour this changes for an existing card: a canvas card whose gauge
 was in fixed-pixel mode now fills its element instead. `gauge_position_mode`
 and the two offsets only ever applied in fixed mode, so they stop applying
 there too — as they already did for every responsive gauge.
+
+### A bar's width is the box, and only its width
+
+The same question has a different answer for a progress bar, and it was worth
+measuring rather than assuming. The canvas writes
+`::slotted(sc-progressbar) { width: 100% !important; max-height: 100% !important }`,
+and an important declaration from the outer tree beats the `:host { width }` the
+component writes for itself — measured on a live card, a bar configured at 20px
+came out at the box's 30.4px, and even an inline width could not move it. So
+**Width (CSS)** is hidden on a canvas: it is a control that cannot do anything.
+
+**Height (CSS)** stays, because `max-height` only caps it. A 20px line inside a
+taller box is a real arrangement, and the bar templates ask for `height: 100%`
+precisely so that the ones dropped from the menu fill theirs.
 
 ## 7. The canvas takes the card's shape
 
@@ -699,11 +725,37 @@ count, and the card that needs none of it is the one left on `auto`.
 
 ### One box, set in either place
 
-The canvas editor now sets **both** halves of that box — *Card width* in
-columns and *Card height* in rows — through `commitFn('__card__', …)`, so they
-are the same `grid_options` the Layout tab writes. Changing either one there
-also reshapes the canvas to match, via `rescaleCanvas`, which scales the
-element coordinates by the same two factors.
+The canvas editor sets that box itself — *Card width* in columns, *Card
+height* in rows — through `commitFn('__card__', …)`, so they are the same
+`grid_options` the Layout tab writes, and it mirrors Home Assistant's own
+**Auto height** and **Full width** as the second half of the field each
+belongs to. The number disappears when the mode has no use for one: a
+full-width card has no column count to type, and an auto-height card's rows
+come from its columns.
+
+There is no *Precise mode* switch here. HA's Layout tab counts in cells of
+three columns until that switch is on; a width typed here is one column, which
+is the same thing as having it on — so the field says so and the state stays
+HA's to hold.
+
+With auto height on, the shape *is* the width: **a third of the columns,
+rounded up**. That ratio is the same at every card width — 12 × 4 is 1.94, 9 ×
+3 is 1.95, 6 × 2 is 1.97 — so a card keeps its proportions wherever it is put,
+which is the whole reason the row count is not a free number there. The card
+still reports `rows: "auto"`, so its height follows its real width on every
+viewport and nothing letterboxes. `defaultShapeRows` is that rule, and it is
+read against the *reference* section width, never the measured one: a shape
+read off this viewport would be a different shape on the next.
+
+Fixed rows is the other half. There the row count is a height in pixels, the
+canvas is reshaped to the box that height really makes here — measured width,
+not reference — and `pinnedToShape` writes the shape it is leaving into
+`canvas.free` so that turning auto height back on returns to it. Under auto
+height there is nothing to remember: the columns say what the shape is, and the
+key is dropped.
+
+A columns change reshapes the canvas in both modes, via `rescaleCanvas`, which
+scales the element coordinates by the same two factors.
 
 Nothing is re-squared there, and that is deliberate. A gauge is drawn as
 `100cqmin` inside its box — already the largest square that fits, sitting
@@ -713,14 +765,6 @@ for good: a card taken to four rows and back came home with every gauge half
 its size and holes where the arrangement had been. Two factors are exactly
 invertible; a minimum is not. Squaring stays on a user's edit — a drag, a
 typed size, a bar turned into a ring.
-
-Going back the other way needs a memory, because a card on *Fit the canvas*
-has no height of its own to match. `pinnedToShape` therefore writes the shape
-it is leaving into `canvas.free`, once, and `unpinnedCanvas` reshapes to it and
-deletes the key when the row count goes away. A second row count reshapes from
-wherever the canvas is now and still comes home to the shape the user drew.
-Typing the canvas' own width or height forgets it: that note was about where
-the canvas came from, and this is the user saying where it is now.
 
 The trip costs whole units and nothing else — a canvas is 400 units across, so
 one of them is a quarter of a percent, and an element can come back a unit
@@ -736,10 +780,18 @@ shapes actually differ. A card that rewrites its own config for being displayed
 can corrupt a dashboard while nobody is watching; the editor asking once is the
 version of that which cannot.
 
-With the height on *Fit the canvas* there is no row count to match, and the
-button does not appear: the canvas is the height in that mode, and deriving one
-from the other in both directions is a circle. Switching *to* that mode still
-reshapes, to the remembered shape — that is a change the user made, not a
+With auto height there is no row count to match, and the button does not
+appear: the canvas is the height in that mode, and deriving one from the other
+in both directions is a circle.
+
+### The grid is a proportion, never a number of units
+
+The snap grid is stored as a per cent of the canvas width (`grid_unit: 'pct'`)
+and the editor offers no other unit. A grid of *n* units survives only until
+the canvas is reshaped — and under this model a reshape is one column change
+away — after which every element sits between two lines and the next drag
+moves it. A canvas still carrying a unit grid is *shown* its own value as a
+proportion, and the first edit writes it down that way; nothing is converted on
 render.
 
 ## 8. The preview draws the real thing

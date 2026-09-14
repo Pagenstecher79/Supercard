@@ -1,4 +1,7 @@
 import './supercard-01-core.js';
+// Defines <sc-gradient-stops>, which every editor below uses; no module of
+// its own, so it sits after core and before the first editor that wants it.
+import './supercard-09-gradient-stops.js';
 import './supercard-02-color.js';
 import './supercard-03-progressbar.js';
 import './supercard-04-layout.js';

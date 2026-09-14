@@ -1102,6 +1102,74 @@ export function canvasFromGrid(cardConfig, slot, scale = 400, total = HA_COLUMN_
 }
 
 /**
+ * The row count a card of this many columns starts at.
+ *
+ * A third of the columns, because a column is about 40px wide with its gap and
+ * a row 64px with its own: three columns to two rows lands within a couple of
+ * percent of 2:1 at every width - 12x4 is 1.94, 9x3 is 1.95, 6x2 is 1.97,
+ * 3x1 is 2.04. So the rule is not a shape pulled out of the air, it is the one
+ * that keeps a new card the same shape whatever width it is given.
+ *
+ * Column counts that are not multiples of three round, and wobble as rounding
+ * does. It is a starting point, not a constraint.
+ *
+ * @param {number|'full'} columns
+ * @param {number} [total] the section's column count, from `sectionColumns`
+ * @returns {number}
+ */
+export function defaultShapeRows(columns, total = HA_COLUMN_COUNT) {
+  const max = Math.round(Number(total)) > 0 ? Math.round(Number(total)) : HA_COLUMN_COUNT;
+  const n = columns === 'full' ? max : Math.max(1, Math.min(max, Math.round(Number(columns) || 0)));
+  // A width that is not a multiple of three rounds *up*: the spare is height,
+  // which a card can use, where the missing row would crop it.
+  return Math.max(1, Math.ceil(n / 3));
+}
+
+/**
+ * How many rows a canvas of this shape is worth, in a card of this width.
+ *
+ * The inverse of building the shape from a row count, so the editor can show
+ * the number that produced a shape - including for a card whose canvas was
+ * typed in as two numbers before this control existed, where it is the
+ * nearest whole row rather than an exact answer.
+ *
+ * @param {{w:number,h:number}} canvas
+ * @param {number|'full'} columns
+ * @param {number} [total] the section's column count
+ * @param {number} [sectionPx] the section's measured width
+ * @returns {number}
+ */
+export function rowsForShape(canvas, columns, total = HA_COLUMN_COUNT, sectionPx = 0) {
+  if (!(canvas?.w > 0) || !(canvas?.h > 0)) return 1;
+  const px = gridColumnsToPx(columns, total, sectionPx) * (canvas.h / canvas.w);
+  return Math.max(1, Math.round((px + HA_ROW_GAP) / (HA_ROW_HEIGHT + HA_ROW_GAP)));
+}
+
+/**
+ * A canvas shaped like the box the card actually occupies.
+ *
+ * `canvasFromGrid` infers that box from `grid_options` because Convert runs in
+ * the edit dialog, where the card itself is not on screen to be measured. The
+ * rows compatibility path has the real thing - the card's own resize observer
+ * has already published its width and height - so it uses them and infers
+ * nothing. Same scaling convention as `canvasFromGrid`: the longer side
+ * becomes `scale`, since only the ratio carries meaning.
+ *
+ * A box with no area yet (the first render, before the observer has fired) has
+ * no ratio to give, so the caller is told so rather than handed a square.
+ *
+ * @param {number} w measured width in px
+ * @param {number} h measured height in px
+ * @param {number} [scale]
+ * @returns {{ w: number, h: number } | null}
+ */
+export function canvasFromBox(w, h, scale = 400) {
+  if (!(w > 0) || !(h > 0)) return null;
+  const k = scale / Math.max(w, h);
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+
+/**
  * A first canvas for a card that has no layout to migrate.
  *
  * Reaching the canvas used to mean building a rows layout first and converting
@@ -1278,20 +1346,6 @@ export function pinnedToShape(canvas, shape) {
   if (!canvas || (canvas.w === shape.w && canvas.h === shape.h)) return null;
   const free = canvas.free || { w: canvas.w, h: canvas.h };
   return { ...rescaleCanvas(canvas, shape), free };
-}
-
-/**
- * The canvas back in the shape it had before a row count fixed the card's
- * height, without the note that said so.
- *
- * @param {any} canvas
- * @returns {any|null} null when there is nothing remembered to go back to
- */
-export function unpinnedCanvas(canvas) {
-  const free = canvas?.free;
-  if (!free) return null;
-  const { free: _remembered, ...rest } = canvas;
-  return (rest.w === free.w && rest.h === free.h) ? rest : rescaleCanvas(rest, free);
 }
 
 /**

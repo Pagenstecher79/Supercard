@@ -116,6 +116,10 @@ everywhere else, and never add a second read path for the old key.
 - `resolveAlias(list, cfg, entityKey?, attrKey?)` - resolves entity/attribute
   through `global_entities`
 - `withPatch(list, idx, key, value)` - immutable single-field edit
+- `colorRow(value, onInput, opts)` / `colorField(label, ...)` - **the** colour
+  control: swatch plus text, `hexOnly` where only `#rrggbb` will do
+- `slider(value, onInput, opts)` / `sliderRow(label, ...)` / `sliderField(label, ...)`
+  - the range control, beside its label or under it with the value read out
 - `editorStyles` / `formStyles` - the two shared editor stylesheets
 
 Add a helper here as soon as a second module needs it, and extend
@@ -157,12 +161,55 @@ canvas letterboxes inside it - never `max-height`, which would keep the width
 at 100% and break the ratio. See `docs/canvas-layout.md` §5.
 
 **The card's shape.** `canvasFromGrid` turns `grid_options` (columns x rows)
-into the canvas shape that box wants, so Convert reproduces the card that is
-already on the dashboard instead of imposing a default. `gridColumnsToPx` uses
-a *reference* section width, because a section's real width is a viewport
-result; only the ratio against `gridRowsToPx` is used. The canvas editor sets
-columns and rows itself and reshapes the canvas with `rescaleCanvas` when they
-change - but only on a user's edit, never on render. See §7.
+into the canvas shape that box wants, so a migration reproduces the card that
+is already on the dashboard instead of imposing a default. `gridColumnsToPx`
+uses a *reference* section width, because a section's real width is a viewport
+result; only the ratio against `gridRowsToPx` is used. `canvasFromBox` is the
+same thing from a box that has been measured, which is what the card itself
+can offer. The canvas editor sets columns and rows itself and reshapes the
+canvas with `rescaleCanvas` when they change - but only on a user's edit,
+never on render.
+
+With auto height the shape is not a free number: it is the columns and a third
+of them, rounded up (`defaultShapeRows`), read against the reference width so
+the same card is the same shape on every viewport. A row count of the user's
+own means fixed rows, which is a height in pixels and is matched against the
+*measured* width instead. The snap grid is stored as a per cent of the canvas
+for the same reason - a grid in units does not survive the next reshape. See
+§7.
+
+**One gradient shape, one gradient editor.** A colour stop is
+`{pos, color}` - `pos` in per cent, or on the entity's scale where a gauge
+says so, and `null` for a colour nobody placed, which CSS then spreads
+itself. `gradient-stops.js` holds the arithmetic and `<sc-gradient-stops>`
+(`supercard-09-gradient-stops.js`) is the only editor for such a list: the
+gauge's stops, a bar's gradient and a colour pattern's colours are all that
+one element, told what its add button should say. Saved cards still carry the
+older shapes - a gauge's `{value, color}`, a pattern's parallel `colors` and
+`stops` - so readers go through `normalizeStops`, and `stripDeadConfig`
+rewrites them on the next edit. Do not add a fourth stop editor, and do not
+read a stop list without `normalizeStops`.
+
+**One layout model.** The canvas is the only one. The rows-and-cells model it
+replaced had its renderer and its editor removed in v2.1.0, but its
+configurations are on people's dashboards, so `layout_rows` is still *read*:
+`rows-compat.js` answers with the canvas those rows describe, in memory, once
+per render, and `_drawnSlot` in the core hands that one answer to every module
+so none of them sees two models. Nothing is written back - a Lovelace card
+cannot persist its own config outside the editor - so the editor stages the
+same canvas as an ordinary edit when it opens such a card. Do not add a second
+read path for `layout_rows`, and do not migrate a card that never had a layout:
+the canvas built from a content row is a new arrangement, so that one stays an
+offer with a button. See `docs/canvas-layout.md` §3.
+
+**One control, drawn once.** A colour is `SC.colorRow`/`SC.colorField` and a
+range is `SC.slider`/`SC.sliderRow`/`SC.sliderField`, in every editor, whether
+it is built from a field array or writes its own markup. Each of those used to
+be written out per module, which is how the same setting ended up 50% wide in
+one menu and 60% in the next, and the swatch three different sizes. A call site
+passes only what genuinely differs (`width`, `hexOnly`, `int`, a debounced
+`onText`); if a new one needs something else, add the option here rather than a
+second copy of the control there.
 
 **Editor styles.** Start from a shared stylesheet and add only what differs:
 

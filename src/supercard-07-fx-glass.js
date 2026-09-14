@@ -163,24 +163,12 @@ const HAS_OWN_SWITCH = /^elm_(gauge|progressbar|label)_\d+$/;
 function getTargets(slot) {
   const groups = {
     general: { label: 'General', items: [ { id: 'none', label: '— Please select a target —' } ]},
-    cells: { label: 'Layout cells (containers)', items: [] },
     elements: { label: 'Direct elements (exact fit)', items: [] }
   };
   const els = getAvailableElements(slot);
-  // Converted cards keep layout_rows, so the cell ids are still there to list -
-  // but the parts they name are gone, and a target that cannot work is worse
-  // than one absent. Elements below cover the canvas, surfaces included.
-  if (!slot?.canvas && Array.isArray(slot.layout_rows)) {
-    slot.layout_rows.forEach((row, rIdx) => {
-      row.cells.forEach((cell, cIdx) => {
-        const typeLabel = els[cell.content] || 'Empty';
-        groups.cells.items.push({ id: `r${rIdx}c${cIdx}`, label: `Cell R${rIdx+1}C${cIdx+1} (${typeLabel})` });
-      });
-    });
-  }
   Object.entries(els).forEach(([key, label]) => {
-    // Same rule as the cells above: an element the canvas does not place has
-    // no part to reach. showsElement passes everything on a rows card.
+    // An element the canvas does not place has no part to reach, and a target
+    // that cannot work is worse than one absent. Surfaces are included.
     if (key !== 'empty' && SC.showsElement(slot, key)
         && !HAS_OWN_SWITCH.test(`elm_${key}`) && !NO_GLASS.has(`elm_${key}`)) {
       groups.elements.items.push({ id: `elm_${key}`, label: `Element: ${label}` });
@@ -259,13 +247,10 @@ function glassBody(pat, set, setMany, slot) {
     <div class="row">
       <label>Edge distance (inset / padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
       <div style="display:flex; align-items:center; width:60%; gap:8px">
-        <input type="range"
-          min=${(pat.padding_unit || 'px') === '%' ? '-100' : '-50'}
-          max=${(pat.padding_unit || 'px') === '%' ? '100' : '50'}
-          step="1"
-          style="flex:1"
-          .value=${pat.padding ?? 0}
-          @input=${e => { set('padding', parseInt(e.target.value)); }}>
+        ${SC.slider(pat.padding ?? 0, v => set('padding', v), {
+          min: (pat.padding_unit || 'px') === '%' ? -100 : -50,
+          max: (pat.padding_unit || 'px') === '%' ? 100 : 50,
+          style: 'flex:1', int: true })}
         <span style="font-size:11px; min-width:24px; text-align:right;">${pat.padding ?? 0}</span>
         <select style="width:60px" @change=${e => { set('padding_unit', e.target.value); }}>
           <option value="px" ?selected=${pat.padding_unit === 'px' || !pat.padding_unit}>px</option>
@@ -297,31 +282,31 @@ function glassBody(pat, set, setMany, slot) {
     </div>
     ${pat.use_custom_ring_width ? html`
       <div class="row"><label>Mask thickness (px)</label>
-        <input type="range" min="1" max="50" step="0.5" style="width:60%" .value=${pat.ring_width ?? 5} @input=${e => { set('ring_width', parseFloat(e.target.value)); }}>
+        ${SC.slider(pat.ring_width ?? 5, v => set('ring_width', v), { min: 1, max: 50, step: 0.5, width: '60%' })}
       </div>
     ` : ''}
     <div class="row"><label>Effect strength in center (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = blur & color completely hollow</span></label>
-      <input type="range" min="0" max="100" style="width:60%" .value=${pat.ring_center_opacity ?? 0} @input=${e => { set('ring_center_opacity', parseInt(e.target.value)); }}>
+      ${SC.slider(pat.ring_center_opacity ?? 0, v => set('ring_center_opacity', v), { min: 0, max: 100, width: '60%', int: true })}
     </div>
   ` : ''}
 
   <div class="section-title">🔍 Optics (Magnifier & Curvature)</div>
   <div class="row"><label>Magnify content (zoom)</label>
-    <input type="range" step="0.01" min="1" max="1.5" style="width:60%" .value=${pat.zoom ?? 1} @input=${e => { set('zoom', parseFloat(e.target.value)); }}>
+    ${SC.slider(pat.zoom ?? 1, v => set('zoom', v), { step: 0.01, min: 1, max: 1.5, width: '60%' })}
   </div>
   <div class="row"><label>Convex 3D shine (%)</label>
-    <input type="range" min="0" max="100" style="width:60%" .value=${pat.glare ?? 0} @input=${e => { set('glare', parseInt(e.target.value)); }}>
+    ${SC.slider(pat.glare ?? 0, v => set('glare', v), { min: 0, max: 100, width: '60%', int: true })}
   </div>
   <div class="row"><label>Edge refraction (%)<br><span style="font-size:10px;color:var(--secondary-text-color)">Bends what is behind the edge, the way real glass does. With blur at 0 this is clear glass: what is underneath stays readable and only the rim curls. Not shown by Safari or Firefox, which draw the pane without it.</span></label>
-    <input type="range" min="0" max="100" style="width:60%" .value=${pat.refraction ?? 0} @input=${e => { set('refraction', parseInt(e.target.value)); }}>
+    ${SC.slider(pat.refraction ?? 0, v => set('refraction', v), { min: 0, max: 100, width: '60%', int: true })}
   </div>
 
   <div class="section-title">💧 Glass & Blur</div>
   <div class="row"><label>Blur strength (px)</label>
-    <input type="range" step="0.01" min="0" max="2" style="width:60%" .value=${pat.blur ?? 10} @input=${e => { set('blur', parseFloat(e.target.value)); }}>
+    ${SC.slider(pat.blur ?? 10, v => set('blur', v), { step: 0.01, min: 0, max: 2, width: '60%' })}
   </div>
   <div class="row"><label>Background opacity (%)</label>
-    <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 10} @input=${e => { set('opacity', parseInt(e.target.value)); }}>
+    ${SC.slider(pat.opacity ?? 10, v => set('opacity', v), { min: 0, max: 100, width: '60%', int: true })}
   </div>
   <div class="row"><label>Color (hex picker)</label>
     <input type="color" .value=${pat.bg_rgb || '#ffffff'} @input=${e => { set('bg_rgb', e.target.value); }}>
@@ -340,18 +325,15 @@ function glassBody(pat, set, setMany, slot) {
     ${sunPad}
 
     <div class="row"><label>Bevel width (px)<br><span style="font-size:10px;color:var(--secondary-text-color)">Extent of the edge inward</span></label>
-      <input type="range" step="0.1" min="0" max="30" style="width:60%" .value=${pat.bevel_width ?? pat.bevel_size ?? 2}
-        @input=${e => { set('bevel_width', parseFloat(e.target.value)); }}>
+      ${SC.slider(pat.bevel_width ?? pat.bevel_size ?? 2, v => set('bevel_width', v), { step: 0.1, min: 0, max: 30, width: '60%' })}
     </div>
 
     <div class="row"><label>Glass thickness (depth)<br><span style="font-size:10px;color:var(--secondary-text-color)">Controls the steepness & refraction</span></label>
-      <input type="range" step="0.5" min="0" max="20" style="width:60%" .value=${pat.glass_thickness ?? 5}
-        @input=${e => { set('glass_thickness', parseFloat(e.target.value)); }}>
+      ${SC.slider(pat.glass_thickness ?? 5, v => set('glass_thickness', v), { step: 0.5, min: 0, max: 20, width: '60%' })}
     </div>
 
     <div class="row"><label>Base brightness (light)</label>
-      <input type="range" step="0.001" min="0" max="1" style="width:60%" .value=${pat.light_brightness ?? 0.4}
-        @input=${e => { set('light_brightness', parseFloat(e.target.value)); }}>
+      ${SC.slider(pat.light_brightness ?? 0.4, v => set('light_brightness', v), { step: 0.001, min: 0, max: 1, width: '60%' })}
     </div>
   ` : ''}
 
@@ -370,8 +352,7 @@ function glassBody(pat, set, setMany, slot) {
         </select>
       </div>
       <div class="row"><label>Relief depth<br><span style="font-size:10px;color:var(--secondary-text-color)">In the bar's own unit, so it keeps its look as the ring resizes</span></label>
-        <input type="range" step="0.1" min="0" max="3" style="width:60%" .value=${pat.segment_relief_depth ?? 0.6}
-          @input=${e => { set('segment_relief_depth', parseFloat(e.target.value)); }}>
+        ${SC.slider(pat.segment_relief_depth ?? 0.6, v => set('segment_relief_depth', v), { step: 0.1, min: 0, max: 3, width: '60%' })}
       </div>
     ` : ''}
   ` : ''}

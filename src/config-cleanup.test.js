@@ -97,14 +97,14 @@ describe('the editor fold state saved cards carry', () => {
       sectors: [{ start_percent: 75, _isOpen: true, manual_stops: [{ value: 1, _isOpen: false }] }],
     }] };
     const out = stripDeadConfig(slot);
-    expect(out.gauges[0].manual_stops[0]).toEqual({ value: 0, color: '#f00' });
+    expect(out.gauges[0].manual_stops[0]).toEqual({ pos: 0, color: '#f00' });
     expect(out.gauges[0].custom_ticks[0]).toEqual({ value: 5 });
-    expect(out.gauges[0].sectors[0].manual_stops[0]).toEqual({ value: 1 });
+    expect(out.gauges[0].sectors[0].manual_stops[0]).toEqual({ pos: 1 });
     expect('_isOpen' in out.gauges[0].sectors[0]).toBe(false);
   });
 
   it('is nothing to do for a gauge that never carried one', () => {
-    expect(stripDeadConfig({ gauges: [{ entity: 'x', manual_stops: [{ value: 0 }] }] })).toBe(null);
+    expect(stripDeadConfig({ gauges: [{ entity: 'x', manual_stops: [{ pos: 0 }] }] })).toBe(null);
   });
 
   it('does not touch the gauges it did not have to rebuild', () => {
@@ -150,5 +150,46 @@ describe('migrateSlotKey', () => {
   it('is nothing to do for a card that has no slot at all', () => {
     const config = { type: 'custom:gauge-studio-core' };
     expect(migrateSlotKey(config)).toBe(config);
+  });
+});
+
+describe('stripDeadConfig: the one stop shape', () => {
+  it('renames a gauge stop written as a value', () => {
+    const slot = { gauges: [{ manual_stops: [{ value: 0, color: '#fff' }, { value: 50, color: '#000' }] }] };
+    expect(stripDeadConfig(slot).gauges[0].manual_stops)
+      .toEqual([{ pos: 0, color: '#fff' }, { pos: 50, color: '#000' }]);
+  });
+
+  it("reaches a sector's own stops, three levels down", () => {
+    const slot = { gauges: [{ sectors: [{ manual_stops: [{ value: 10, color: '#abc' }] }] }] };
+    expect(stripDeadConfig(slot).gauges[0].sectors[0].manual_stops)
+      .toEqual([{ pos: 10, color: '#abc' }]);
+  });
+
+  it('leaves a stop that already reads as a position', () => {
+    const slot = { progressbars: [{ gradient_stops: [{ pos: 0, color: '#fff' }] }] };
+    expect(stripDeadConfig(slot)).toBe(null);
+  });
+
+  it("folds a colour pattern's parallel arrays into one list", () => {
+    const slot = { color_patterns: [{ bg_type: 'linear', colors: ['#111', '#222'], stops: [0, 100] }] };
+    expect(stripDeadConfig(slot).color_patterns[0])
+      .toEqual({ bg_type: 'linear', gradient_stops: [{ pos: 0, color: '#111' }, { pos: 100, color: '#222' }] });
+  });
+
+  it('keeps a colour nobody positioned unpositioned', () => {
+    const slot = { color_patterns: [{ bg_type: 'solid', colors: ['#111'] }] };
+    expect(stripDeadConfig(slot).color_patterns[0].gradient_stops).toEqual([{ pos: null, color: '#111' }]);
+  });
+
+  it('does not touch a colours list that is not a pattern', () => {
+    const slot = { gauges: [{ colors: ['#111'] }] };
+    expect(stripDeadConfig(slot)).toBe(null);
+  });
+
+  it('does not modify the slot it is given', () => {
+    const slot = { gauges: [{ manual_stops: [{ value: 0, color: '#fff' }] }] };
+    stripDeadConfig(slot);
+    expect(slot.gauges[0].manual_stops).toEqual([{ value: 0, color: '#fff' }]);
   });
 });

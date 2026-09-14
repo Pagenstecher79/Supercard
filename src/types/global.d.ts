@@ -51,6 +51,11 @@ declare global {
     /** Extra <style> text injected once per render. */
   }
 
+  interface SliderOpts {
+    min?: number; max?: number; step?: number | string; width?: string; style?: string; int?: boolean;
+    dynamicStep?: boolean;
+  }
+
   /** Shared number/color/target helpers, set up once by supercard-01-core.js. */
   interface SupercardUtilsApi {
     safeFloat: (v: any, d: number) => number;
@@ -125,6 +130,20 @@ declare global {
      * percentage draws an ellipse rather than a corner.
      */
     cardRadius: (slot: any) => string | null;
+    /** The swatch-and-text colour control, drawn the same in every editor. */
+    colorRow: (value: string, onInput: (v: string) => void, opts?: {
+      fallback?: string; placeholder?: string; hexOnly?: boolean; textFallback?: boolean;
+    }) => any;
+    /** `colorRow` under its own label. */
+    colorField: (label: string, value: string, onInput: (v: string) => void, opts?: {
+      fallback?: string; placeholder?: string; hexOnly?: boolean; textFallback?: boolean;
+    }) => any;
+    /** The range input alone, for a row a module draws itself. */
+    slider: (value: number, onInput: (v: number) => void, opts?: SliderOpts) => any;
+    /** A slider beside its label. */
+    sliderRow: (label: any, value: number, onInput: (v: number) => void, opts?: SliderOpts) => any;
+    /** A slider under its label, with the value read out beside it. */
+    sliderField: (label: any, value: number, onInput: (v: number) => void, opts?: SliderOpts & { shown?: any }) => any;
     /** Shared chrome for the card-list module editors (ha-switch family). */
     editorStyles: CSSResult;
     /** Shared chrome for the compact config forms (.toggle family). */

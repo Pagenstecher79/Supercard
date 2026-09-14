@@ -1,4 +1,5 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { normalizeStops } from "./gradient-stops.js";
 
 const SC = window.SupercardUtils;
 
@@ -197,7 +198,11 @@ class ScGauge extends LitElement {
       const f=parseFloat(v); 
       return isNaN(f) ? null : (isPct ? gStart + (f/100)*rG : f); 
     };
-    const stops = stopsArray.map(st => ({ limit: norm(st.value), c: toRgbArray(st.color) || [128,128,128] })).filter(s => s.limit !== null);
+    // `fill: false`, because a stop with no threshold on it is one the gauge
+    // has always dropped - an even spread would invent a band for it.
+    const stops = normalizeStops(stopsArray, { fill: false })
+      .map(st => ({ limit: norm(st.pos), c: toRgbArray(st.color) || [128,128,128] }))
+      .filter(s => s.limit !== null);
     if (stops.length === 0) return null;
     stops.sort((a,b)=>a.limit-b.limit);
     if (stops.length === 1) stops.push({ limit: stops[0].limit + 0.001, c: stops[0].c });

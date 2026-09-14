@@ -1,4 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { normalizeStops, stopsToCss } from "./gradient-stops.js";
 
 const SC = window.SupercardUtils;
 
@@ -11,25 +12,12 @@ function getTargets(slot) {
     { id: 'main', label: 'Main card (entire background)' }
   ];
   const els = getAvailableElements(slot);
-  // Two models, two kinds of region. A canvas has no cells, and the cell ids a
-  // converted card still carries name parts that stopped existing when it was
-  // converted - offering those would be offering a target that cannot work.
-  // The element boxes are the regions there, surfaces included, which is what
-  // migration turned each targeted cell into.
-  if (slot?.canvas) {
-    for (const [id, label] of Object.entries(els)) {
-      // An element the canvas does not place has no box and no part, so it is
-      // as unpaintable as a stale cell. On a rows card showsElement says yes
-      // to everything, which is why the check can live in the shared filter.
-      if (id !== 'empty' && SC.showsElement(slot, id)) targets.push({ id: `elm_${id}`, label });
-    }
-  } else if (Array.isArray(slot.layout_rows)) {
-    slot.layout_rows.forEach((row, rIdx) => {
-      row.cells.forEach((cell, cIdx) => {
-        const typeLabel = els[cell.content] || 'Empty';
-        targets.push({ id: `r${rIdx}c${cIdx}`, label: `R${rIdx+1}C${cIdx+1} (${typeLabel})` });
-      });
-    });
+  // The element boxes are the paintable regions, surfaces included - which is
+  // what migrating a targeted cell turned it into.
+  for (const [id, label] of Object.entries(els)) {
+    // An element the canvas does not place has no box and no part, so there is
+    // nothing there to paint.
+    if (id !== 'empty' && SC.showsElement(slot, id)) targets.push({ id: `elm_${id}`, label });
   }
   return targets;
 }
@@ -59,8 +47,6 @@ class ScColorEditor extends LitElement {
       .color-item { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; background: rgba(255,255,255,0.02); }
       .color-item-row { display: flex; align-items: center; gap: 8px; }
       .color-item-row input[type="color"], .color-row input[type="color"] { width: 40px; height: 30px; padding: 0; border: none; background: none; cursor: pointer; }
-      .del-color-btn { background: none; border: none; color: #f44; cursor: pointer; font-size: 16px; padding: 0 4px; }
-      .add-color-btn { background: rgba(3,169,244,0.1); border: 1px solid var(--primary-color); color: var(--primary-color); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px; font-weight: bold; flex: 1; }
       .action-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color,#555); color: var(--primary-text-color); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px; flex: 1; font-weight: bold; }
       .action-btn:hover { background: rgba(255,255,255,0.1); }
       .info-text { font-size: 11px; color: var(--secondary-text-color); margin-top: -8px; margin-bottom: 4px; }
@@ -79,6 +65,19 @@ class ScColorEditor extends LitElement {
 
   /** Commit `list` with one field of entry `idx` changed. */
   _set(list, idx, key, value) { this._commit(SC.withPatch(list, idx, key, value)); }
+
+  /**
+   * A pattern's colours, written as the one stop shape. The parallel
+   * `colors`/`stops` arrays a pattern may still carry go in the same edit -
+   * leaving them would keep a second, now stale, answer in the config.
+   */
+  _setStops(list, idx, stops) {
+    const n = structuredClone(list);
+    delete n[idx].colors;
+    delete n[idx].stops;
+    n[idx].gradient_stops = stops;
+    this._commit(n);
+  }
 
   _toggle(id, e) {
     if (e) e.stopPropagation();
@@ -107,6 +106,24 @@ class ScColorEditor extends LitElement {
             const needsAngle        = pat.bg_type === 'linear' || pat.animation === 'waves' || pat.animation === 'wobble_linear';
 
             const isAutoBorder = pat.border_radius_auto === undefined ? (pat.target === 'main') : pat.border_radius_auto;
+
+            // A solid background is one colour, so it keeps the plain swatch;
+            // everything else - a gradient, or the fluid mesh whose positions
+            // are blob radii - is a stop list, and gets the shared editor.
+            const gradient   = pat.bg_type !== 'solid' || pat.animation === 'fluid';
+            const stopList   = normalizeStops(
+              pat.gradient_stops ?? { colors: pat.colors, stops: pat.stops }, { fill: false });
+            const solidColor = stopList[0]?.color || '#ff9800';
+            // The preview strip is the one in the stop editor, so a pattern
+            // hands it the gradient it actually paints - its angle, or the
+            // radial's centre - rather than a left-to-right stand-in.
+            const previewCss = pat.animation === 'fluid'
+              ? ''
+              : pat.bg_type === 'radial'
+                ? 'radial-gradient(circle at ' + (pat.radial_x ?? 50) + '% '
+                  + (pat.radial_y ?? 50) + '%, ' + stopsToCss(stopList) + ')'
+                : 'linear-gradient(' + (pat.gradient_angle ?? 90) + 'deg, '
+                  + stopsToCss(stopList) + ')';
 
             return html`
               <div class="pattern-card">
@@ -184,24 +201,16 @@ class ScColorEditor extends LitElement {
                         ${usesWaveColors ? html`
                           <div class="info-text" style="margin-top:0;">The colors are calculated dynamically by the effect.</div>
                           <div class="row"><label>Count (density)</label>
-                            <input type="range" min="1" max="20" style="width:60%" .value=${pat.wave_count ?? 3}
-                              @input=${e => { this._set(patterns, idx, 'wave_count', parseInt(e.target.value)); }}>
+                            ${SC.slider(pat.wave_count ?? 3, v => this._set(patterns, idx, 'wave_count', v), { min: 1, max: 20, width: '60%', int: true })}
                           </div>
                           <div class="row"><label>Balance (peak vs. trough)</label>
-                            <input type="range" min="5" max="95" style="width:60%" .value=${pat.wave_balance ?? 50}
-                              @input=${e => { this._set(patterns, idx, 'wave_balance', parseInt(e.target.value)); }}>
+                            ${SC.slider(pat.wave_balance ?? 50, v => this._set(patterns, idx, 'wave_balance', v), { min: 5, max: 95, width: '60%', int: true })}
                           </div>
                           <div class="col"><label>Line/wave color (peak)</label>
-                            <div class="color-row">
-                              <input type="color" .value=${pat.wave_c1 || '#03a9f4'} @input=${e => { this._set(patterns, idx, 'wave_c1', e.target.value); }}>
-                              <input type="text" .value=${pat.wave_c1 || '#03a9f4'} style="flex:1" @input=${e => { this._set(patterns, idx, 'wave_c1', e.target.value); }}>
-                            </div>
+                            ${SC.colorRow(pat.wave_c1 || '', v => this._set(patterns, idx, 'wave_c1', v), { fallback: '#03a9f4', textFallback: true })}
                           </div>
                           <div class="col"><label>Background color (trough)</label>
-                            <div class="color-row">
-                              <input type="color" .value=${pat.wave_c2 || '#transparent'} @input=${e => { this._set(patterns, idx, 'wave_c2', e.target.value); }}>
-                              <input type="text" .value=${pat.wave_c2 || 'transparent'} style="flex:1" @input=${e => { this._set(patterns, idx, 'wave_c2', e.target.value); }}>
-                            </div>
+                            ${SC.colorRow(pat.wave_c2 || '', v => this._set(patterns, idx, 'wave_c2', v), { fallback: 'transparent', textFallback: true })}
                           </div>
                           <div style="font-size:11px; font-weight:bold; color:var(--primary-color); margin-top:4px;">Gradient preview</div>
                           <div style="height:10px;border-radius:5px; background:${
@@ -234,51 +243,33 @@ class ScColorEditor extends LitElement {
                           `}
 
                           <div class="col"><label>Colors</label>
-                            <div class="color-list">
-                              ${pat.colors.map((c, cIdx) => {
-                                const defaultStop = Math.round((100 / (pat.colors.length > 1 ? pat.colors.length - 1 : 1)) * cIdx);
-                                const currentStop = pat.stops?.[cIdx] ?? defaultStop;
-                                return html`
-                                  <div class="color-item">
-                                    <div class="color-item-row">
-                                      <input type="color" .value=${c} @input=${e => { const n = structuredClone(patterns); n[idx].colors[cIdx] = e.target.value; this._commit(n); }}>
-                                      <input type="text"  .value=${c} style="flex:1" @input=${e => { const n = structuredClone(patterns); n[idx].colors[cIdx] = e.target.value; this._commit(n); }}>
-                                      ${(pat.colors.length > 1 && (pat.bg_type !== 'solid' || pat.animation === 'fluid')) ? html`<button class="del-color-btn" @click=${() => { const n = structuredClone(patterns); n[idx].colors.splice(cIdx,1); if (n[idx].stops) n[idx].stops.splice(cIdx,1); this._commit(n); }}>✕</button>` : ''}
-                                    </div>
-                                    ${(pat.bg_type !== 'solid' || pat.animation === 'fluid') ? html`
-                                      <div class="color-item-row" style="padding:2px 4px 0 4px;border-top:1px solid rgba(255,255,255,0.05);margin-top:4px">
-                                        <span style="font-size:10px;color:var(--secondary-text-color)">${pat.animation === 'fluid' ? 'Radius (size)' : 'Stop'}</span>
-                                        <input type="range" min="0" max="100" style="flex:1" .value=${currentStop}
-                                          @input=${e => { const n = structuredClone(patterns); if (!n[idx].stops) n[idx].stops = n[idx].colors.map((_,i) => Math.round((100/(n[idx].colors.length>1?n[idx].colors.length-1:1))*i)); n[idx].stops[cIdx] = parseInt(e.target.value); this._commit(n); }}>
-                                        <span style="font-size:10px;width:24px;text-align:right">${currentStop}%</span>
-                                      </div>` : ''}
-                                  </div>`;
-                              })}
-                            </div>
-                            ${(pat.bg_type !== 'solid' || pat.animation === 'fluid') ? html`
-                              <div style="display:flex;gap:6px">
-                                <button class="add-color-btn" @click=${() => { const n = structuredClone(patterns); n[idx].colors.push('#03a9f4'); if (n[idx].stops) n[idx].stops.push(100); this._commit(n); }}>＋ Add color</button>
-                                ${pat.colors.length > 1 ? html`<button class="action-btn" @click=${() => { const n = structuredClone(patterns); const len = n[idx].colors.length; n[idx].stops = n[idx].colors.map((_,i) => Math.round((100/(len-1))*i)); this._commit(n); }}>⟷ Distribute stops</button>` : ''}
+                            ${gradient ? html`
+                              <sc-gradient-stops .stops=${stopList} .previewCss=${previewCss}
+                                .onUpdate=${list => this._setStops(patterns, idx, list)}></sc-gradient-stops>
+                              ${pat.animation === 'fluid' ? html`
+                                <div class="info-text" style="color:var(--secondary-text-color);">A position here is the blob's radius, not a place along a line.</div>
+                              ` : ''}
+                            ` : html`
+                              <div class="color-list">
+                                <div class="color-item"><div class="color-item-row">
+                                  <input type="color" .value=${solidColor}
+                                    @input=${e => this._setStops(patterns, idx, [{ pos: stopList[0]?.pos ?? null, color: e.target.value }])}>
+                                  <input type="text" .value=${solidColor} style="flex:1"
+                                    @input=${e => this._setStops(patterns, idx, [{ pos: stopList[0]?.pos ?? null, color: e.target.value }])}>
+                                </div></div>
                               </div>
-                              ${ (pat.colors.length > 1 && pat.animation !== 'fluid') ? html`
-                              <div style="font-size:11px; font-weight:bold; color:var(--primary-color); margin-top:8px;">Gradient preview</div>
-                              <div style="height:10px;border-radius:5px;
-                                background:linear-gradient(${pat.bg_type==='radial'?`circle at ${pat.radial_x??50}% ${pat.radial_y??50}%`:`${pat.gradient_angle??90}deg`},
-                                ${pat.colors.map((c,i)=>`${c} ${pat.stops?.[i]??Math.round((100/(pat.colors.length-1))*i)}%`).join(',')})"></div>` : ''}
-                            ` : ''}
+                            `}
                           </div>
                         `}
 
                         ${needsAngle ? html`
                           <div class="row" style="margin-top:8px;"><label>Angle (degrees)</label>
-                            <input type="range" min="0" max="360" style="width:60%" .value=${pat.gradient_angle ?? 90}
-                              @input=${e => { this._set(patterns, idx, 'gradient_angle', parseInt(e.target.value)); }}>
+                            ${SC.slider(pat.gradient_angle ?? 90, v => this._set(patterns, idx, 'gradient_angle', v), { min: 0, max: 360, width: '60%', int: true })}
                           </div>` : ''}
 
                         <div class="row">
                           <label>Opacity (%)</label>
-                          <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 100}
-                            @input=${e => { this._set(patterns, idx, 'opacity', parseInt(e.target.value)); }}>
+                          ${SC.slider(pat.opacity ?? 100, v => this._set(patterns, idx, 'opacity', v), { min: 0, max: 100, width: '60%', int: true })}
                         </div>
                       </div>
                     </details>
@@ -376,11 +367,11 @@ class ScColorEditor extends LitElement {
                           <div class="row">
                             <div class="col" style="flex:1;margin-right:8px">
                               <label style="font-size:10px">X-axis (${pat.radial_x ?? 50}%)</label>
-                              <input type="range" min="0" max="100" .value=${pat.radial_x ?? 50} @input=${e => { this._set(patterns, idx, 'radial_x', parseInt(e.target.value)); }}>
+                              ${SC.slider(pat.radial_x ?? 50, v => this._set(patterns, idx, 'radial_x', v), { min: 0, max: 100, width: '100%', int: true })}
                             </div>
                             <div class="col" style="flex:1">
                               <label style="font-size:10px">Y-axis (${pat.radial_y ?? 50}%)</label>
-                              <input type="range" min="0" max="100" .value=${pat.radial_y ?? 50} @input=${e => { this._set(patterns, idx, 'radial_y', parseInt(e.target.value)); }}>
+                              ${SC.slider(pat.radial_y ?? 50, v => this._set(patterns, idx, 'radial_y', v), { min: 0, max: 100, width: '100%', int: true })}
                             </div>
                           </div>
                         </div>
@@ -417,16 +408,13 @@ class ScColorEditor extends LitElement {
                           <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px; margin-top:4px;">
                             <div class="col" style="width:100%; gap:12px;">
                               <div class="row" style="margin:0"><label>Start amplitude (contrast)</label>
-                                <input type="range" min="1" max="100" style="width:60%" .value=${pat.wobble_amplitude ?? 100}
-                                  @input=${e => { this._set(patterns, idx, 'wobble_amplitude', parseInt(e.target.value)); }}>
+                                ${SC.slider(pat.wobble_amplitude ?? 100, v => this._set(patterns, idx, 'wobble_amplitude', v), { min: 1, max: 100, width: '60%', int: true })}
                               </div>
                               <div class="row" style="margin:0"><label>Range (spread)</label>
-                                <input type="range" min="1" max="10" style="width:60%" .value=${pat.wobble_freq ?? 4}
-                                  @input=${e => { this._set(patterns, idx, 'wobble_freq', parseInt(e.target.value)); }}>
+                                ${SC.slider(pat.wobble_freq ?? 4, v => this._set(patterns, idx, 'wobble_freq', v), { min: 1, max: 10, width: '60%', int: true })}
                               </div>
                               <div class="row" style="margin:0"><label>Pause after effect (sec.)</label>
-                                <input type="range" step="0.5" min="0" max="10" style="width:60%" .value=${pat.wobble_pause ?? 2}
-                                  @input=${e => { this._set(patterns, idx, 'wobble_pause', parseFloat(e.target.value)); }}>
+                                ${SC.slider(pat.wobble_pause ?? 2, v => this._set(patterns, idx, 'wobble_pause', v), { step: 0.5, min: 0, max: 10, width: '60%' })}
                               </div>
                             </div>
                           </div>
@@ -434,14 +422,12 @@ class ScColorEditor extends LitElement {
 
                         ${pat.animation !== 'none' ? html`
                           <div class="row" style="margin-top:4px"><label>${isWobble ? 'Fade-out time (duration in sec.)' : 'Speed (sec.)'}</label>
-                            <input type="range" step="0.1" min="0.5" max="20" style="width:60%" .value=${pat.anim_duration ?? 3}
-                              @input=${e => { this._set(patterns, idx, 'anim_duration', parseFloat(e.target.value)); }}>
+                            ${SC.slider(pat.anim_duration ?? 3, v => this._set(patterns, idx, 'anim_duration', v), { step: 0.1, min: 0.5, max: 20, width: '60%' })}
                           </div>` : ''}
 
                         ${pat.animation === 'pump' ? html`
                           <div class="row"><label>Pump expansion</label>
-                            <input type="range" step="0.001" min="1.0" max="1.2" style="width:60%" .value=${pat.pump_scale ?? 1.1}
-                              @input=${e => { this._set(patterns, idx, 'pump_scale', parseFloat(e.target.value)); }}>
+                            ${SC.slider(pat.pump_scale ?? 1.1, v => this._set(patterns, idx, 'pump_scale', v), { step: 0.001, min: 1.0, max: 1.2, width: '60%' })}
                           </div>` : ''}
 
                         ${isWaveOrRipple ? html`
@@ -476,7 +462,7 @@ class ScColorEditor extends LitElement {
             n.push({
               id: newId, enabled: true, name: 'New pattern', target: 'none',
               bg_condition: [], anim_condition: [], bg_type: 'solid',
-              colors: ['#ff9800'], stops: [100], opacity: 100, gradient_angle: 90, animation: 'none',
+              gradient_stops: [{ pos: 100, color: '#ff9800' }], opacity: 100, gradient_angle: 90, animation: 'none',
               anim_duration: 3, wave_count: 3, wave_c1: '#03a9f4', wave_c2: 'transparent',
               border_radius: '', border_radius_unit: 'px', wave_invert: false, pump_scale: 1.1,
               radial_x: 50, radial_y: 50, wave_balance: 50,
@@ -714,9 +700,16 @@ Object.assign(window.SupercardModules['color'], (() => {
         }
 
       } else {
-        const safeColors   = pat.colors && pat.colors.length > 0 ? pat.colors : ['#000000'];
-        const stops        = pat.stops || [];
-        const colorStopsStr = safeColors.map((c, i) => stops[i] !== undefined ? `${c} ${stops[i]}%` : c).join(', ');
+        // One list, whichever shape the pattern was saved in. `fill: false`
+        // keeps "nobody positioned this" visible: CSS spreads such a colour
+        // itself, and the fluid blobs below read the absence as their own
+        // default radius rather than as a position.
+        const stopList = normalizeStops(
+          pat.gradient_stops ?? { colors: pat.colors, stops: pat.stops }, { fill: false });
+        const list         = stopList.length ? stopList : [{ pos: null, color: '#000000' }];
+        const safeColors   = list.map(st => st.color);
+        const stops        = list.map(st => st.pos ?? undefined);
+        const colorStopsStr = stopsToCss(list);
 
         if (pat.animation === 'fluid') {
           const isGooey = pat.fluid_style === 'gooey';
