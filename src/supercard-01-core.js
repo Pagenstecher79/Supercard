@@ -637,6 +637,9 @@ Object.assign(window.SupercardUtils, (() => {
   // Used by the module editors that list pattern/label cards (color,
   // progressbar, labels, fx-glass, interaction). Identified by ha-switch.
   const editorStyles = css`
+    /* The space below a menu belongs to the menu, not to the list it sits in:
+       a module that renders nothing - the glass list on a healthy canvas, say -
+       must leave no gap behind, and a gap on the container would leave one. */
     .inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
     summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
     summary::-webkit-details-marker { display: none; }
@@ -1183,7 +1186,7 @@ class ScGenericModuleEditor extends LitElement {
   static get styles() {
     return [SC_UTILS.formStyles, css`
       .row, .col { margin-bottom: 8px; }
-      details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-bottom: 8px; }
+      details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-bottom: 16px; }
       .inner-content { padding: 0 12px 12px 12px; display: flex; flex-direction: column; border-top: 1px solid var(--divider-color,#444); margin-top: 4px; padding-top: 12px; }
     `];
   }
@@ -1203,7 +1206,7 @@ class ScGenericModuleEditor extends LitElement {
   render() {
     if (!this.slot || !this.fields) return html``;
     return html`
-      <div style="padding: 0 16px 16px 16px;">
+      <div style="padding: 0 16px;">
         <details class="inner-section" ?open=${this._isOpen} @toggle=${e => this._isOpen = e.target.open}>
           <summary>── ${this.title} <span style="font-size:10px;">▼</span></summary>
           <div class="inner-content">
@@ -1294,7 +1297,10 @@ class SupercardModularEditor extends LitElement {
     if (!this.config || !this.hass) return html``;
     const slot = this.config.gauge_studio || {};
 
-    const moduleOrder = ['core', 'layout', 'labels', 'color', 'gauge', 'progressbar', 'debug'];
+    // The canvas is the card, so it comes first and everything that describes
+    // it follows underneath - its dimensions, then its entities, then what is
+    // painted on it.
+    const moduleOrder = ['layout', 'core', 'color', 'labels', 'gauge', 'progressbar', 'debug'];
     const availableModules = Object.keys(window.SupercardModules);
 
     availableModules.sort((a, b) => {
@@ -1306,7 +1312,7 @@ class SupercardModularEditor extends LitElement {
     });
 
     return html`
-      <div id="modules-container" style="display:flex; flex-direction:column; gap:16px; padding-top: 8px;${slot.hide_tips ? ' --sc-tip-display:none;' : ''}">
+      <div id="modules-container" style="display:flex; flex-direction:column; padding-top: 8px;${slot.hide_tips ? ' --sc-tip-display:none;' : ''}">
         ${availableModules.map(modKey => {
           const mod = window.SupercardModules[modKey];
           const blocks = [];
@@ -1357,12 +1363,12 @@ Object.assign(window.SupercardModules['core'], (() => {
      * knew the first would call a card without a main entity fine while the
      * card was drawing a dash for one it cannot find.
      */
-    static get properties() { return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Object }, cardEntity: { type: String }, _expanded: { state: true } }; }
+    static get properties() { return { hass: { type: Object }, slot: { type: Object }, commitFn: { type: Object }, cardEntity: { type: String }, cardConfig: { type: Object }, _expanded: { state: true } }; }
     constructor() { super(); this._expanded = {}; }
     static get styles() {
       return [SC_UTILS.formStyles, css`
         .row, .col { margin-bottom: 8px; }
-        details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-bottom: 8px; }
+        details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin-bottom: 16px; }
         .inner-content { padding: 0 12px 12px 12px; display: flex; flex-direction: column; border-top: 1px solid var(--divider-color,#444); margin-top: 4px; padding-top: 12px; }
         ha-entity-picker { display: block; width: 100%; }
       `];
@@ -1429,7 +1435,91 @@ Object.assign(window.SupercardModules['core'], (() => {
       const brValue = this.slot.border_radius ?? 12;
 
       return html`
-        <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px 16px;">
+        <div style="padding:0 16px;">
+          <details class="inner-section" ?open=${this._expanded.dim} @toggle=${e => this._expanded = {...this._expanded, dim: e.target.open}}>
+            <summary>📐 Card & Dimensions <span style="font-size:10px;">▼</span></summary>
+            <div class="inner-content">
+              ${onCanvas ? html`
+                <sc-canvas-dimensions .slot=${this.slot} .cardConfig=${this.cardConfig}
+                                      .commitFn=${this.commitFn}></sc-canvas-dimensions>
+              ` : ''}
+              ${onCanvas ? html`
+                <div class="col" style="margin-top:8px; padding-top:12px; border-top:1px dashed var(--divider-color,#444);">
+                  <label>Corner radius</label>
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    ${SC_UTILS.slider(brValue, v => updateRadius('border_radius', v), { max: brMax, style: 'flex:1', int: true })}
+                    <input type="number" min="0" max=${brMax} style="width:56px;" .value=${brValue} @input=${e => updateRadius('border_radius', parseInt(e.target.value))}>
+                    <select style="width:56px;" @change=${e => updateRadius('border_radius_unit', e.target.value)}>
+                      <option value="px" ?selected=${brUnit === 'px'}>px</option>
+                      <option value="%" ?selected=${brUnit === '%'}>%</option>
+                    </select>
+                  </div>
+                </div>
+                ${brUnit === '%' ? html`
+                  <div class="row">
+                    <label>Percent of</label>
+                    <select @change=${e => updateRadius('border_radius_ref', e.target.value)}>
+                      <option value="min" ?selected=${brRef === 'min'}>Shorter side</option>
+                      <option value="max" ?selected=${brRef === 'max'}>Longer side</option>
+                      <option value="width" ?selected=${brRef === 'width'}>Width</option>
+                      <option value="height" ?selected=${brRef === 'height'}>Height</option>
+                    </select>
+                  </div>
+                ` : ''}
+              ` : html`
+                <div class="row">
+                  <label>Card shape</label>
+                  <select @change=${e => update('layout_shape', e.target.value)}>
+                    <option value="rectangle" ?selected=${this.slot.layout_shape === 'rectangle'}>Rectangular</option>
+                    <option value="pill" ?selected=${this.slot.layout_shape === 'pill'}>Pill (rounded)</option>
+                  </select>
+                </div>
+                <div class="col">
+                  <label>Corner radius (px)</label>
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    ${SC_UTILS.slider(this.slot.border_radius ?? 12, v => update('border_radius', v), { style: 'flex:1', int: true })}
+                    <input type="number" min="0" max="100" style="width:64px;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
+                  </div>
+                </div>
+
+                <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
+                  <label>Responsive width (HA layout)</label>
+                  <label class="toggle"><input type="checkbox" .checked=${this.slot.card_width_responsive !== false} @change=${e => update('card_width_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
+                </div>
+                ${this.slot.card_width_responsive === false ? html`
+                  <div class="col">
+                    <label>Absolute width (px or %)</label>
+                    <input type="text" placeholder="e.g. 200px" .value=${this.slot.card_width || ''} @input=${e => update('card_width', e.target.value)}>
+                  </div>
+                ` : ''}
+
+                <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
+                  <label>Responsive height (HA layout)</label>
+                  <label class="toggle"><input type="checkbox" .checked=${this.slot.card_height_responsive === true} @change=${e => update('card_height_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
+                </div>
+                ${this.slot.card_height_responsive !== true ? html`
+                  <div class="col">
+                    <label>Absolute height (px)</label>
+                    <input type="number" placeholder="e.g. 80" .value=${this.slot.card_height || ''} @input=${e => update('card_height', parseInt(e.target.value))}>
+                  </div>
+                ` : ''}
+              `}
+
+              <div style="margin-top:8px; padding-top:12px; border-top:1px dashed var(--divider-color,#444);">
+                <sc-color-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                                .target=${'main'} .label=${'🎨 Colour & pattern (entire card)'}></sc-color-panel>
+              </div>
+              <div style="margin-top:8px;">
+                <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                                   .target=${'main'} .label=${'✨ Glass FX (entire card)'}></sc-fx-glass-panel>
+              </div>
+              <div style="margin-top:8px;">
+                <sc-push-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                               .target=${'main'} .label=${'👆 Push behaviour (entire card)'}></sc-push-panel>
+              </div>
+            </div>
+          </details>
+
           <details class="inner-section" ?open=${this._expanded.basis} @toggle=${e => this._expanded = {...this._expanded, basis: e.target.open}}>
             <summary>⚙️ Basics & Entity(ies) & Aliases <span style="font-size:10px;">▼</span></summary>
             <div class="inner-content">
@@ -1574,77 +1664,6 @@ Object.assign(window.SupercardModules['core'], (() => {
             </div>
           </details>
 
-          <details class="inner-section" ?open=${this._expanded.dim} @toggle=${e => this._expanded = {...this._expanded, dim: e.target.open}}>
-            <summary>📐 Card & Dimensions <span style="font-size:10px;">▼</span></summary>
-            <div class="inner-content">
-              <div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed var(--divider-color,#444);">
-                <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
-                                   .target=${'main'} .label=${'✨ Glass FX (entire card)'}></sc-fx-glass-panel>
-              </div>
-              ${onCanvas ? html`
-                <div class="col">
-                  <label>Corner radius</label>
-                  <div style="display:flex; gap:8px; align-items:center;">
-                    ${SC_UTILS.slider(brValue, v => updateRadius('border_radius', v), { max: brMax, style: 'flex:1', int: true })}
-                    <input type="number" min="0" max=${brMax} style="width:56px;" .value=${brValue} @input=${e => updateRadius('border_radius', parseInt(e.target.value))}>
-                    <select style="width:56px;" @change=${e => updateRadius('border_radius_unit', e.target.value)}>
-                      <option value="px" ?selected=${brUnit === 'px'}>px</option>
-                      <option value="%" ?selected=${brUnit === '%'}>%</option>
-                    </select>
-                  </div>
-                </div>
-                ${brUnit === '%' ? html`
-                  <div class="row">
-                    <label>Percent of</label>
-                    <select @change=${e => updateRadius('border_radius_ref', e.target.value)}>
-                      <option value="min" ?selected=${brRef === 'min'}>Shorter side</option>
-                      <option value="max" ?selected=${brRef === 'max'}>Longer side</option>
-                      <option value="width" ?selected=${brRef === 'width'}>Width</option>
-                      <option value="height" ?selected=${brRef === 'height'}>Height</option>
-                    </select>
-                  </div>
-                ` : ''}
-              ` : html`
-                <div class="row">
-                  <label>Card shape</label>
-                  <select @change=${e => update('layout_shape', e.target.value)}>
-                    <option value="rectangle" ?selected=${this.slot.layout_shape === 'rectangle'}>Rectangular</option>
-                    <option value="pill" ?selected=${this.slot.layout_shape === 'pill'}>Pill (rounded)</option>
-                  </select>
-                </div>
-                <div class="col">
-                  <label>Corner radius (px)</label>
-                  <div style="display:flex; gap:8px; align-items:center;">
-                    ${SC_UTILS.slider(this.slot.border_radius ?? 12, v => update('border_radius', v), { style: 'flex:1', int: true })}
-                    <input type="number" min="0" max="100" style="width:64px;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
-                  </div>
-                </div>
-
-                <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
-                  <label>Responsive width (HA layout)</label>
-                  <label class="toggle"><input type="checkbox" .checked=${this.slot.card_width_responsive !== false} @change=${e => update('card_width_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
-                </div>
-                ${this.slot.card_width_responsive === false ? html`
-                  <div class="col">
-                    <label>Absolute width (px or %)</label>
-                    <input type="text" placeholder="e.g. 200px" .value=${this.slot.card_width || ''} @input=${e => update('card_width', e.target.value)}>
-                  </div>
-                ` : ''}
-
-                <div class="row" style="margin-top: 8px; border-top: 1px dashed var(--divider-color,#444); padding-top: 12px;">
-                  <label>Responsive height (HA layout)</label>
-                  <label class="toggle"><input type="checkbox" .checked=${this.slot.card_height_responsive === true} @change=${e => update('card_height_responsive', e.target.checked)}><span class="toggle-slider"></span></label>
-                </div>
-                ${this.slot.card_height_responsive !== true ? html`
-                  <div class="col">
-                    <label>Absolute height (px)</label>
-                    <input type="number" placeholder="e.g. 80" .value=${this.slot.card_height || ''} @input=${e => update('card_height', parseInt(e.target.value))}>
-                  </div>
-                ` : ''}
-              `}
-            </div>
-          </details>
-
         </div>
       `;
     }
@@ -1654,6 +1673,7 @@ Object.assign(window.SupercardModules['core'], (() => {
 
   function renderCustomBlock(commitFn, hass, slot, cardConfig) {
     return html`<sc-core-editor .commitFn=${commitFn} .hass=${hass} .slot=${slot}
+                                .cardConfig=${cardConfig}
                                 .cardEntity=${cardConfig?.entity || ''}></sc-core-editor>`;
   }
 

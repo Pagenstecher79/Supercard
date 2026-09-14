@@ -154,11 +154,25 @@ const NO_GLASS = new Set(DEAD_PATTERN_TARGETS);
 
 /**
  * Elements that ask for their glass in their own editor, so the list must not
- * offer them a second time. Everything else - icon, name, state, surfaces,
- * layout cells - has no editor to put a switch in, which is what the list is
- * left for.
+ * offer them a second time.
  */
 const HAS_OWN_SWITCH = /^elm_(gauge|progressbar|label)_\d+$/;
+
+/**
+ * Whether a target carries its own switch somewhere else.
+ *
+ * The card always does - Card & Dimensions holds it. On a canvas the icon and
+ * every surface are picked on the canvas and configured in their element
+ * settings, so their switch is there too; on a card without a canvas there is
+ * no such place, and this list is the only one they have.
+ *
+ * @param {string} target @param {any} slot
+ */
+function hasOwnSwitch(target, slot) {
+  if (target === 'main' || HAS_OWN_SWITCH.test(target)) return true;
+  if (!slot?.canvas) return false;
+  return target === 'elm_icon' || /^elm_surface_\d+$/.test(target);
+}
 
 function getTargets(slot) {
   const groups = {
@@ -170,7 +184,7 @@ function getTargets(slot) {
     // An element the canvas does not place has no part to reach, and a target
     // that cannot work is worse than one absent. Surfaces are included.
     if (key !== 'empty' && SC.showsElement(slot, key)
-        && !HAS_OWN_SWITCH.test(`elm_${key}`) && !NO_GLASS.has(`elm_${key}`)) {
+        && !hasOwnSwitch(`elm_${key}`, slot) && !NO_GLASS.has(`elm_${key}`)) {
       groups.elements.items.push({ id: `elm_${key}`, label: `Element: ${label}` });
     }
   });
@@ -509,15 +523,13 @@ class ScFxGlassEditor extends LitElement {
     // list, because that is the only list the person reading it can see.
     const rows = patterns
       .map((pat, idx) => ({ pat, idx }))
-      .filter(({ pat }) => !HAS_OWN_SWITCH.test(pat.target));
+      .filter(({ pat }) => !hasOwnSwitch(pat.target, this.slot));
 
-    // With gauges, bars, labels and the card itself switched from their own
-    // editors, what is left for this list is the icon and the surfaces - and
-    // only where one of those is actually laid out, because a target you
-    // cannot point at on the canvas is not a target. A card without one has
-    // nothing to put here, so the section stays away rather than offering an
-    // empty menu - unless a pattern is already stored, because a row nobody
-    // can reach is how the last stale target went unnoticed.
+    // Everything a card can point at is switched from its own editor now, so
+    // on a healthy canvas this list has nothing left to offer and stays away.
+    // What keeps it is a card without a canvas, where the icon has no element
+    // settings to live in - and a stored pattern whose target is gone, because
+    // a row nobody can reach is how the last stale target went unnoticed.
     const placed = Array.isArray(this.slot?.canvas?.elements) ? this.slot.canvas.elements : [];
     const reachable = targetGroups.elements.items
       .some(t => placed.some(el => el?.id === t.id.replace(/^elm_/, '')));

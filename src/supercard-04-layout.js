@@ -467,6 +467,23 @@ const HISTORY_DEPTH = 30;
 const HISTORY_KEYS = Object.freeze(['canvas', 'gauges', 'progressbars', 'labels_list']);
 
 /**
+ * Whether a commit changes anything an undo snapshot holds - the slot keys
+ * above, or Home Assistant's `grid_options`. Everything else travels through
+ * the same editor (the element settings commit through it, so their steps sit
+ * in the right order) but is not its to put back.
+ *
+ * @param {string} key @param {any} value
+ */
+function touchesHistory(key, value) {
+  if (key === '__batch__') {
+    return Array.isArray(value) && value.some(([k, v]) => touchesHistory(k, v));
+  }
+  if (key === '__card__') return !!value && Object.keys(value).includes('grid_options');
+  if (key === '__merge__') return !!value && Object.keys(value).some(k => HISTORY_KEYS.includes(k));
+  return HISTORY_KEYS.includes(key);
+}
+
+/**
  * The zoom levels the - and + buttons walk through.
  *
  * Zoom is a property of the view, never of the card: it scales the pixels the
@@ -499,7 +516,6 @@ class ScCanvasEditor extends LitElement {
       _band: { type: Object, state: true },
       _drag: { type: Object, state: true },
       _dragCanvas: { type: Object, state: true },
-      _live: { type: Boolean, state: true },
       _configOpen: { type: Boolean, state: true },
       _menu: { type: Boolean, state: true },
       _menuKind: { type: String, state: true },
@@ -521,7 +537,9 @@ class ScCanvasEditor extends LitElement {
     this._drag = null;
     // Where a drag in progress has put the canvas, before it is committed.
     this._dragCanvas = null;
-    this._live = true;
+    // Set while an undo or redo is putting a column span back, so `updated`
+    // knows the change it is about to see is not a user's edit.
+    this._restoredGrid = false;
     this._configOpen = true;
     this._menu = false;
     // Which kind's template page the menu is showing, null for its front
@@ -569,6 +587,13 @@ class ScCanvasEditor extends LitElement {
     };
   }
 
+  /**
+   * Whether the canvas draws the real gauges or plain boxes. Kept in the card
+   * rather than in this element, because the switch now sits in another menu -
+   * two elements cannot share a field, and they do share the card.
+   */
+  get _live() { return this.slot?.live_preview !== false; }
+
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('keydown', this._onKey);
@@ -609,6 +634,11 @@ class ScCanvasEditor extends LitElement {
     const grid = this.cardConfig?.grid_options || {};
     const before = was.grid_options || {};
     if (grid.columns === before.columns && grid.rows === before.rows) return;
+    // A column span put back by the arrows arrives here looking like an edit,
+    // and reshaping for it would both undo the canvas the same snapshot just
+    // restored and put a step on the stack the user never took - so the press
+    // after it would walk back through a change of ours instead of theirs.
+    if (this._restoredGrid) { this._restoredGrid = false; return; }
     // `was` is the config before Home Assistant's own tab changed it, so this
     // is the row count the canvas was worth under the old column span.
     const shaped = this._reshapedFor();
@@ -715,6 +745,18 @@ class ScCanvasEditor extends LitElement {
       .el.pinned { cursor: default; border-color: #9e9e9e; border-style: solid; }
       .el.pinned::before { content: '🔒'; position: absolute; top: 1px; left: 2px;
                            font-size: 9px; line-height: 1; text-shadow: 0 1px 2px #000; }
+      /* Which boxes answer a push, and so take that click away from the card
+         underneath them. Top right, opposite the lock, and out of the way of
+         the resize handle. The card's own badge sits on the canvas frame. */
+      .el.pushed::after, .canvas.pushed::after {
+        content: '👆'; position: absolute; top: 2px; right: 3px; z-index: 5;
+        font-size: 15px; line-height: 1; pointer-events: none;
+        text-shadow: 0 1px 3px #000, 0 0 4px #000;
+        /* Read right to left: the glyph is mirrored first, then turned a
+           quarter and an eighth to the left, so the finger points down into
+           the box it belongs to instead of away from it. */
+        transform: rotate(-135deg) scaleX(-1); transform-origin: center; }
+      .canvas.pushed::after { top: 4px; right: 5px; font-size: 20px; }
       /* Live, the box is a frame around someone else's drawing rather than a
          block of colour: the fill would hide the very thing being previewed,
          so selection is an inset ring instead. Size containment mirrors
@@ -902,7 +944,12 @@ class ScCanvasEditor extends LitElement {
    */
   _send(key, value) {
     if (!this.commitFn) return;
-    if (!this._travelling) {
+    // A write that touches nothing the snapshot holds cannot be undone by
+    // putting one back - a push, a colour or a glass pattern from an element's
+    // settings is such a write. Recording it anyway would leave an entry on
+    // the stack whose restore changes nothing, so the arrow would be enabled
+    // and do nothing when pressed.
+    if (!this._travelling && touchesHistory(key, value)) {
       this._undoStack = [...this._undoStack, this._snapshot()].slice(-HISTORY_DEPTH);
       // A new change is a new future, so whatever was undone is not it.
       this._redoStack = [];
@@ -929,7 +976,10 @@ class ScCanvasEditor extends LitElement {
 
     /** @type {[string, any][]} */
     const writes = [];
-    if (gridDiffers) writes.push(['__card__', { grid_options: snap.grid || undefined }]);
+    if (gridDiffers) {
+      writes.push(['__card__', { grid_options: snap.grid || undefined }]);
+      this._restoredGrid = true;
+    }
     if (patch) writes.push(['__merge__', patch]);
     this._travelling = true;
     try { this.commitFn('__batch__', writes); } finally { this._travelling = false; }
@@ -1977,24 +2027,60 @@ class ScCanvasEditor extends LitElement {
     }
 
     const el = this._canvas.elements.find(e => e.id === id);
-    return wrap('Element settings', html`<div class="hint tip" style="padding:4px 4px 8px;">${el?.surface
-      ? html`A surface has no settings of its own - it is a box for a colour or
-             glass pattern to paint. Target <code>${id}</code> in the colour or
-             fx-glass section.`
-      : html`<code>${id}</code> comes from the card's main entity, so its
-             settings are the card's rather than this element's.`}</div>`);
+    // Neither a surface nor the three elements the main entity draws has an
+    // editor of its own, so what is theirs rather than the card's is offered
+    // here: how they answer a push, and the glass they are seen through.
+    // Name and state are left out of the glass - config-cleanup deletes a
+    // pattern pointed at either, so offering one would be offering a setting
+    // that deletes itself.
+    const glassable = el?.surface || id === 'icon';
+    return wrap(el?.surface ? 'Surface settings' : 'Element settings', html`
+      <div class="hint tip" style="padding:4px 4px 8px;">${el?.surface
+        ? html`A surface draws nothing of its own - it is a box for a colour or
+               glass pattern to paint, and for a push to land on.`
+        : html`<code>${id}</code> comes from the card's main entity, so what it
+               shows is the card's. What it does when pushed is its own.`}</div>
+      ${el?.surface ? html`
+        <div style="padding:0 4px 8px;">
+          <sc-color-panel .hass=${props.hass} .slot=${props.slot} .switchless=${true}
+                          .commitFn=${props.commitFn} .target=${'elm_' + id}></sc-color-panel>
+        </div>` : ''}
+      <div style="padding:0 4px 8px;">
+        <sc-push-panel .hass=${props.hass} .slot=${props.slot}
+                       .commitFn=${props.commitFn} .target=${id}></sc-push-panel>
+      </div>
+      ${glassable ? html`
+        <div style="padding:0 4px 8px;">
+          <sc-fx-glass-panel .hass=${props.hass} .slot=${props.slot}
+                             .commitFn=${props.commitFn} .target=${'elm_' + id}></sc-fx-glass-panel>
+        </div>` : ''}`);
   }
 
-  render() {
-    if (!this.slot?.canvas) return html``;
+  /**
+   * Whether an element answers a push, which is what the badge on its box
+   * says. A switched-on panel counts even with every action still on "none":
+   * the press itself is an answer, and the badge is there to say which boxes
+   * take a click away from the card underneath.
+   *
+   * @param {string} id
+   */
+  _pushed(id) {
+    const list = Array.isArray(this.slot?.interactions) ? this.slot.interactions : [];
+    return list.some(p => p?.enabled && p.target === id);
+  }
+
+  /**
+   * The card's box and the canvas' grid. Rendered by `sc-canvas-dimensions`
+   * in the core editor's Card & Dimensions menu rather than here, so that
+   * everything above the canvas is the canvas.
+   */
+  _renderDimensions() {
     const c = this._canvas;
-    const els = Array.isArray(c.elements) ? c.elements : [];
-    const step = resolveSnap(c);
-    const pctGrid = c.grid_unit === 'pct';
     // The grid is a proportion of the canvas, never a number of units: a unit
     // grid survives only until the canvas is reshaped, and then every element
     // sits between two lines. A canvas still carrying a unit grid is shown its
     // own value as a proportion, and the first edit writes it down that way.
+    const pctGrid = c.grid_unit === 'pct';
     const gridValue = pctGrid ? (c.grid ?? unitsToGrid(c, DEFAULT_GRID))
                               : unitsToGrid(c, c.grid ?? DEFAULT_GRID);
     const snapValue = typeof c.snap === 'number' && c.snap > 0
@@ -2011,20 +2097,7 @@ class ScCanvasEditor extends LitElement {
     const columns = this._columns;
     const maxColumns = this._maxColumns;
     const mismatch = this._gridMismatch;
-    // The row count the canvas' own shape is worth. With auto height on there
-    // is no `rows` in the card config to read, and this is the number that
-    // produced the shape - or, for a canvas typed in as two numbers before
-    // this control existed, the nearest whole row to it.
     const full = columns === 'full';
-    const gridPct = (c.grid > 0 ? gridToUnits(c, c.grid) : step) / c.w * 100;
-    const pct = (v, total) => `${v / total * 100}%`;
-    // The list below the canvas shows the selected elements alone, so an id
-    // that no longer names one - a gauge deleted in its own editor, say -
-    // would leave it empty. Fall back to the whole list.
-    const alive = id => els.some(e => e.id === id);
-    const sel = alive(this._sel) ? this._sel : null;
-    const selected = this._selection.filter(alive);
-    const movers = this._distributable;
 
     return html`
       <div class="col">
@@ -2108,7 +2181,7 @@ class ScCanvasEditor extends LitElement {
         <div class="row">
           <label>Live preview</label>
           <ha-switch .checked=${this._live}
-                     @change=${e => { this._live = e.target.checked; }}></ha-switch>
+                     @change=${e => this.commitFn('live_preview', e.target.checked ? undefined : false)}></ha-switch>
         </div>
         <div class="hint tip" style="margin:-4px 0 4px 0;">${this._live
           ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
@@ -2123,7 +2196,27 @@ class ScCanvasEditor extends LitElement {
           Takes the explanatory lines out of every menu of this card, which makes
           the editors a good deal shorter once you know your way around.
         </div>
+      </div>
+    `;
+  }
 
+  render() {
+    if (!this.slot?.canvas) return html``;
+    const c = this._canvas;
+    const els = Array.isArray(c.elements) ? c.elements : [];
+    const step = resolveSnap(c);
+    const gridPct = (c.grid > 0 ? gridToUnits(c, c.grid) : step) / c.w * 100;
+    const pct = (v, total) => `${v / total * 100}%`;
+    // The list below the canvas shows the selected elements alone, so an id
+    // that no longer names one - a gauge deleted in its own editor, say -
+    // would leave it empty. Fall back to the whole list.
+    const alive = id => els.some(e => e.id === id);
+    const sel = alive(this._sel) ? this._sel : null;
+    const selected = this._selection.filter(alive);
+    const movers = this._distributable;
+
+    return html`
+      <div class="col">
         <style>${this._live ? els.filter(e => !e.surface).map(el => itemTypography(el,
           `.el.live[data-item-id="${el.id}"]`,
           `.el.live[data-item-id="${el.id}"] > :not(.handle)`)).join('\n') : ''}</style>
@@ -2168,7 +2261,7 @@ class ScCanvasEditor extends LitElement {
                @pointerdown=${this._onCanvasDown}
                @wheel=${this._onWheel}>
           <div class="canvas-view" style="aspect-ratio:${c.w} / ${c.h};">
-          <div class="canvas" style="aspect-ratio:${c.w} / ${c.h}; width:${this._zoom * 100}%;">
+          <div class="canvas ${this._pushed('main') ? 'pushed' : ''}" style="aspect-ratio:${c.w} / ${c.h}; width:${this._zoom * 100}%;">
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
             ${this._placing ? html`
               <div class="place-layer" @pointerdown=${this._place}
@@ -2189,7 +2282,7 @@ class ScCanvasEditor extends LitElement {
               const live = this._live ? this._liveContent(el) : null;
               const pinned = isPinned(el);
               return html`
-              <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._isSel(el.id) ? 'sel' : ''} ${pinned ? 'pinned' : ''}"
+              <div class="el ${el.surface ? 'surface' : ''} ${live ? 'live' : ''} ${this._isSel(el.id) ? 'sel' : ''} ${pinned ? 'pinned' : ''} ${this._pushed(el.id) ? 'pushed' : ''}"
                    style="left:${pct(el.x, c.w)}; top:${pct(el.y, c.h)}; width:${pct(el.w, c.w)}; height:${pct(el.h, c.h)};"
                    data-item-id=${el.id} title=${this._title(el, pinned)}
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
@@ -2314,6 +2407,47 @@ class ScCanvasEditor extends LitElement {
 }
 if (!customElements.get('sc-canvas-editor')) customElements.define('sc-canvas-editor', ScCanvasEditor);
 
+/**
+ * The card's box, the canvas' grid and the two view switches, rendered inside
+ * the core editor's Card & Dimensions menu so that nothing but the canvas sits
+ * above the canvas.
+ *
+ * It is the canvas editor itself, drawing one part of itself: every getter
+ * these controls read - the section's width, the row count, the reshaping - is
+ * already written there, and a second copy of that arithmetic is the last
+ * thing this card needs. What it must not inherit is the canvas editor's
+ * *behaviour*: the document-wide keys and the reshape-on-cardConfig-change
+ * would then happen twice per edit.
+ */
+class ScCanvasDimensions extends ScCanvasEditor {
+  static get styles() { return [SC.formStyles, ScCanvasEditor.styles[1]]; }
+  connectedCallback() { LitElement.prototype.connectedCallback.call(this); }
+  disconnectedCallback() { LitElement.prototype.disconnectedCallback.call(this); }
+  updated() {}
+
+  /**
+   * These controls sit in another menu but write the same `canvas` and
+   * `grid_options` the canvas editor's arrows walk back through, so the step
+   * belongs on that editor's stack. Kept here, it would be on a stack with no
+   * arrows - and the editor's own last snapshot, still holding the size the
+   * user has since changed, would quietly revert it on the next undo.
+   */
+  _send(key, value) {
+    // Card & Dimensions is a shadow root of its own, one level in from the one
+    // the canvas editor sits in, so the search climbs out through the hosts.
+    let root = /** @type {any} */ (this.getRootNode());
+    for (let hops = 0; root && hops < 5; hops++) {
+      const editor = root.querySelector?.('sc-canvas-editor');
+      if (editor && editor !== this) { editor._send(key, value); return; }
+      root = root.host ? root.host.getRootNode() : null;
+    }
+    super._send(key, value);
+  }
+  render() { return this.slot?.canvas ? this._renderDimensions() : html``; }
+}
+
+if (!customElements.get('sc-canvas-dimensions')) customElements.define('sc-canvas-dimensions', ScCanvasDimensions);
+
 
 /**
  * Writes down the canvas a rows layout describes, once, when the editor opens.
@@ -2430,7 +2564,8 @@ Object.assign(window.SupercardModules['layout'], (() => {
    */
   function renderCustomBlock(commitFn, hass, slot, cardConfig) {
     if (slot?.canvas) {
-      return html`<sc-canvas-editor .slot=${slot} .hass=${hass} .cardConfig=${cardConfig}
+      return html`<sc-canvas-editor style="display:block; margin-bottom:16px;"
+                                    .slot=${slot} .hass=${hass} .cardConfig=${cardConfig}
                                     .commitFn=${commitFn}></sc-canvas-editor>`;
     }
     if (needsRowsCompat(slot)) {

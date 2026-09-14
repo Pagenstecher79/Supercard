@@ -342,10 +342,12 @@ export function migrateLayoutToCanvas(layoutRows, canvas = DEFAULT_CANVAS, opts 
  * Every cell a colour or fx-glass pattern paints.
  *
  * These are the cells migration turns into surfaces, because painting a region
- * is the whole of what a surface is for. Interactions are deliberately absent:
- * `.sc-canvas .sc-surface` takes no pointer events, so a cell's tap action
- * turned into one would be a box that looks migrated and never fires.
- * `clickedCells` collects those separately, to be reported instead.
+ * is the whole of what a surface is for. Interactions are deliberately absent
+ * here all the same: a surface can carry one now - the interaction module
+ * turns its pointer events back on for exactly that case - but a migration
+ * that hands a decorative box the clicks meant for what is drawn over it is
+ * not a migration anyone asked for. `clickedCells` collects those separately,
+ * to be reported instead.
  *
  * @param {any} slot
  * @returns {string[]}
@@ -1521,7 +1523,9 @@ export const NEW_ELEMENT_KINDS = Object.freeze([
                   key: 'gauges', active: 'gauge_active', legacySingle: true }),
   Object.freeze({ kind: 'progressbar', label: 'Progressbar', module: 'progressbar',
                   key: 'progressbars', active: 'progressbar_active' }),
-  Object.freeze({ kind: 'label', label: 'Label', module: 'labels', key: 'labels_list' }),
+  // Named for what the element actually draws: a label box carries an icon, a
+  // name and a value, and "Label" alone had people looking elsewhere for them.
+  Object.freeze({ kind: 'label', label: 'Label, Icon & Values', module: 'labels', key: 'labels_list' }),
   Object.freeze({ kind: 'surface', label: 'Surface' }),
 ]);
 

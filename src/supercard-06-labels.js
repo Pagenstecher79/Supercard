@@ -205,6 +205,11 @@ class ScLabelsEditor extends LitElement {
           <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
                              .target=${'elm_label_' + ctx.idx}></sc-fx-glass-panel>
         </div>` },
+      { type: 'custom', render: ctx => html`
+        <div class="fx-slot">
+          <sc-push-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                         .target=${'label_' + ctx.idx}></sc-push-panel>
+        </div>` },
     ];
   }
 

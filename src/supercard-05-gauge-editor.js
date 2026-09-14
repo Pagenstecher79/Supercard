@@ -591,6 +591,10 @@ class ScGaugeEditor extends LitElement {
             <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
                                .target=${'elm_gauge_' + idx}></sc-fx-glass-panel>
           </div>
+          <div class="fx-slot">
+            <sc-push-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                           .target=${'gauge_' + idx}></sc-push-panel>
+          </div>
         </div>`;
   }
 

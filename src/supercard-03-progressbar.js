@@ -1633,6 +1633,10 @@ class ScProgressbarEditor extends LitElement {
             <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
                                .target=${'elm_progressbar_' + idx}></sc-fx-glass-panel>
           </div>
+          <div class="fx-slot">
+            <sc-push-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}
+                           .target=${'progressbar_' + idx}></sc-push-panel>
+          </div>
         </div>`;
   }
 
