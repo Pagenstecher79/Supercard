@@ -650,15 +650,25 @@ class ScCanvasEditor extends LitElement {
       .row { gap: 8px; }
       /* The one line over the canvas: the grid on the left, the preview switch
          on the right, and each label carrying its explanation in a balloon. */
-      .canvas-settings { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      .canvas-settings { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
                          margin: 0 0 8px 0; font-size: 13px; }
-      .canvas-settings > .gap { flex: 1; min-width: 8px; }
-      .canvas-settings select { width: 126px; }
-      .canvas-settings .num { width: 76px; box-sizing: border-box; }
-      .tipped { position: relative; display: inline-flex; align-items: center; gap: 3px;
-                cursor: help; color: var(--primary-text-color); }
-      .tipped > .tip-dot { font-size: 11px; opacity: 0.6; }
-      .tipped::after {
+      .canvas-settings > .gap { flex: 1; min-width: 6px; }
+      /* Narrower than the controls in Card & Dimensions on purpose: this row
+         has to hold two settings and a switch in the width of the canvas. */
+      .canvas-settings select { width: 104px; }
+      .canvas-settings .num { width: 58px; box-sizing: border-box; }
+      .canvas-settings ha-switch { margin-left: -4px; }
+      .tipped { display: inline-flex; align-items: center; gap: 4px;
+                color: var(--primary-text-color); }
+      /* The balloon hangs from the mark, not from the label: pointing at a
+         word should not cover the canvas with prose nobody asked for. */
+      /* Padded well past the glyph: 13 px of ⓘ is a hard thing to hit with a
+         mouse and an impossible one with a thumb. The negative margin gives
+         the room back to the row, so the line does not grow for it. */
+      .tip-dot { position: relative; font-size: 13px; line-height: 1; cursor: help;
+                 color: var(--primary-color, #03a9f4);
+                 padding: 5px 6px; margin: -5px -6px; }
+      .tip-dot::after {
         content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 6px);
         z-index: 30; width: max-content; max-width: 260px; padding: 6px 8px;
         border-radius: 6px; background: var(--card-background-color, #2b2b2b);
@@ -669,8 +679,8 @@ class ScCanvasEditor extends LitElement {
       }
       /* A balloon on the right of the row would hang off the editor, so that
          one is hung from its right edge instead. */
-      .tipped.right::after { left: auto; right: 0; }
-      .tipped:hover::after, .tipped:focus::after { opacity: 1; visibility: visible; }
+      .tipped.right .tip-dot::after { left: auto; right: 0; }
+      .tip-dot:hover::after, .tip-dot:focus::after { opacity: 1; visibility: visible; }
       .canvas-wrap { position: relative; background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color,#444); border-radius: 4px; padding: 0; display: flex; justify-content: center; }
       /* The canvas' own breathing room, moved onto a strip that takes pointer
          events. A selection frame has to be able to start and end *outside*
@@ -2102,8 +2112,8 @@ class ScCanvasEditor extends LitElement {
    * Card & Dimensions: both describe this picture and nothing else, and both
    * are read while looking at what they change.
    *
-   * One line, with the prose in a balloon on the label rather than under the
-   * row: the space over the canvas is the space the canvas wants, and an
+   * One line, with the prose in a balloon on the ⓘ rather than under the row:
+   * the space over the canvas is the space the canvas wants, and an
    * explanation that is read once should not hold a line of it for good. The
    * balloon answers to hover and to focus, so it is reachable from a keyboard
    * and on a touch screen, and it stays when the card's tips are hidden -
@@ -2139,7 +2149,7 @@ class ScCanvasEditor extends LitElement {
 
     return html`
       <div class="canvas-settings">
-        <span class="tipped" tabindex="0" data-tip=${gridTip}>Grid / snap<span class="tip-dot">ⓘ</span></span>
+        <span class="tipped">Grid / snap<span class="tip-dot" tabindex="0" data-tip=${gridTip}>ⓘ</span></span>
         <select @change=${e => {
           const v = e.target.value;
           this._setGridPct({ snap: v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)) });
@@ -2153,7 +2163,7 @@ class ScCanvasEditor extends LitElement {
                @change=${e => this._setGridPct({ grid: Math.max(0, parseFloat(e.target.value) || 0) })}>
         <span class="hint">%</span>
         <span class="gap"></span>
-        <span class="tipped right" tabindex="0" data-tip=${liveTip}>Live preview<span class="tip-dot">ⓘ</span></span>
+        <span class="tipped right">Live preview<span class="tip-dot" tabindex="0" data-tip=${liveTip}>ⓘ</span></span>
         <ha-switch .checked=${this._live}
                    @change=${e => this._send('live_preview', e.target.checked ? undefined : false)}></ha-switch>
       </div>`;
