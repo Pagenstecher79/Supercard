@@ -505,7 +505,7 @@ Object.assign(window.SupercardUtils, (() => {
     const hint = typeof field.hint === 'function' ? field.hint(ctx.entry, ctx) : field.hint;
     const text = typeof field.label === 'function' ? field.label(ctx.entry, ctx) : field.label;
     const label = hint
-      ? html`${text}<br><span style="font-size:10px;color:var(--secondary-text-color)">${hint}</span>`
+      ? html`${text}<br><span class="tip" style="font-size:10px;color:var(--secondary-text-color)">${hint}</span>`
       : text;
     const box = (cls, control) => html`
       <div class=${cls} style=${field.style || nothing}>
@@ -655,6 +655,10 @@ Object.assign(window.SupercardUtils, (() => {
     .pattern-content { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; margin-top: 8px; border-top: 1px dashed var(--divider-color, #333); }
     .drag-handle { cursor: grab; padding-right: 8px; color: var(--secondary-text-color); }
     option:disabled { color: rgba(255,255,255,0.3); font-style: italic; }
+    /* A tip is prose that explains a control. "Hide tips" sets
+       --sc-tip-display on the editor's container, and every editor
+       inherits it through its shadow root. */
+    .tip { display: var(--sc-tip-display, revert); }
   `;
 
   // Used by the compact config forms (core's two editors, the gauge editor).
@@ -678,6 +682,10 @@ Object.assign(window.SupercardUtils, (() => {
     .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
     details.inner-section summary { padding: 10px 12px; font-weight: 600; font-size: 14px; cursor: pointer; outline: none; display: flex; justify-content: space-between; align-items: center; color: var(--primary-text-color); }
     details.inner-section summary::-webkit-details-marker { display: none; }
+    /* A tip is prose that explains a control. "Hide tips" sets
+       --sc-tip-display on the editor's container, and every editor
+       inherits it through its shadow root. */
+    .tip { display: var(--sc-tip-display, revert); }
   `;
 
 // Entity ids referenced anywhere in a card config. Used by shouldUpdate to tell
@@ -1298,7 +1306,7 @@ class SupercardModularEditor extends LitElement {
     });
 
     return html`
-      <div id="modules-container" style="display:flex; flex-direction:column; gap:16px; padding-top: 8px;">
+      <div id="modules-container" style="display:flex; flex-direction:column; gap:16px; padding-top: 8px;${slot.hide_tips ? ' --sc-tip-display:none;' : ''}">
         ${availableModules.map(modKey => {
           const mod = window.SupercardModules[modKey];
           const blocks = [];
@@ -1423,12 +1431,12 @@ Object.assign(window.SupercardModules['core'], (() => {
       return html`
         <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px 16px;">
           <details class="inner-section" ?open=${this._expanded.basis} @toggle=${e => this._expanded = {...this._expanded, basis: e.target.open}}>
-            <summary>⚙️ Basics & Entity(ies) <span style="font-size:10px;">▼</span></summary>
+            <summary>⚙️ Basics & Entity(ies) & Aliases <span style="font-size:10px;">▼</span></summary>
             <div class="inner-content">
 
               <div class="col">
                 <label>Main entity (optional)</label>
-                <span style="font-size:10px;color:var(--secondary-text-color);margin:-4px 0 4px;">
+                <span class="tip" style="font-size:10px;color:var(--secondary-text-color);margin:-4px 0 4px;">
                   Feeds the Icon, Name and State elements, and stands in for an
                   action that names no entity of its own. Gauges, bars and labels
                   bring their own - leave this empty if the card has no use for it.
@@ -1468,6 +1476,18 @@ Object.assign(window.SupercardModules['core'], (() => {
                     + Add
                   </div>
                 </div>
+
+                <span class="tip" style="font-size:10px;color:var(--secondary-text-color);margin:-8px 0 12px;">
+                  Name an entity once here, and every gauge, bar, label, colour
+                  pattern and action picks it from a list instead of naming it
+                  again. Swap the entity on this one line and everything that
+                  uses the alias follows - which is what makes a card built for
+                  one room a card you can drop into the next. An alias carries
+                  its attribute too, so a single entry can mean "the humidity
+                  of the bedroom sensor" everywhere it is used, and the menus
+                  show the current value beside the name so you pick the right
+                  one.
+                </span>
 
                 <ha-sortable handle-selector=".handle" @item-moved=${this._handleSort}>
                   <div class="global-entities-list" style="display: flex; flex-direction: column; gap: 8px;">

@@ -700,7 +700,7 @@ class ScGaugeEditor extends LitElement {
         const isAbsolute = entry.threshold_unit === 'absolute';
         content = html`
           <div class="col" style="gap:8px;">
-            <div style="font-size:12px;color:var(--secondary-text-color,#aaa);margin-bottom:4px;line-height:1.3;">
+            <div class="tip" style="font-size:12px;color:var(--secondary-text-color,#aaa);margin-bottom:4px;line-height:1.3;">
               Tip: thresholds can be given as absolute values or in %.
             </div>
             ${this._renderStopsEditor(val, isAbsolute, (newStops) => {

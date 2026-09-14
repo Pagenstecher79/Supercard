@@ -799,6 +799,9 @@ class ScCanvasEditor extends LitElement {
       .icon-btn[disabled] { opacity: 0.3; cursor: default; }
       .icon-btn[disabled]:hover { color: var(--secondary-text-color); }
       .hint { font-size: 11px; color: var(--secondary-text-color); }
+      /* "Hide tips" sets --sc-tip-display on the editor's container; a
+         readout wearing .hint is not a tip and keeps its place. */
+      .tip { display: var(--sc-tip-display, revert); }
       .el-config { border: 1px solid var(--divider-color,#444); border-radius: 6px; background: rgba(0,0,0,0.15); }
       .el-config > summary { padding: 7px 10px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--primary-color,#03a9f4); list-style: none; display: flex; align-items: center; gap: 6px; user-select: none; }
       .el-config > summary::-webkit-details-marker { display: none; }
@@ -1929,7 +1932,7 @@ class ScCanvasEditor extends LitElement {
     const fit = !!el.font_fit;
     return html`
       <div class="row" style="padding:4px 4px 0;">
-        <label>Fill the box<br><span class="hint">Text and icon take the size of the box they are in, instead of the card's own font size. Drag the box bigger and they grow with it.</span></label>
+        <label>Fill the box<br><span class="hint tip">Text and icon take the size of the box they are in, instead of the card's own font size. Drag the box bigger and they grow with it.</span></label>
         <ha-switch .checked=${fit} @change=${e => this._setEl(idx, { font_fit: e.target.checked || undefined })}></ha-switch>
       </div>
       ${fit ? html`
@@ -1974,7 +1977,7 @@ class ScCanvasEditor extends LitElement {
     }
 
     const el = this._canvas.elements.find(e => e.id === id);
-    return wrap('Element settings', html`<div class="hint" style="padding:4px 4px 8px;">${el?.surface
+    return wrap('Element settings', html`<div class="hint tip" style="padding:4px 4px 8px;">${el?.surface
       ? html`A surface has no settings of its own - it is a box for a colour or
              glass pattern to paint. Target <code>${id}</code> in the colour or
              fx-glass section.`
@@ -2045,7 +2048,7 @@ class ScCanvasEditor extends LitElement {
             <span class="hint">${Math.round(gridColumnsToPx(columns, maxColumns))} px</span>
           </div>
         </div>
-        <div class="hint" style="margin:-4px 0 4px 0;">
+        <div class="hint tip" style="margin:-4px 0 4px 0;">
           A width here is one column of the section. The <b>Layout</b> tab
           counts in cells of three columns unless its <b>Precise mode</b> is
           on - so this field is like that switch already on.
@@ -2063,7 +2066,7 @@ class ScCanvasEditor extends LitElement {
               <span class="hint">${gridRowsToPx(rows)} px</span>`}
           </div>
         </div>
-        <div class="hint" style="margin:-4px 0 4px 0;">
+        <div class="hint tip" style="margin:-4px 0 4px 0;">
           ${rows === null
             ? html`The canvas is as wide as its columns and a third of that
                    tall, at any width - so the card keeps its proportions and
@@ -2097,7 +2100,7 @@ class ScCanvasEditor extends LitElement {
             <span class="hint">% grid</span>
           </div>
         </div>
-        <div class="hint" style="margin:-4px 0 4px 0;">
+        <div class="hint tip" style="margin:-4px 0 4px 0;">
           Per cent of the canvas width, so the grid keeps its proportions when the canvas is
           reshaped. ${gridValue > 0 ? html`Currently ${gridToUnits({ ...c, grid_unit: 'pct' }, gridValue)} of ${c.w} units.` : ''}
         </div>
@@ -2107,9 +2110,19 @@ class ScCanvasEditor extends LitElement {
           <ha-switch .checked=${this._live}
                      @change=${e => { this._live = e.target.checked; }}></ha-switch>
         </div>
-        <div class="hint" style="margin:-4px 0 4px 0;">${this._live
+        <div class="hint tip" style="margin:-4px 0 4px 0;">${this._live
           ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
           : html`Plain boxes - easier to see and to grab.`}</div>
+
+        <div class="row">
+          <label>Hide tips</label>
+          <ha-switch .checked=${!!this.slot.hide_tips}
+                     @change=${e => this.commitFn('hide_tips', e.target.checked || undefined)}></ha-switch>
+        </div>
+        <div class="hint tip" style="margin:-4px 0 4px 0;">
+          Takes the explanatory lines out of every menu of this card, which makes
+          the editors a good deal shorter once you know your way around.
+        </div>
 
         <style>${this._live ? els.filter(e => !e.surface).map(el => itemTypography(el,
           `.el.live[data-item-id="${el.id}"]`,
@@ -2125,7 +2138,7 @@ class ScCanvasEditor extends LitElement {
             </button>
             ${this._menu ? this._renderAddMenu() : ''}
           </div>
-          <span class="hint" style="flex:1">${this._placing
+          <span class="hint tip" style="flex:1">${this._placing
             ? html`Click on the canvas to place the ${this._placingLabel}. Escape cancels.`
             : html`Later in the list draws on top. A gauge and a round bar stay square and fill their box.`}</span>
           <div class="names history">
@@ -2288,7 +2301,7 @@ class ScCanvasEditor extends LitElement {
             </div>`;
                })}
         </div>
-        <div class="hint">${selected.length > 1
+        <div class="hint tip">${selected.length > 1
           ? html`${selected.length} selected - dragging one moves them all, and the buttons under the canvas copy them or even out the gaps. An element's own settings are back when it is the only one selected.`
           : (sel
             ? html`Click the canvas background to list every element again. Shift-click a second element to move them together.`

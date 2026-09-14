@@ -49,7 +49,8 @@ class ScColorEditor extends LitElement {
       .color-item-row input[type="color"], .color-row input[type="color"] { width: 40px; height: 30px; padding: 0; border: none; background: none; cursor: pointer; }
       .action-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--divider-color,#555); color: var(--primary-text-color); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 4px; flex: 1; font-weight: bold; }
       .action-btn:hover { background: rgba(255,255,255,0.1); }
-      .info-text { font-size: 11px; color: var(--secondary-text-color); margin-top: -8px; margin-bottom: 4px; }
+      /* Every .info-text is prose about a control, so all of them answer to "Hide tips". */
+      .info-text { font-size: 11px; color: var(--secondary-text-color); margin-top: -8px; margin-bottom: 4px; display: var(--sc-tip-display, revert); }
       ha-selector { width: 100%; }
       .pos-preview-wrap { display: flex; align-items: center; justify-content: center; gap: 16px; width: 100%; margin: 8px 0; }
       .pos-preview { width: 140px; height: 140px; background: #111; border: 1px solid var(--divider-color,#555); border-radius: 8px; position: relative; overflow: hidden; cursor: crosshair; touch-action: none; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }

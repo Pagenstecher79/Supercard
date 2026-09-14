@@ -296,7 +296,7 @@ function paddingRow(ctx) {
   const unit = pat.padding_unit || 'px';
   return html`
     <div class="row">
-      <label>Edge distance (inset / padding)<br><span style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
+      <label>Edge distance (inset / padding)<br><span class="tip" style="font-size:10px;color:var(--secondary-text-color)">Negative value makes the glass larger</span></label>
       <div style="display:flex; align-items:center; width:60%; gap:8px">
         ${SC.slider(pat.padding ?? 0, v => ctx.set('padding', v), {
           min: unit === '%' ? -100 : -50, max: unit === '%' ? 100 : 50, style: 'flex:1', int: true })}
@@ -511,6 +511,18 @@ class ScFxGlassEditor extends LitElement {
       .map((pat, idx) => ({ pat, idx }))
       .filter(({ pat }) => !HAS_OWN_SWITCH.test(pat.target));
 
+    // With gauges, bars, labels and the card itself switched from their own
+    // editors, what is left for this list is the icon and the surfaces - and
+    // only where one of those is actually laid out, because a target you
+    // cannot point at on the canvas is not a target. A card without one has
+    // nothing to put here, so the section stays away rather than offering an
+    // empty menu - unless a pattern is already stored, because a row nobody
+    // can reach is how the last stale target went unnoticed.
+    const placed = Array.isArray(this.slot?.canvas?.elements) ? this.slot.canvas.elements : [];
+    const reachable = targetGroups.elements.items
+      .some(t => placed.some(el => el?.id === t.id.replace(/^elm_/, '')));
+    if (!rows.length && !reachable) return html``;
+
     const getLabelForTarget = (targetId) => {
       for (const group of Object.values(targetGroups)) {
         const found = group.items.find(t => t.id === targetId);
@@ -523,7 +535,7 @@ class ScFxGlassEditor extends LitElement {
       <details class="inner-section">
         <summary>✨ FX: Frosted & Liquid Glass (other targets) <span style="font-size:10px">▼</span></summary>
         <div class="inner-content">
-          <div class="hint" style="font-size:11px;color:var(--secondary-text-color);margin-bottom:8px;">
+          <div class="hint tip" style="font-size:11px;color:var(--secondary-text-color);margin-bottom:8px;">
             Gauges, bars and labels carry their own Glass FX switch in their
             editor, and the card's is in Card &amp; Dimensions. What is left
             here is the icon, surfaces and layout cells.
