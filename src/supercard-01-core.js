@@ -1423,7 +1423,7 @@ Object.assign(window.SupercardModules['core'], (() => {
       return html`
         <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px 16px;">
           <details class="inner-section" ?open=${this._expanded.basis} @toggle=${e => this._expanded = {...this._expanded, basis: e.target.open}}>
-            <summary>⚙️ Basics & Entity(ies) <span style="font-size:10px;">▼</span></summary>
+            <summary>⚙️ Basics & Entity(ies) & Aliases <span style="font-size:10px;">▼</span></summary>
             <div class="inner-content">
 
               <div class="col">
