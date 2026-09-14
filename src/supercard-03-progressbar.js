@@ -1590,9 +1590,11 @@ class ScProgressbarEditor extends LitElement {
           ${(entry.global_id && entry.global_id !== 'manual') ? html`
             <div class="row" style="margin-bottom: 8px; background: rgba(3, 169, 244, 0.1); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(3, 169, 244, 0.2);">
               <label style="color: var(--primary-color);">Use alias name as bar label</label>
-              <ha-switch .checked=${!!entry.use_alias_name}
-                @change=${e => updateEntry('use_alias_name', e.target.checked)}>
-              </ha-switch>
+              <label class="toggle">
+                <input type="checkbox" .checked=${!!entry.use_alias_name}
+                  @change=${e => updateEntry('use_alias_name', e.target.checked)}>
+                <span class="toggle-slider"></span>
+              </label>
             </div>
           ` : html`
             <div style="background:rgba(0,0,0,0.15); padding:10px; border-radius:8px; border:1px solid var(--divider-color,#333); margin-bottom:8px;">
