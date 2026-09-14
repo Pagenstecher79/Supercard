@@ -511,6 +511,14 @@ class ScFxGlassEditor extends LitElement {
       .map((pat, idx) => ({ pat, idx }))
       .filter(({ pat }) => !HAS_OWN_SWITCH.test(pat.target));
 
+    // With gauges, bars, labels and the card itself switched from their own
+    // editors, what is left for this list is the icon and the surfaces. A card
+    // that has neither has nothing to put here, so the section stays away
+    // rather than offering an empty menu - unless a pattern is already stored,
+    // because a row nobody can reach is how the last stale target went
+    // unnoticed.
+    if (!rows.length && !targetGroups.elements.items.length) return html``;
+
     const getLabelForTarget = (targetId) => {
       for (const group of Object.values(targetGroups)) {
         const found = group.items.find(t => t.id === targetId);
