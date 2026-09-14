@@ -287,6 +287,13 @@ an editor that has a field array, and do not invent a second renderer: a block
 that is not a field - a preview, a picker grid, a datalist - is
 `type: 'custom'` and hands the markup back through `render(ctx)`.
 
+A folded section is `type: 'details'`, drawn the same everywhere - the gauge
+and the bar build theirs from a `'section'` field instead, because their own
+renderers split a flat list into sections, but the fold looks the same. Every
+section heading opens with an emoji, which is what makes a folded list
+readable at a glance; the gauge's and the bar's keep the `── ` prefix in
+front of it, a marker their renderers strip before drawing.
+
 ## Performance
 
 Progress bars are the hot path: many can animate at once, and the cost is

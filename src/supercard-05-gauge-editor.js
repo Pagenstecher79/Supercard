@@ -30,7 +30,7 @@ function newEntry() { return { entity: '', gauge_attribute: '' }; }
 const hasOwnBox = (cfg, slot) => !SC.gaugeIsResponsive(cfg, !!slot?.canvas);
 
 const STYLE_FIELDS = [
-  { id: '_section_shape',      label: '── Shape & Position',    type: 'section' },
+  { id: '_section_shape',      label: '── 📐 Shape & Position',    type: 'section' },
   { id: 'gauge_type',          label: 'Gauge type',             type: 'select', options: [ { value: 'full', label: 'Full 360°' }, { value: 'semi', label: 'Semi 270°' } ] },
   // Four positions used to be the whole offer here, on a dial that has 360 of
   // them. The slider reads clockwise from the top and `gauge-angle.js` turns
@@ -60,7 +60,7 @@ const STYLE_FIELDS = [
   { id: 'gauge_offset_x',      label: 'Offset X (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', condition: hasOwnBox },
   { id: 'gauge_offset_y',      label: 'Offset Y (px)',         type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', condition: hasOwnBox },
 
-  { id: '_section_frame',           label: '── Frame Ring',               type: 'section'  },
+  { id: '_section_frame',           label: '── ⭕ Frame Ring',               type: 'section'  },
   { id: 'frame_ring_active',        label: 'Frame active',                 type: 'checkbox' },
   { id: 'frame_ring_closed',        label: 'Closed circle',          type: 'checkbox', condition: cfg => !!cfg.frame_ring_active },
   { id: 'frame_ring_width',         label: 'Width',                       type: 'range',    min: 0, max: 3, step: 0.1,  placeholder: '1.5', condition: cfg => !!cfg.frame_ring_active },
@@ -69,7 +69,7 @@ const STYLE_FIELDS = [
   { id: 'frame_ring_color',         label: 'Colour (fixed)',                  type: 'color',    condition: cfg => !!cfg.frame_ring_active && cfg.frame_ring_color_type !== 'adaptive' },
   { id: 'frame_ring_opacity',       label: 'Opacity',                    type: 'range',    min: 0, max: 1, step: 0.01,  placeholder: '1.0', condition: cfg => !!cfg.frame_ring_active },
 
-  { id: '_section_bg',           label: '── Background',             type: 'section' },
+  { id: '_section_bg',           label: '── 🖼️ Background',             type: 'section' },
   { id: 'bg_mode',               label: 'Background mode',          type: 'select', options: [ { value: 'none', label: 'None' }, { value: 'adaptive', label: 'Adaptive (theme)' }, { value: 'solid', label: 'Solid colour' }, { value: 'linear', label: 'Linear gradient' }, { value: 'radial', label: 'Radial gradient' } ] },
   { id: 'bg_gradient_preset',    label: 'Gradient type',                type: 'select', options: [ { value: 'classic', label: 'Classic (2 colours)' }, { value: 'manual', label: 'Manual (list)' } ], condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) },
   { id: 'bg_threshold_unit',     label: 'Threshold unit',          type: 'select', options: [ { value: 'percent', label: 'Percent (%)' }, { value: 'absolute', label: 'Absolute' } ], condition: cfg => ['linear', 'radial'].includes(cfg.bg_mode) && cfg.bg_gradient_preset === 'manual' },
@@ -105,7 +105,7 @@ const STYLE_FIELDS = [
   { id: 'bg_threshold_anim_ripple_multi',   label: 'Multiple ripple rings (3×)',        type: 'checkbox', condition: cfg => !!cfg.bg_threshold_anim_active && cfg.bg_threshold_anim_type === 'ripple' },
   { id: 'bg_threshold_anim_ripple_inv',     label: 'Implosion (reverse direction)',    type: 'checkbox', condition: cfg => !!cfg.bg_threshold_anim_active && ['ripple', 'waves'].includes(cfg.bg_threshold_anim_type) },
 
-  { id: '_section_data',        label: '── Data & Scaling',  type: 'section' },
+  { id: '_section_data',        label: '── 📊 Data & Scaling',  type: 'section' },
   { id: 'min',                  label: 'Min value',               type: 'number', placeholder: '0'   },
   { id: 'max',                  label: 'Max value',               type: 'number', placeholder: '100' },
   { id: 'value_autorange',      label: 'Auto-range',             type: 'checkbox' },
@@ -113,7 +113,7 @@ const STYLE_FIELDS = [
   { id: 'dynamic_max_scale',    label: 'Dynamic max',        type: 'checkbox' },
   { id: 'autoscale_hysteresis', label: 'Hysteresis (%)',          type: 'number', placeholder: '10'  },
 
-  { id: '_section_color',    label: '── Colour & Gradient',   type: 'section' },
+  { id: '_section_color',    label: '── 🎨 Colour & Gradient',   type: 'section' },
   { id: 'stroke_width',        label: 'Ring thickness',            type: 'range',    min: 0, max: 5, step: 0.01,  placeholder: '3'    },
   { id: 'gradient_preset',   label: 'Colour mode',             type: 'select', options: [ { value: 'manual', label: 'Manual (list)' }, { value: 'symmetriccustom', label: 'Symmetric (custom)' }, { value: 'symmetric', label: 'Symmetric (default)' }, { value: 'linear', label: 'Linear traffic light' } ] },
 
@@ -140,7 +140,7 @@ const STYLE_FIELDS = [
   { id: 'threshold1', label: 'Start spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '20', condition: cfg => cfg.gradient_preset === 'linear' },
   { id: 'threshold2', label: 'Mid spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '60', condition: cfg => cfg.gradient_preset === 'linear' },
 
-  { id: '_section_pointer',       label: '── Pointer',                  type: 'section' },
+  { id: '_section_pointer',       label: '── 🧭 Pointer',                  type: 'section' },
   { id: 'pointer_type',           label: 'Pointer shape',                type: 'select',  options: [ { value: 'needle', label: 'Needle' }, { value: 'triangle', label: 'Triangle' } ] },
   { id: 'pointer_width',          label: 'Pointer width',              type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '2'   },
   { id: 'pointer_length',         label: 'Pointer length',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10'  },
@@ -177,7 +177,7 @@ const STYLE_FIELDS = [
   { id: 'animation_spring_bounces', label: 'Number of overshoots', type: 'range', min: 1, max: 10, step: 1, placeholder: '3', condition: cfg => cfg.animation_easing === 'spring' },
   { id: 'animation_spring_amplitude', label: 'Spring amplitude (intensity %)', type: 'range', min: 0, max: 100, step: 1, placeholder: '50', condition: cfg => cfg.animation_easing === 'spring' },
 
-  { id: '_section_ticks',           label: '── Ticks',                    type: 'section' },
+  { id: '_section_ticks',           label: '── 📏 Ticks',                    type: 'section' },
   { id: 'tick_count',               label: 'Tick count',                 type: 'range',    min: 0, max: 50, step: 1,   placeholder: '0'   },
   { id: 'tick_length',              label: 'Tick length',                  type: 'range',    min: 0, max: 6, step: 0.1,   placeholder: '3'   },
   { id: 'tick_width',               label: 'Tick width',                 type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '1'   },
@@ -210,10 +210,10 @@ const STYLE_FIELDS = [
   { id: '_section_custom_ticks',    label: '── Custom Ticks (Fixed Points)', type: 'subsection' },
   { id: 'custom_ticks',             type: 'custom_ticks' },
 
-  { id: '_section_sectors',         label: '── Sectors (Areas)',       type: 'section' },
+  { id: '_section_sectors',         label: '── 🥧 Sectors (Areas)',       type: 'section' },
   { id: 'sectors',                  type: 'sectors' },
 
-  { id: '_section_labels',        label: '── Value & Labels',           type: 'section' },
+  { id: '_section_labels',        label: '── 🔢 Value & Labels',           type: 'section' },
   { id: 'show_value',             label: 'Show value',              type: 'checkbox' },
   { id: 'value_font_size',        label: 'Value font size',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  condition: cfg => !!cfg.show_value },
   { id: 'value_offset_y',         label: 'Value offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value },
@@ -240,7 +240,7 @@ const STYLE_FIELDS = [
   { id: 'multiplier_color_type',  label: 'Colour mode',                 type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_multiplier_label },
   { id: 'multiplier_color',       label: 'Colour (fixed)',                type: 'color',   condition: cfg => !!cfg.show_multiplier_label && cfg.multiplier_color_type !== 'adaptive' },
 
-  { id: '_section_gauge_label',    label: '── Gauge Label',       type: 'section' },
+  { id: '_section_gauge_label',    label: '── 🏷️ Gauge Label',       type: 'section' },
   { id: 'gauge_label_active',      label: 'Label active',          type: 'checkbox' },
   { id: 'gauge_label_text',        label: 'Label text',           type: 'text',     placeholder: 'Gauge',  condition: cfg => !!cfg.gauge_label_active },
   { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   condition: cfg => !!cfg.gauge_label_active },
@@ -351,7 +351,7 @@ class ScGaugeEditor extends LitElement {
 
     return html`
       <details class="inner-section">
-        <summary>── Gauges
+        <summary>⏱️ Gauges
           <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
             <span style="font-size:10px; opacity:.6; font-weight:400;">
               ${gauges.length} Gauge${gauges.length !== 1 ? 's' : ''}
@@ -615,7 +615,7 @@ class ScGaugeEditor extends LitElement {
 
     fields.forEach(f => {
       if (f.type === 'section') {
-        currentSection = { isRoot: false, title: f.label.replace('── ', ''), items: [], subsections: [] };
+        currentSection = { isRoot: false, id: f.id, title: f.label.replace('── ', ''), items: [], subsections: [] };
         rootSections.push(currentSection);
         currentSubsection = null; 
       } else if (f.type === 'subsection') {
@@ -631,7 +631,7 @@ class ScGaugeEditor extends LitElement {
     });
 
     const renderItems = (items) => items.map(f => this._renderLitField(f, entry, idx, gauges));
-    const cloneableSections = ['Background', 'Colour & Gradient', 'Pointer', 'Ticks', 'Sectors (Areas)', 'Value & Labels'];
+    const cloneableSections = ['_section_bg', '_section_color', '_section_pointer', '_section_ticks', '_section_sectors', '_section_labels'];
 
     return rootSections.map(sec => {
       if (sec.isRoot) {
@@ -644,7 +644,7 @@ class ScGaugeEditor extends LitElement {
           <details class="inner-section" ?open=${this._expanded[detailKey]} @toggle=${e => this._expanded[detailKey] = e.target.open}>
             <summary style="display:flex; justify-content:space-between; align-items:center;">
               <span style="flex: 1;">${sec.title}</span>
-              ${cloneableSections.includes(sec.title) && gauges.length > 1 ? html`
+              ${cloneableSections.includes(sec.id) && gauges.length > 1 ? html`
                 <select style="width: auto; max-width: 140px; padding: 2px 4px; font-size: 11px; margin-right: 8px; border: 1px solid var(--divider-color, #444); border-radius: 4px; background: rgba(0,0,0,0.2); color: var(--primary-text-color);" @click=${e => e.stopPropagation()} @change=${e => this._cloneSection(idx, parseInt(e.target.value), sec, gauges, e.target)}>
                   <option value="" disabled selected>Copy from...</option>
                   ${gauges.map((g, i) => i !== idx ? html`<option value="${i}">Gauge ${i+1}</option>` : '')}

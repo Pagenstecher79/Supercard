@@ -138,7 +138,7 @@ class ScLabelsEditor extends LitElement {
                     @change=${e => { this._set(list, idx, 'enabled', e.target.checked); }}>
                   </ha-switch>
                   <button @click=${e => { e.stopPropagation(); const n = [...list]; n.splice(idx, 1); this._commit(n); }}
-                    style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">✕</button>
+                    style="background:none;border:none;color:#f44;cursor:pointer;padding:4px">🗑</button>
                 </div>
               </div>
 
@@ -378,7 +378,7 @@ class ScLabelsEditor extends LitElement {
 
     return html`
       <details class="inner-section" ?open=${this._outerOpen} @toggle=${e => this._outerOpen = e.target.open}>
-        <summary>── Labels &amp; Extra Texts <span style="font-size:10px;">▼</span></summary>
+        <summary>🏷️ Labels &amp; Extra Texts <span style="font-size:10px;">▼</span></summary>
         <div class="inner-content">
           ${list.map((item, idx) => this._renderLabelCard(item, idx, list))}
 

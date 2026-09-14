@@ -1061,7 +1061,7 @@ const isCirc = cfg => String(cfg.orientation).startsWith('circular');
 const isLin = cfg => !String(cfg.orientation).startsWith('circular');
 
 const STYLE_FIELDS = [
-  { id: '_section_shape',      label: '── Shape & Position',    type: 'section' },
+  { id: '_section_shape',      label: '── 📐 Shape & Position',    type: 'section' },
   { id: 'orientation',         label: 'Orientation / Layout',  type: 'select', options: [
     { value: 'horizontal', label: '↔ Linear horizontal' },
     { value: 'vertical', label: '↕ Linear vertical' },
@@ -1098,17 +1098,20 @@ const STYLE_FIELDS = [
   { id: 'height',              label: 'Height (CSS)',            type: 'text',   placeholder: '20px or 100%' },
   { id: 'border_radius',       label: 'Corner radius',           type: 'range',  min: 0, max: 50, step: 0.1,   placeholder: '4px', condition: cfg => isLin(cfg) },
   { id: 'circular_border_radius', label: 'Background corner radius (%)', type: 'range', min: 0, max: 50, step: 1, placeholder: '50', condition: cfg => isCirc(cfg) },
-  { id: '_section_colors',     label: '── Colours, Gradient & Animation',   type: 'section' },
+  { id: '_section_colors',     label: '── 🎨 Colours, Gradient & Animation',   type: 'section' },
   { id: 'animation_duration',  label: 'Animation duration (s)',  type: 'range',  min: 0, max: 10, step: 0.1, placeholder: '0.4' },
   { id: 'bounce_intensity', label: 'Bounce intensity (%)', type: 'range', min: 0, max: 30, dynamic_step: true, placeholder: '50' },
   { id: 'bg_color',            label: 'Background colour',      type: 'color',  placeholder: '#ffffff' },
   { id: 'bg_opacity',          label: 'Background opacity (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '10' },
-  { id: 'fill_color',          label: 'Fill colour (solid)',     type: 'color',  placeholder: 'var(--primary-color)' },
+  // A gradient overwrites the fill outright, so offering the solid colour
+  // there would be offering a setting that does nothing.
+  { id: 'fill_color',          label: 'Fill colour (solid)',     type: 'color',  placeholder: 'var(--primary-color)',
+    condition: cfg => !cfg.use_gradient },
   { id: 'use_gradient',        label: 'Use gradient', type: 'checkbox' },
   { id: 'gradient_as_solid',   label: 'Derive colour from gradient (dynamic)', type: 'checkbox', condition: cfg => cfg.use_gradient },
   { id: 'gradient_stops',      label: 'Gradient colour stops',    type: 'gradient-stops', condition: cfg => cfg.use_gradient },
 
-  { id: '_section_scale',      label: '── Value Range & Main Ticks', type: 'section' },
+  { id: '_section_scale',      label: '── 📊 Value Range & Main Ticks', type: 'section' },
   { id: 'min',                 label: 'Minimum',               type: 'number', placeholder: '0' },
   { id: 'max',                 label: 'Maximum',               type: 'number', placeholder: '100' },
   { id: 'origin',              label: 'Start point (value, e.g. 0)', type: 'number', placeholder: 'Empty = minimum' },
@@ -1124,12 +1127,12 @@ const STYLE_FIELDS = [
   { id: 'tick_color_adaptive', label: 'Dual-adaptive colour (inverted at fill level)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
   { id: 'tick_color',          label: 'Manual colour',        type: 'color',  placeholder: 'rgba(255,255,255,0.3)', condition: cfg => isLin(cfg) && cfg.show_ticks && !cfg.tick_color_adaptive },
 
-  { id: '_section_segments',   label: '── Segments (circle)',   type: 'section', condition: cfg => isCirc(cfg) },
+  { id: '_section_segments',   label: '── 🧩 Segments (circle)',   type: 'section', condition: cfg => isCirc(cfg) },
   { id: 'circular_segmented',  label: 'Split circle into pill segments', type: 'checkbox', condition: cfg => isCirc(cfg) },
   { id: 'circular_segment_count', label: 'Number of segments', type: 'range', min: 2, max: 100, step: 1, placeholder: '40', condition: cfg => isCirc(cfg) && cfg.circular_segmented },
   { id: 'circular_segment_thickness', label: 'Pill thickness (%)', type: 'range', min: 0.1, max: 10, step: 0.1, placeholder: '2', condition: cfg => isCirc(cfg) && cfg.circular_segmented },
 
-  { id: '_section_subticks',   label: '── Subticks',           type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: '_section_subticks',   label: '── 📏 Subticks',           type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
   { id: 'show_subticks',       label: 'Show subticks',     type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
   { id: 'subtick_count',       label: 'Count per interval',  type: 'number', placeholder: '4', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
   { id: 'subtick_pos',         label: 'Start point / alignment', type: 'select', options: [{value:'main', label:'Same as main ticks'}, {value:'center', label:'Centered'}, {value:'start', label:'At edge (top/left)'}, {value:'end', label:'Opposite (bottom/right)'}, {value:'full', label:'Full width (100%)'}], placeholder: 'main', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
@@ -1139,10 +1142,10 @@ const STYLE_FIELDS = [
   { id: 'subtick_color_adaptive', label: 'Dual-adaptive colour (inverted at fill level)', type: 'checkbox', placeholder: 'false', default: false, condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks },
   { id: 'subtick_color',       label: 'Manual colour',        type: 'color', placeholder: 'rgba(255,255,255,0.2)', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_subticks && !cfg.subtick_color_adaptive },
 
-  { id: '_section_custom_ticks', label: '── Custom Ticks', type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: '_section_custom_ticks', label: '── 📌 Custom Ticks', type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
   { id: 'custom_ticks',        label: 'Insert additional / manual ticks', type: 'custom-ticks', condition: cfg => isLin(cfg) && cfg.show_ticks },
 
-  { id: '_section_tick_labels',label: '── Tick Labels',        type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
+  { id: '_section_tick_labels',label: '── 🔤 Tick Labels',        type: 'section', condition: cfg => isLin(cfg) && cfg.show_ticks },
   { id: 'show_tick_labels',    label: 'Show tick labels (numbers)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
   { id: 'tick_labeled_extralength', label: 'Extra length at labels', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
   { id: 'tick_label_step',     label: 'Only every Xth label (1=all)', type: 'number', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
@@ -1164,7 +1167,7 @@ const STYLE_FIELDS = [
   { id: 'tick_labels_tick_gap',label: 'Gap to tick', type: 'text', placeholder: '4', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && cfg.tick_labels_pos !== 'center' },
   { id: 'tick_labels_center_gap_offset', label: 'Adjust centre gap', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels && cfg.tick_labels_pos === 'center' },
 
-  { id: '_section_label',      label: '── Label (Name/Label)', type: 'section' },
+  { id: '_section_label',      label: '── 🏷️ Label (Name/Label)', type: 'section' },
   { id: 'show_label',          label: 'Show name / label', type: 'checkbox' },
   { id: 'label_font_size',     label: 'Font size (e.g. 12 or 12cqw)', type: 'text', placeholder: '12',  condition: cfg => cfg.show_label },
   { id: 'label_bold',          label: 'Bold',   type: 'checkbox', condition: cfg => cfg.show_label },
@@ -1182,7 +1185,7 @@ const STYLE_FIELDS = [
     { value: '-90', label: '-90°' }
   ], condition: cfg => isLin(cfg) && cfg.show_label },
 
-  { id: '_section_value',      label: '── Value & Label', type: 'section' },
+  { id: '_section_value',      label: '── 🔢 Value & Label', type: 'section' },
   { id: 'show_value',          label: 'Show value',         type: 'checkbox' },
   { id: 'value_animated',      label: 'Animate value (follow fill level)', type: 'checkbox', condition: cfg => cfg.show_value },
   { id: 'value_font_size',     label: 'Font size (e.g. 12 or 12cqw)', type: 'text', placeholder: '12', condition: cfg => cfg.show_value },
@@ -1206,7 +1209,7 @@ const STYLE_FIELDS = [
   ], condition: cfg => isLin(cfg) && cfg.show_value },
   { id: 'circular_value_offset_y', label: 'Y offset in circle (%)', type: 'range', min: -100, max: 100, step: 1, placeholder: '0', condition: cfg => isCirc(cfg) && cfg.show_value },
 
-  { id: '_section_indicator',  label: '── Indicator & Pill',  type: 'section', condition: cfg => isLin(cfg) },
+  { id: '_section_indicator',  label: '── 💊 Indicator & Pill',  type: 'section', condition: cfg => isLin(cfg) },
   { id: 'show_indicator',      label: 'Show indicator line', type: 'checkbox', condition: cfg => isLin(cfg) },
   { id: 'indicator_color',     label: 'Line colour',       type: 'color',  placeholder: '#ffffff', condition: cfg => isLin(cfg) && cfg.show_indicator },
   { id: 'indicator_thickness', label: 'Line thickness (px/%)',type: 'text', placeholder: '2px', condition: cfg => isLin(cfg) && cfg.show_indicator },
@@ -1416,7 +1419,7 @@ class ScProgressbarEditor extends LitElement {
                     <span style="font-size:10px; opacity:0.8;">🪞</span>
                   </div>
                 ` : ''}
-                <button class="del-btn" @click=${() => updCt(ct.filter((_,i) => i !== ti))}>✕</button>
+                <button class="del-btn" @click=${() => updCt(ct.filter((_,i) => i !== ti))}>🗑</button>
               </div>`)}
             <button type="button" class="add-btn" style="margin-top:4px; padding:6px;"
               @click=${() => updCt([...ct, { value: 50, color: '#ff0000', width: '2px', length: '', align: 'main', mirror: false }])}>＋ Add custom tick</button>
@@ -1646,7 +1649,7 @@ class ScProgressbarEditor extends LitElement {
     return html`
       <details class="inner-section" ?open=${this._expanded['_main']}
         @toggle=${e => { this._expanded['_main'] = e.target.open; this.requestUpdate(); }}>
-        <summary>── Progressbars
+        <summary>📊 Progressbars
           <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
             <span style="font-size:10px; opacity:.6; font-weight:400;">
               ${bars.length} Bar${bars.length !== 1 ? 's' : ''}

@@ -527,11 +527,13 @@ Object.assign(window.SupercardUtils, (() => {
         return html`<div class="section-title">${text}</div>`;
 
       // A section that folds away, with fields of its own.
+      // A folded section, drawn the way the gauge and the bar draw theirs, so
+      // a fold is the same piece of furniture wherever it appears.
       case 'details':
         return html`
-          <details class="inner-section" style=${field.style || 'margin-bottom: 0;'}>
-            <summary style="font-size: 13px; color: var(--primary-color);"><span>${text}</span><span style="font-size:10px; color:var(--secondary-text-color);">▼</span></summary>
-            <div class="inner-content" style=${field.contentStyle || 'gap: 8px;'}>
+          <details class="inner-section" style=${field.style || 'margin: 0;'}>
+            <summary><span style="flex: 1;">${text}</span><span style="font-size:10px;">▼</span></summary>
+            <div class="inner-content" style=${field.contentStyle || nothing}>
               ${(field.fields || []).map(f => renderField(f, ctx))}
             </div>
           </details>`;
@@ -1421,7 +1423,7 @@ Object.assign(window.SupercardModules['core'], (() => {
       return html`
         <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px 16px;">
           <details class="inner-section" ?open=${this._expanded.basis} @toggle=${e => this._expanded = {...this._expanded, basis: e.target.open}}>
-            <summary>── Basics & Entity(ies) <span style="font-size:10px;">▼</span></summary>
+            <summary>⚙️ Basics & Entity(ies) <span style="font-size:10px;">▼</span></summary>
             <div class="inner-content">
 
               <div class="col">
@@ -1553,7 +1555,7 @@ Object.assign(window.SupercardModules['core'], (() => {
           </details>
 
           <details class="inner-section" ?open=${this._expanded.dim} @toggle=${e => this._expanded = {...this._expanded, dim: e.target.open}}>
-            <summary>── Card & Dimensions <span style="font-size:10px;">▼</span></summary>
+            <summary>📐 Card & Dimensions <span style="font-size:10px;">▼</span></summary>
             <div class="inner-content">
               <div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed var(--divider-color,#444);">
                 <sc-fx-glass-panel .hass=${this.hass} .slot=${this.slot} .commitFn=${this.commitFn}

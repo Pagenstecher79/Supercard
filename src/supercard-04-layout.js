@@ -2243,7 +2243,7 @@ class ScCanvasEditor extends LitElement {
                       ? 'Select an element to take it off the canvas'
                       : `Take ${selected.length === 1 ? 'it' : `all ${selected.length}`} off the canvas`}
                     ?disabled=${!selected.length}
-                    @click=${() => this._removeSelection()}>✕</button>
+                    @click=${() => this._removeSelection()}>🗑</button>
           </div>
           <div class="group">
             <button title="Zoom out" ?disabled=${this._zoom <= ZOOM_MIN}
