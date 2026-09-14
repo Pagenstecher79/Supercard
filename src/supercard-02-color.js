@@ -1,4 +1,5 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { normalizeStops, stopsToCss } from "./gradient-stops.js";
 
 const SC = window.SupercardUtils;
 
@@ -701,9 +702,16 @@ Object.assign(window.SupercardModules['color'], (() => {
         }
 
       } else {
-        const safeColors   = pat.colors && pat.colors.length > 0 ? pat.colors : ['#000000'];
-        const stops        = pat.stops || [];
-        const colorStopsStr = safeColors.map((c, i) => stops[i] !== undefined ? `${c} ${stops[i]}%` : c).join(', ');
+        // One list, whichever shape the pattern was saved in. `fill: false`
+        // keeps "nobody positioned this" visible: CSS spreads such a colour
+        // itself, and the fluid blobs below read the absence as their own
+        // default radius rather than as a position.
+        const stopList = normalizeStops(
+          pat.gradient_stops ?? { colors: pat.colors, stops: pat.stops }, { fill: false });
+        const list         = stopList.length ? stopList : [{ pos: null, color: '#000000' }];
+        const safeColors   = list.map(st => st.color);
+        const stops        = list.map(st => st.pos ?? undefined);
+        const colorStopsStr = stopsToCss(list);
 
         if (pat.animation === 'fluid') {
           const isGooey = pat.fluid_style === 'gooey';

@@ -1,4 +1,5 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { normalizeStops, stopsToCss } from "./gradient-stops.js";
 import { squareBarOnCanvas } from "./canvas-model.js";
 import { lightParams, reliefPattern, reliefShadow, reliefLayers } from "./glass-light.js";
 import { isLiquidEffect, pillLensFraction, liquidPillCSS, liquidPadding } from "./pill-glass.js";
@@ -395,14 +396,16 @@ class ScProgressbar extends LitElement {
     const bgOpacity = safeFloat(this._get('bg_opacity', 10), 10);
     const bgColor = `color-mix(in srgb, ${bgColorRaw} ${bgOpacity}%, transparent)`;
 
-    const resolvedStops = this._get('gradient_stops', [{ color: this._get('color1', '#2196f3'), pos: 0 }, { color: this._get('color2', '#4caf50'), pos: 100 }]);
+    const resolvedStops = normalizeStops(this._get('gradient_stops',
+      [{ color: this._get('color1', '#2196f3'), pos: 0 },
+       { color: this._get('color2', '#4caf50'), pos: 100 }]));
     let fillColor = this._get('fill_color', 'var(--primary-color)');
     
     if (this._get('use_gradient', false)) {
       if (this._get('gradient_as_solid', false)) {
         fillColor = sampleGradient(resolvedStops, renderPct);
       } else {
-        fillColor = `linear-gradient(${isHoriz ? '90deg' : '0deg'}, ${resolvedStops.map(s => `${s.color} ${s.pos}%`).join(', ')})`;
+        fillColor = `linear-gradient(${isHoriz ? '90deg' : '0deg'}, ${stopsToCss(resolvedStops)})`;
       }
     }
     const exactHexColor = this._get('use_gradient', false) ? sampleGradient(resolvedStops, renderPct) : extractHex(fillColor);
