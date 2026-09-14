@@ -648,6 +648,29 @@ class ScCanvasEditor extends LitElement {
   static get styles() {
     return [SC.editorStyles, css`
       .row { gap: 8px; }
+      /* The one line over the canvas: the grid on the left, the preview switch
+         on the right, and each label carrying its explanation in a balloon. */
+      .canvas-settings { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+                         margin: 0 0 8px 0; font-size: 13px; }
+      .canvas-settings > .gap { flex: 1; min-width: 8px; }
+      .canvas-settings select { width: 126px; }
+      .canvas-settings .num { width: 76px; box-sizing: border-box; }
+      .tipped { position: relative; display: inline-flex; align-items: center; gap: 3px;
+                cursor: help; color: var(--primary-text-color); }
+      .tipped > .tip-dot { font-size: 11px; opacity: 0.6; }
+      .tipped::after {
+        content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 6px);
+        z-index: 30; width: max-content; max-width: 260px; padding: 6px 8px;
+        border-radius: 6px; background: var(--card-background-color, #2b2b2b);
+        color: var(--primary-text-color); border: 1px solid var(--divider-color, #444);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4); font-size: 11px; line-height: 1.35;
+        white-space: normal; opacity: 0; visibility: hidden;
+        transition: opacity 0.12s ease; pointer-events: none;
+      }
+      /* A balloon on the right of the row would hang off the editor, so that
+         one is hung from its right edge instead. */
+      .tipped.right::after { left: auto; right: 0; }
+      .tipped:hover::after, .tipped:focus::after { opacity: 1; visibility: visible; }
       .canvas-wrap { position: relative; background: rgba(0,0,0,0.15); border: 1px dashed var(--divider-color,#444); border-radius: 4px; padding: 0; display: flex; justify-content: center; }
       /* The canvas' own breathing room, moved onto a strip that takes pointer
          events. A selection frame has to be able to start and end *outside*
@@ -2079,6 +2102,13 @@ class ScCanvasEditor extends LitElement {
    * Card & Dimensions: both describe this picture and nothing else, and both
    * are read while looking at what they change.
    *
+   * One line, with the prose in a balloon on the label rather than under the
+   * row: the space over the canvas is the space the canvas wants, and an
+   * explanation that is read once should not hold a line of it for good. The
+   * balloon answers to hover and to focus, so it is reachable from a keyboard
+   * and on a touch screen, and it stays when the card's tips are hidden -
+   * it costs no height, which is what "Hide tips" is about.
+   *
    * The grid is a proportion of the canvas, never a number of units: a unit
    * grid survives only until the canvas is reshaped, and then every element
    * sits between two lines. A canvas still carrying a unit grid is shown its
@@ -2100,37 +2130,33 @@ class ScCanvasEditor extends LitElement {
                                    ...(typeof snapValue === 'number' && snapValue > 0 ? [snapValue] : [])])]
       .sort((a, b) => a - b);
 
-    return html`
-      <div class="row">
-        <label>Grid / snap</label>
-        <div class="ctl">
-          <select @change=${e => {
-            const v = e.target.value;
-            this._setGridPct({ snap: v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)) });
-          }}>
-            <option value="grid" ?selected=${snapValue === undefined}>Snap to grid</option>
-            <option value="free" ?selected=${snapValue === 0}>Free</option>
-            ${snapSteps.map(n => html`
-              <option value=${n} ?selected=${snapValue === n}>Step ${n}%</option>`)}
-          </select>
-          <input class="num" type="number" min="0" step="any" .value=${gridValue}
-                 @change=${e => this._setGridPct({ grid: Math.max(0, parseFloat(e.target.value) || 0) })}>
-          <span class="hint">% grid</span>
-        </div>
-      </div>
-      <div class="hint tip" style="margin:-4px 0 4px 0;">
-        Per cent of the canvas width, so the grid keeps its proportions when the canvas is
-        reshaped. ${gridValue > 0 ? html`Currently ${gridToUnits({ ...c, grid_unit: 'pct' }, gridValue)} of ${c.w} units.` : ''}
-      </div>
+    const gridTip = 'Per cent of the canvas width, so the grid keeps its proportions when '
+      + 'the canvas is reshaped.'
+      + (gridValue > 0 ? ` Currently ${gridToUnits({ ...c, grid_unit: 'pct' }, gridValue)} of ${c.w} units.` : '');
+    const liveTip = this._live
+      ? "The real gauges and bars. Text sizes are the card's, not this preview's."
+      : 'Plain boxes - easier to see and to grab.';
 
-      <div class="row">
-        <label>Live preview</label>
+    return html`
+      <div class="canvas-settings">
+        <span class="tipped" tabindex="0" data-tip=${gridTip}>Grid / snap<span class="tip-dot">ⓘ</span></span>
+        <select @change=${e => {
+          const v = e.target.value;
+          this._setGridPct({ snap: v === 'grid' ? undefined : (v === 'free' ? 0 : parseFloat(v)) });
+        }}>
+          <option value="grid" ?selected=${snapValue === undefined}>Snap to grid</option>
+          <option value="free" ?selected=${snapValue === 0}>Free</option>
+          ${snapSteps.map(n => html`
+            <option value=${n} ?selected=${snapValue === n}>Step ${n}%</option>`)}
+        </select>
+        <input class="num" type="number" min="0" step="any" .value=${gridValue}
+               @change=${e => this._setGridPct({ grid: Math.max(0, parseFloat(e.target.value) || 0) })}>
+        <span class="hint">%</span>
+        <span class="gap"></span>
+        <span class="tipped right" tabindex="0" data-tip=${liveTip}>Live preview<span class="tip-dot">ⓘ</span></span>
         <ha-switch .checked=${this._live}
                    @change=${e => this._send('live_preview', e.target.checked ? undefined : false)}></ha-switch>
-      </div>
-      <div class="hint tip" style="margin:-4px 0 4px 0;">${this._live
-        ? html`The real gauges and bars. Text sizes are the card's, not this preview's.`
-        : html`Plain boxes - easier to see and to grab.`}</div>`;
+      </div>`;
   }
 
   _renderDimensions() {
