@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
+import { LitElement, html, css, nothing } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { reportedRows, isHeightPinned, canvasFromGrid, defaultShapeRows } from "./canvas-model.js";
 import { stripDeadConfig, migrateSlotKey } from "./config-cleanup.js";
 import { rowsAsCanvas } from "./rows-compat.js";
@@ -392,6 +392,83 @@ Object.assign(window.SupercardUtils, (() => {
   // Modules keep their own block after these in the styles array, so a module
   // that genuinely wants a different value just restates that one property.
 
+  /**
+   * The colour control every editor draws: the swatch, and the text beside it
+   * that also takes `transparent`, `inherit` or a `var()`.
+   *
+   * It was written out by hand in five modules, which is how the swatch ended
+   * up a different size in three of them. The two stylesheets both carry
+   * `.color-row`, so this renders the same under either one.
+   *
+   * @param {string} value the colour as stored, which may be empty
+   * @param {(v: string) => void} onInput
+   * @param {{ fallback?: string, placeholder?: string, hexOnly?: boolean,
+   *          textFallback?: boolean, onText?: (v: string) => void }} [opts]
+   *   `hexOnly` refuses anything but `#rrggbb` from the text field, for a
+   *   setting that has no keyword to offer; `textFallback` shows the fallback
+   *   in the text field too, rather than leaving it empty for a placeholder;
+   *   `onText` takes the text field alone, where it must be debounced.
+   */
+  const colorRow = (value, onInput, opts = {}) => {
+    const fallback = opts.fallback === undefined ? '#ffffff' : opts.fallback;
+    const text = value || (opts.textFallback ? fallback : '');
+    return html`
+      <div class="color-row">
+        <input type="color" .value=${value || fallback} @input=${e => onInput(e.target.value)}>
+        <input type="text" .value=${text} placeholder=${opts.placeholder || nothing}
+               @input=${e => {
+                 if (opts.hexOnly && !/^#[0-9a-fA-F]{6}$/.test(e.target.value)) return;
+                 (opts.onText || onInput)(e.target.value);
+               }}>
+      </div>`;
+  };
+
+  /**
+   * The range control, and the two rows it is drawn in.
+   *
+   * `sliderRow` is the label-beside-slider form, `sliderField` the one with
+   * the value read out at the right of its own label. Both were written out
+   * in every editor, which is why the same setting is 50% wide in one menu
+   * and 60% in the next; a call site says `width` only while it still has to
+   * differ.
+   *
+   * @param {number} value
+   * @param {(v: number) => void} onInput
+   * @param {{ min?: number, max?: number, step?: number|string, width?: string,
+   *          style?: string, int?: boolean, dynamicStep?: boolean }} [opts] `int` rounds what
+   *   the slider reports, for a setting that is stored as a whole number;
+   *   `dynamicStep` is the progressbar's fine-below-ten step, which has to
+   *   follow the value as it is dragged rather than only per render.
+   */
+  const slider = (value, onInput, opts = {}) => html`
+    <input type="range" min=${opts.min ?? 0} max=${opts.max ?? 100} step=${opts.step ?? 1}
+           style=${opts.style || ('width:' + (opts.width || '50%'))} .value=${value}
+           @input=${e => {
+             const v = opts.int ? parseInt(e.target.value) : parseFloat(e.target.value);
+             if (opts.dynamicStep) e.target.step = v < 10 ? '0.1' : '1';
+             onInput(v);
+           }}>`;
+
+  /** A slider beside its label. `label` may be a template, for a hint line. */
+  const sliderRow = (label, value, onInput, opts = {}) => html`
+    <div class="row"><label>${label}</label>${slider(value, onInput, opts)}</div>`;
+
+  /** A slider under its label, with the value read out at the right of it. */
+  const sliderField = (label, value, onInput, opts = {}) => html`
+    <div class="col">
+      <label>${label}
+        <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${opts.shown ?? value}</span>
+      </label>
+      ${slider(value, onInput, { ...opts, width: opts.width || '100%' })}
+    </div>`;
+
+  /** `colorRow` under its own label, which is how most of them are used. */
+  const colorField = (label, value, onInput, opts = {}) => html`
+    <div class="col">
+      <label>${label}</label>
+      ${colorRow(value, onInput, opts)}
+    </div>`;
+
   // Used by the module editors that list pattern/label cards (color,
   // progressbar, labels, fx-glass, interaction). Identified by ha-switch.
   const editorStyles = css`
@@ -486,6 +563,7 @@ function hassInputsChanged(oldHass, newHass, ids) {
     getAvailableElements, listElements, elementLabel, showsElement, elementPartSelector,
     resolveAlias, withPatch, gaugeIsResponsive, onCanvas, cardIsPill, cardRadius,
     collectEntityIds, hassInputsChanged,
+    colorRow, colorField, slider, sliderRow, sliderField,
     editorStyles, formStyles
   });
 })());
@@ -972,10 +1050,11 @@ class ScGenericModuleEditor extends LitElement {
 
     if (field.type === 'checkbox') return html`<div class="row"><label>${field.label}</label><label class="toggle"><input type="checkbox" .checked=${!!val} @change=${e=>update(e.target.checked)}><span class="toggle-slider"></span></label></div>`;
     if (field.type === 'select') return html`<div class="row"><label>${field.label}</label><select @change=${e=>update(e.target.value)}>${(field.options||[]).map(o=>html`<option value=${o.value} ?selected=${String(val??'')==String(o.value)}>${o.label}</option>`)}</select></div>`;
-    if (field.type === 'range') return html`<div class="col"><label>${field.label} <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;">${val??field.placeholder??0}</span></label><input type="range" min=${field.min||0} max=${field.max||100} step=${field.step||1} .value=${val??field.placeholder??0} @input=${e=>update(parseFloat(e.target.value))}></div>`;
+    if (field.type === 'range') return sliderField(field.label, val ?? field.placeholder ?? 0, update,
+      { min: field.min || 0, max: field.max || 100, step: field.step || 1 });
     if (field.type === 'color') {
        const hex = val ? (Array.isArray(val) ? '#'+val.map(x=>x.toString(16).padStart(2,'0')).join('') : val) : '';
-       return html`<div class="col"><label>${field.label}</label><div class="color-row"><input type="color" .value=${hex} @input=${e=>update(e.target.value)}><input type="text" placeholder="#ffffff" .value=${hex} @input=${e=>{if(/^#[0-9a-fA-F]{6}$/.test(e.target.value)) update(e.target.value);}}></div></div>`;
+       return html`<div class="col"><label>${field.label}</label>${colorRow(hex, update, { fallback: '', placeholder: '#ffffff', hexOnly: true })}</div>`;
     }
     return html`<div class="col"><label>${field.label}</label><input type="${field.type==='number'?'number':'text'}" placeholder=${field.placeholder||''} step=${field.step||'any'} .value=${val??''} @input=${e=>updateD(field.type==='number'?parseFloat(e.target.value):e.target.value)}></div>`;
   }
@@ -1320,7 +1399,7 @@ Object.assign(window.SupercardModules['core'], (() => {
                 <div class="col">
                   <label>Corner radius</label>
                   <div style="display:flex; gap:8px; align-items:center;">
-                    <input type="range" min="0" max=${brMax} step="1" style="flex:1;" .value=${brValue} @input=${e => updateRadius('border_radius', parseInt(e.target.value))}>
+                    ${SC_UTILS.slider(brValue, v => updateRadius('border_radius', v), { max: brMax, style: 'flex:1', int: true })}
                     <input type="number" min="0" max=${brMax} style="width:56px;" .value=${brValue} @input=${e => updateRadius('border_radius', parseInt(e.target.value))}>
                     <select style="width:56px;" @change=${e => updateRadius('border_radius_unit', e.target.value)}>
                       <option value="px" ?selected=${brUnit === 'px'}>px</option>
@@ -1350,7 +1429,7 @@ Object.assign(window.SupercardModules['core'], (() => {
                 <div class="col">
                   <label>Corner radius (px)</label>
                   <div style="display:flex; gap:8px; align-items:center;">
-                    <input type="range" min="0" max="100" step="1" style="flex:1;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
+                    ${SC_UTILS.slider(this.slot.border_radius ?? 12, v => update('border_radius', v), { style: 'flex:1', int: true })}
                     <input type="number" min="0" max="100" style="width:64px;" .value=${this.slot.border_radius ?? 12} @input=${e => update('border_radius', parseInt(e.target.value))}>
                   </div>
                 </div>

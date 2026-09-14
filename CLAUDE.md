@@ -116,6 +116,10 @@ everywhere else, and never add a second read path for the old key.
 - `resolveAlias(list, cfg, entityKey?, attrKey?)` - resolves entity/attribute
   through `global_entities`
 - `withPatch(list, idx, key, value)` - immutable single-field edit
+- `colorRow(value, onInput, opts)` / `colorField(label, ...)` - **the** colour
+  control: swatch plus text, `hexOnly` where only `#rrggbb` will do
+- `slider(value, onInput, opts)` / `sliderRow(label, ...)` / `sliderField(label, ...)`
+  - the range control, beside its label or under it with the value read out
 - `editorStyles` / `formStyles` - the two shared editor stylesheets
 
 Add a helper here as soon as a second module needs it, and extend
@@ -197,6 +201,15 @@ same canvas as an ordinary edit when it opens such a card. Do not add a second
 read path for `layout_rows`, and do not migrate a card that never had a layout:
 the canvas built from a content row is a new arrangement, so that one stays an
 offer with a button. See `docs/canvas-layout.md` §3.
+
+**One control, drawn once.** A colour is `SC.colorRow`/`SC.colorField` and a
+range is `SC.slider`/`SC.sliderRow`/`SC.sliderField`, in every editor, whether
+it is built from a field array or writes its own markup. Each of those used to
+be written out per module, which is how the same setting ended up 50% wide in
+one menu and 60% in the next, and the swatch three different sizes. A call site
+passes only what genuinely differs (`width`, `hexOnly`, `int`, a debounced
+`onText`); if a new one needs something else, add the option here rather than a
+second copy of the control there.
 
 **Editor styles.** Start from a shared stylesheet and add only what differs:
 

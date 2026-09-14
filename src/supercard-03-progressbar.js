@@ -1335,30 +1335,22 @@ class ScProgressbarEditor extends LitElement {
           </div>`;
         break;
       }
-      case 'range':
-        content = html`
-          <div class="col">
-            <label>${field.label} <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;">${val ?? field.placeholder ?? ''}</span></label>
-            <input type="range" 
-              min=${field.min ?? 0} 
-              max=${field.max ?? 100} 
-              step=${field.dynamic_step ? ((val ?? field.placeholder ?? 0) < 10 ? "0.1" : "1") : (field.step ?? 1)} 
-              .value=${val ?? field.placeholder ?? 0} 
-              @input=${e => {
-                let v = parseFloat(e.target.value);
-                if (field.dynamic_step) e.target.step = v < 10 ? "0.1" : "1";
-                updateDirect(v);
-              }}>
-          </div>`;
+      case 'range': {
+        // A dynamic step is fine-grained below ten and whole above it, and it
+        // has to follow the value as it is dragged, not only per render.
+        const shown = val ?? field.placeholder ?? 0;
+        const step = field.dynamic_step ? (shown < 10 ? '0.1' : '1') : (field.step ?? 1);
+        content = SC.sliderField(field.label, shown, v => updateDirect(v),
+          { min: field.min ?? 0, max: field.max ?? 100, step,
+            shown: val ?? field.placeholder ?? '', dynamicStep: !!field.dynamic_step });
         break;
+      }
       case 'color':
         content = html`
           <div class="col">
             <label>${field.label}</label>
-            <div class="color-row">
-              <input type="color" .value=${val || '#000000'} @input=${e => updateDirect(e.target.value)}>
-              <input type="text" .value=${val || ''} placeholder="${field.placeholder || ''}" @input=${e => updateDebounced(e.target.value)}>
-            </div>
+            ${SC.colorRow(val || '', updateDirect, { fallback: '#000000',
+              placeholder: field.placeholder || '', onText: updateDebounced })}
           </div>`;
         break;
       case 'gradient-stops':

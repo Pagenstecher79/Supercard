@@ -782,18 +782,15 @@ class ScGaugeEditor extends LitElement {
                         }, 500);
                     }}>
                   </div>
-                    <div class="row"><label>Length</label><input type="range" min="0" max="10" step="0.1" style="width:50%" .value=${ct.length ?? 4} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].length = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Width</label><input type="range" min="0" max="2" step="0.1" style="width:50%" .value=${ct.width ?? 1} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].width = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Offset from ring</label><input type="range" min="-15" max="0" step="0.1" style="width:50%" .value=${ct.offset ?? 0} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    ${SC.sliderRow('Length', ct.length ?? 4, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].length = v; this.commitFn('gauges', n); }, { min: 0, max: 10, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Width', ct.width ?? 1, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].width = v; this.commitFn('gauges', n); }, { min: 0, max: 2, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Offset from ring', ct.offset ?? 0, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].offset = v; this.commitFn('gauges', n); }, { min: -15, max: 0, step: 0.1, width: '50%' })}
                     <div class="col"><label>Color</label>
-                      <div class="color-row">
-                        <input type="color" .value=${ct.color ?? '#ff0000'} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); }}>
-                        <input type="text" .value=${ct.color ?? '#ff0000'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
-                      </div>
+                      ${SC.colorRow(ct.color ?? '#ff0000', v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].color = v; this.commitFn('gauges', n); }, { fallback: '#ff0000', hexOnly: true, textFallback: true })}
                     </div>
                     <div class="row"><label>Label text</label><input type="text" style="width:50%" .value=${ct.label ?? ''} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label = e.target.value; this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Label offset</label><input type="range" min="-15" max="4" step="0.1" style="width:50%" .value=${ct.label_offset ?? 10} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_offset = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Label size</label><input type="range" min="1" max="20" step="0.1" style="width:50%" .value=${ct.label_font_size ?? 7} @input=${e => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_font_size = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    ${SC.sliderRow('Label offset', ct.label_offset ?? 10, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_offset = v; this.commitFn('gauges', n); }, { min: -15, max: 4, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Label size', ct.label_font_size ?? 7, v => { const n = structuredClone(gauges); n[idx].custom_ticks[ctIdx].label_font_size = v; this.commitFn('gauges', n); }, { min: 1, max: 20, step: 0.1, width: '50%' })}
                   </div>
                 </details>
               `;
@@ -862,19 +859,16 @@ class ScGaugeEditor extends LitElement {
                     </div>
                   </summary>
                   <div class="inner-content" style="padding-top:4px; gap:8px;">
-                    <div class="row"><label>Start (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.start_percent ?? 75} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].start_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Length (%)</label><input type="range" min="0" max="100" step="1" style="width:50%" .value=${sec.length_percent ?? 25} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].length_percent = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Inner radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.inner_radius ?? 12} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].inner_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Outer radius</label><input type="range" min="0" max="50" step="0.1" style="width:50%" .value=${sec.outer_radius ?? 22} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].outer_radius = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
-                    <div class="row"><label>Opacity</label><input type="range" min="0" max="1" step="0.05" style="width:50%" .value=${sec.opacity ?? 0.85} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].opacity = parseFloat(e.target.value); this.commitFn('gauges', n); }}></div>
+                    ${SC.sliderRow('Start (%)', sec.start_percent ?? 75, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].start_percent = v; this.commitFn('gauges', n); }, { min: 0, max: 100, step: 1, width: '50%' })}
+                    ${SC.sliderRow('Length (%)', sec.length_percent ?? 25, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].length_percent = v; this.commitFn('gauges', n); }, { min: 0, max: 100, step: 1, width: '50%' })}
+                    ${SC.sliderRow('Inner radius', sec.inner_radius ?? 12, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].inner_radius = v; this.commitFn('gauges', n); }, { min: 0, max: 50, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Outer radius', sec.outer_radius ?? 22, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].outer_radius = v; this.commitFn('gauges', n); }, { min: 0, max: 50, step: 0.1, width: '50%' })}
+                    ${SC.sliderRow('Opacity', sec.opacity ?? 0.85, v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].opacity = v; this.commitFn('gauges', n); }, { min: 0, max: 1, step: 0.05, width: '50%' })}
 
                     <div style="border-top:1px dashed var(--divider-color,#444); margin:4px 0;"></div>
 
                     <div class="col"><label>Color (start)</label>
-                      <div class="color-row">
-                        <input type="color" .value=${sec.color ?? '#dc3232'} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); }}>
-                        <input type="text" .value=${sec.color ?? '#dc3232'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(gauges); n[idx].sectors[sIdx].color = e.target.value; this.commitFn('gauges', n); } }}>
-                      </div>
+                      ${SC.colorRow(sec.color ?? '#dc3232', v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color = v; this.commitFn('gauges', n); }, { fallback: '#dc3232', hexOnly: true, textFallback: true })}
                     </div>
 
                     <div class="row">
@@ -893,10 +887,7 @@ class ScGaugeEditor extends LitElement {
 
                     ${secPreset === 'classic' ? html`
                       <div class="col"><label>Color (end)</label>
-                        <div class="color-row">
-                          <input type="color" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); }}>
-                          <input type="text" .value=${sec.color_end ?? '#ffeb3b'} @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) { const n = structuredClone(gauges); n[idx].sectors[sIdx].color_end = e.target.value; this.commitFn('gauges', n); } }}>
-                        </div>
+                        ${SC.colorRow(sec.color_end ?? '#ffeb3b', v => { const n = structuredClone(gauges); n[idx].sectors[sIdx].color_end = v; this.commitFn('gauges', n); }, { fallback: '#ffeb3b', hexOnly: true, textFallback: true })}
                       </div>
                     ` : ''}
 
@@ -914,16 +905,11 @@ class ScGaugeEditor extends LitElement {
                       </div>
 
                       ${sec.resolution_auto === false ? html`
-                        <div class="row">
-                          <label>Manual precision (degrees)</label>
-                          <input type="range" min="0.1" max="5" step="0.1" style="width:50%"
-                            .value=${sec.resolution ?? 1.5}
-                            @input=${e => {
-                              const n = structuredClone(gauges);
-                              n[idx].sectors[sIdx].resolution = parseFloat(e.target.value);
-                              this.commitFn('gauges', n);
-                            }}>
-                        </div>
+                        ${SC.sliderRow('Manual precision (degrees)', sec.resolution ?? 1.5, v => {
+                          const n = structuredClone(gauges);
+                          n[idx].sectors[sIdx].resolution = v;
+                          this.commitFn('gauges', n);
+                        }, { min: 0.1, max: 5, step: 0.1 })}
                       ` : ''}
                     ` : ''}
 
@@ -977,12 +963,7 @@ class ScGaugeEditor extends LitElement {
         content = html`
           <div class="col">
             <label>${field.label}</label>
-            <div class="color-row">
-              <input type="color" .value=${hex} @input=${e => updateDirect(e.target.value)}>
-              <input type="text" placeholder=${field.placeholder || '#ffffff'} .value=${hex} @input=${e => {
-                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) updateDirect(e.target.value);
-              }}>
-            </div>
+            ${SC.colorRow(hex, updateDirect, { fallback: '', placeholder: field.placeholder || '#ffffff', hexOnly: true })}
           </div>
         `;
         break;
@@ -1004,12 +985,9 @@ class ScGaugeEditor extends LitElement {
         // renderer.
         const shown = field.fromStored ? field.fromStored(val) : val;
         const store = v => updateDirect(field.toStored ? field.toStored(v) : v);
-        content = html`
-          <div class="col">
-            <label>${field.label} <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${shown ?? field.placeholder ?? ''}</span></label>
-            <input type="range" min=${field.min ?? 0} max=${field.max ?? 100} step=${field.step ?? 1} .value=${shown ?? field.placeholder ?? 0} @input=${e => store(parseFloat(e.target.value))}>
-          </div>
-        `;
+        content = SC.sliderField(field.label, shown ?? field.placeholder ?? 0, store,
+          { min: field.min ?? 0, max: field.max ?? 100, step: field.step ?? 1,
+            shown: shown ?? field.placeholder ?? '' });
         break;
       }
 

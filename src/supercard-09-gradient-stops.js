@@ -156,22 +156,12 @@ class ScGradientStops extends LitElement {
                          @input=${e => this._emit(withStop(stops, i, { pos: parseFloat(e.target.value) }))}>
                 </div>
               ` : html`
-                <div class="col">
-                  <label>Position (%)
-                    <span style="float:right;color:var(--primary-color,#03a9f4);font-weight:600;min-width:32px;text-align:right;">${st.pos ?? 0}</span>
-                  </label>
-                  <input type="range" min="0" max="100" step="1" .value=${st.pos ?? 0}
-                         @input=${e => this._emit(withStop(stops, i, { pos: parseFloat(e.target.value) }))}>
-                </div>
+                ${SC.sliderField('Position (%)', st.pos ?? 0,
+                    pos => this._emit(withStop(stops, i, { pos })))}
               `}
-              <div class="col"><label>Color</label>
-                <div class="color-row">
-                  <input type="color" .value=${st.color}
-                         @input=${e => this._emit(withStop(stops, i, { color: e.target.value }))}>
-                  <input type="text" .value=${st.color}
-                         @input=${e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) this._emit(withStop(stops, i, { color: e.target.value })); }}>
-                </div>
-              </div>
+              ${SC.colorField('Color', st.color,
+                  color => this._emit(withStop(stops, i, { color })),
+                  { hexOnly: true, textFallback: true })}
             </div>
           </details>
         `)}

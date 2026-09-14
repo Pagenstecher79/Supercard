@@ -266,13 +266,11 @@ class ScInteractionEditor extends LitElement {
                     <div class="section-title">🎬 Visual animations (GPU)</div>
                     <div class="row">
                       <label>Click depth (scale)<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Max. press depth</span></label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.scale_depth ?? 50}
-                        @input=${e => { this._set(patterns, idx, 'scale_depth', parseInt(e.target.value)); }}>
+                      ${SC.slider(pat.scale_depth ?? 50, v => this._set(patterns, idx, 'scale_depth', v), { min: 0, max: 100, width: '60%', int: true })}
                     </div>
                     <div class="row">
                       <label>Continuous rotation<br><span style="font-size:10px;color:var(--secondary-text-color)">0 = Off, 100 = Very fast</span></label>
-                      <input type="range" min="0" max="100" style="width:60%" .value=${pat.rotate_speed ?? 0}
-                        @input=${e => { this._set(patterns, idx, 'rotate_speed', parseInt(e.target.value)); }}>
+                      ${SC.slider(pat.rotate_speed ?? 0, v => this._set(patterns, idx, 'rotate_speed', v), { min: 0, max: 100, width: '60%', int: true })}
                     </div>
                   </div>
                 ` : ''}

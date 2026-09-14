@@ -1936,8 +1936,8 @@ class ScCanvasEditor extends LitElement {
         <div class="row" style="padding:0 4px 4px;">
           <label title="Lower it when the text leaves too much room to the sides - narrow characters like 1 or . need less width than an average one">Text density</label>
           <div style="display:flex; align-items:center; width:60%; gap:8px;">
-            <input type="range" min="0.2" max="0.9" step="0.05" style="flex:1" .value=${el.font_factor || FIT_DENSITY}
-                   @input=${e => this._setEl(idx, { font_factor: parseFloat(e.target.value) })}>
+            ${SC.slider(el.font_factor || FIT_DENSITY, v => this._setEl(idx, { font_factor: v }),
+                        { min: 0.2, max: 0.9, step: 0.05, style: 'flex:1' })}
             <span class="hint" style="width:26px; text-align:right;">${el.font_factor || FIT_DENSITY}</span>
           </div>
         </div>` : ''}`;

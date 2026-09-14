@@ -201,24 +201,16 @@ class ScColorEditor extends LitElement {
                         ${usesWaveColors ? html`
                           <div class="info-text" style="margin-top:0;">The colors are calculated dynamically by the effect.</div>
                           <div class="row"><label>Count (density)</label>
-                            <input type="range" min="1" max="20" style="width:60%" .value=${pat.wave_count ?? 3}
-                              @input=${e => { this._set(patterns, idx, 'wave_count', parseInt(e.target.value)); }}>
+                            ${SC.slider(pat.wave_count ?? 3, v => this._set(patterns, idx, 'wave_count', v), { min: 1, max: 20, width: '60%', int: true })}
                           </div>
                           <div class="row"><label>Balance (peak vs. trough)</label>
-                            <input type="range" min="5" max="95" style="width:60%" .value=${pat.wave_balance ?? 50}
-                              @input=${e => { this._set(patterns, idx, 'wave_balance', parseInt(e.target.value)); }}>
+                            ${SC.slider(pat.wave_balance ?? 50, v => this._set(patterns, idx, 'wave_balance', v), { min: 5, max: 95, width: '60%', int: true })}
                           </div>
                           <div class="col"><label>Line/wave color (peak)</label>
-                            <div class="color-row">
-                              <input type="color" .value=${pat.wave_c1 || '#03a9f4'} @input=${e => { this._set(patterns, idx, 'wave_c1', e.target.value); }}>
-                              <input type="text" .value=${pat.wave_c1 || '#03a9f4'} style="flex:1" @input=${e => { this._set(patterns, idx, 'wave_c1', e.target.value); }}>
-                            </div>
+                            ${SC.colorRow(pat.wave_c1 || '', v => this._set(patterns, idx, 'wave_c1', v), { fallback: '#03a9f4', textFallback: true })}
                           </div>
                           <div class="col"><label>Background color (trough)</label>
-                            <div class="color-row">
-                              <input type="color" .value=${pat.wave_c2 || '#transparent'} @input=${e => { this._set(patterns, idx, 'wave_c2', e.target.value); }}>
-                              <input type="text" .value=${pat.wave_c2 || 'transparent'} style="flex:1" @input=${e => { this._set(patterns, idx, 'wave_c2', e.target.value); }}>
-                            </div>
+                            ${SC.colorRow(pat.wave_c2 || '', v => this._set(patterns, idx, 'wave_c2', v), { fallback: 'transparent', textFallback: true })}
                           </div>
                           <div style="font-size:11px; font-weight:bold; color:var(--primary-color); margin-top:4px;">Gradient preview</div>
                           <div style="height:10px;border-radius:5px; background:${
@@ -273,14 +265,12 @@ class ScColorEditor extends LitElement {
 
                         ${needsAngle ? html`
                           <div class="row" style="margin-top:8px;"><label>Angle (degrees)</label>
-                            <input type="range" min="0" max="360" style="width:60%" .value=${pat.gradient_angle ?? 90}
-                              @input=${e => { this._set(patterns, idx, 'gradient_angle', parseInt(e.target.value)); }}>
+                            ${SC.slider(pat.gradient_angle ?? 90, v => this._set(patterns, idx, 'gradient_angle', v), { min: 0, max: 360, width: '60%', int: true })}
                           </div>` : ''}
 
                         <div class="row">
                           <label>Opacity (%)</label>
-                          <input type="range" min="0" max="100" style="width:60%" .value=${pat.opacity ?? 100}
-                            @input=${e => { this._set(patterns, idx, 'opacity', parseInt(e.target.value)); }}>
+                          ${SC.slider(pat.opacity ?? 100, v => this._set(patterns, idx, 'opacity', v), { min: 0, max: 100, width: '60%', int: true })}
                         </div>
                       </div>
                     </details>
@@ -378,11 +368,11 @@ class ScColorEditor extends LitElement {
                           <div class="row">
                             <div class="col" style="flex:1;margin-right:8px">
                               <label style="font-size:10px">X-axis (${pat.radial_x ?? 50}%)</label>
-                              <input type="range" min="0" max="100" .value=${pat.radial_x ?? 50} @input=${e => { this._set(patterns, idx, 'radial_x', parseInt(e.target.value)); }}>
+                              ${SC.slider(pat.radial_x ?? 50, v => this._set(patterns, idx, 'radial_x', v), { min: 0, max: 100, width: '100%', int: true })}
                             </div>
                             <div class="col" style="flex:1">
                               <label style="font-size:10px">Y-axis (${pat.radial_y ?? 50}%)</label>
-                              <input type="range" min="0" max="100" .value=${pat.radial_y ?? 50} @input=${e => { this._set(patterns, idx, 'radial_y', parseInt(e.target.value)); }}>
+                              ${SC.slider(pat.radial_y ?? 50, v => this._set(patterns, idx, 'radial_y', v), { min: 0, max: 100, width: '100%', int: true })}
                             </div>
                           </div>
                         </div>
@@ -419,16 +409,13 @@ class ScColorEditor extends LitElement {
                           <div class="row" style="background:rgba(3,169,244,0.1); padding:8px; border-radius:6px; margin-top:4px;">
                             <div class="col" style="width:100%; gap:12px;">
                               <div class="row" style="margin:0"><label>Start amplitude (contrast)</label>
-                                <input type="range" min="1" max="100" style="width:60%" .value=${pat.wobble_amplitude ?? 100}
-                                  @input=${e => { this._set(patterns, idx, 'wobble_amplitude', parseInt(e.target.value)); }}>
+                                ${SC.slider(pat.wobble_amplitude ?? 100, v => this._set(patterns, idx, 'wobble_amplitude', v), { min: 1, max: 100, width: '60%', int: true })}
                               </div>
                               <div class="row" style="margin:0"><label>Range (spread)</label>
-                                <input type="range" min="1" max="10" style="width:60%" .value=${pat.wobble_freq ?? 4}
-                                  @input=${e => { this._set(patterns, idx, 'wobble_freq', parseInt(e.target.value)); }}>
+                                ${SC.slider(pat.wobble_freq ?? 4, v => this._set(patterns, idx, 'wobble_freq', v), { min: 1, max: 10, width: '60%', int: true })}
                               </div>
                               <div class="row" style="margin:0"><label>Pause after effect (sec.)</label>
-                                <input type="range" step="0.5" min="0" max="10" style="width:60%" .value=${pat.wobble_pause ?? 2}
-                                  @input=${e => { this._set(patterns, idx, 'wobble_pause', parseFloat(e.target.value)); }}>
+                                ${SC.slider(pat.wobble_pause ?? 2, v => this._set(patterns, idx, 'wobble_pause', v), { step: 0.5, min: 0, max: 10, width: '60%' })}
                               </div>
                             </div>
                           </div>
@@ -436,14 +423,12 @@ class ScColorEditor extends LitElement {
 
                         ${pat.animation !== 'none' ? html`
                           <div class="row" style="margin-top:4px"><label>${isWobble ? 'Fade-out time (duration in sec.)' : 'Speed (sec.)'}</label>
-                            <input type="range" step="0.1" min="0.5" max="20" style="width:60%" .value=${pat.anim_duration ?? 3}
-                              @input=${e => { this._set(patterns, idx, 'anim_duration', parseFloat(e.target.value)); }}>
+                            ${SC.slider(pat.anim_duration ?? 3, v => this._set(patterns, idx, 'anim_duration', v), { step: 0.1, min: 0.5, max: 20, width: '60%' })}
                           </div>` : ''}
 
                         ${pat.animation === 'pump' ? html`
                           <div class="row"><label>Pump expansion</label>
-                            <input type="range" step="0.001" min="1.0" max="1.2" style="width:60%" .value=${pat.pump_scale ?? 1.1}
-                              @input=${e => { this._set(patterns, idx, 'pump_scale', parseFloat(e.target.value)); }}>
+                            ${SC.slider(pat.pump_scale ?? 1.1, v => this._set(patterns, idx, 'pump_scale', v), { step: 0.001, min: 1.0, max: 1.2, width: '60%' })}
                           </div>` : ''}
 
                         ${isWaveOrRipple ? html`

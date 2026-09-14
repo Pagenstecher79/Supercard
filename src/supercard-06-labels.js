@@ -288,12 +288,7 @@ class ScLabelsEditor extends LitElement {
 
                     <div class="col">
                       <label>Icon color</label>
-                      <div class="color-row">
-                        <input type="color" .value=${item.icon_color || '#ffffff'}
-                          @input=${e => { this._set(list, idx, 'icon_color', e.target.value); }}>
-                        <input type="text" .value=${item.icon_color || ''} placeholder="Empty = inherit"
-                          @input=${e => { this._set(list, idx, 'icon_color', e.target.value); }}>
-                      </div>
+                      ${SC.colorRow(item.icon_color || '', v => this._set(list, idx, 'icon_color', v), { fallback: '#ffffff', placeholder: 'Empty = inherit' })}
                     </div>
 
                     ${this.boxSized ? html`
@@ -390,17 +385,11 @@ class ScLabelsEditor extends LitElement {
                         </div>
                         <div class="col" style="margin-bottom: 8px;">
                           <label>Background color</label>
-                          <div class="color-row">
-                            <input type="color" .value=${item.indicator_bg_default || '#333333'} @input=${e => { this._set(list, idx, 'indicator_bg_default', e.target.value); }}>
-                            <input type="text" .value=${item.indicator_bg_default || ''} placeholder="transparent" @input=${e => { this._set(list, idx, 'indicator_bg_default', e.target.value); }}>
-                          </div>
+                          ${SC.colorRow(item.indicator_bg_default || '', v => this._set(list, idx, 'indicator_bg_default', v), { fallback: '#333333', placeholder: 'transparent' })}
                         </div>
                         <div class="col">
                           <label>Icon/text color</label>
-                          <div class="color-row">
-                            <input type="color" .value=${item.indicator_color_default || '#ffffff'} @input=${e => { this._set(list, idx, 'indicator_color_default', e.target.value); }}>
-                            <input type="text" .value=${item.indicator_color_default || ''} placeholder="inherit" @input=${e => { this._set(list, idx, 'indicator_color_default', e.target.value); }}>
-                          </div>
+                          ${SC.colorRow(item.indicator_color_default || '', v => this._set(list, idx, 'indicator_color_default', v), { fallback: '#ffffff', placeholder: 'inherit' })}
                         </div>
                       </div>
 
@@ -415,17 +404,11 @@ class ScLabelsEditor extends LitElement {
                         </div>
                         <div class="col" style="margin-bottom: 8px;">
                           <label>Background color</label>
-                          <div class="color-row">
-                            <input type="color" .value=${item.indicator_bg_active || '#03a9f4'} @input=${e => { this._set(list, idx, 'indicator_bg_active', e.target.value); }}>
-                            <input type="text" .value=${item.indicator_bg_active || ''} placeholder="transparent" @input=${e => { this._set(list, idx, 'indicator_bg_active', e.target.value); }}>
-                          </div>
+                          ${SC.colorRow(item.indicator_bg_active || '', v => this._set(list, idx, 'indicator_bg_active', v), { fallback: '#03a9f4', placeholder: 'transparent' })}
                         </div>
                         <div class="col">
                           <label>Icon/text color</label>
-                          <div class="color-row">
-                            <input type="color" .value=${item.indicator_color_active || '#ffffff'} @input=${e => { this._set(list, idx, 'indicator_color_active', e.target.value); }}>
-                            <input type="text" .value=${item.indicator_color_active || ''} placeholder="inherit" @input=${e => { this._set(list, idx, 'indicator_color_active', e.target.value); }}>
-                          </div>
+                          ${SC.colorRow(item.indicator_color_active || '', v => this._set(list, idx, 'indicator_color_active', v), { fallback: '#ffffff', placeholder: 'inherit' })}
                         </div>
                       </div>
                     </div>
