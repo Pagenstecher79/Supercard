@@ -1058,7 +1058,7 @@ class ScGauge extends LitElement {
                   y="${this.CENTER + safeFloat(this._get('value_offset_y',15),15)*scale}"
                   fill="${resolveColor(this._get('value_color_type','adaptive'),this._get('value_color',null))}"
                   font-size="${safeFloat(this._get('value_font_size',12),12)*scale}px"
-                  text-anchor="middle" font-weight="700">
+                  text-anchor="middle" font-weight="${this._get('value_font_weight',700)}">
               ${data.val.toFixed(parseInt(this._get('value_decimals',0)))}${data.unitPrefix}${this._get('value_show_raw_unit',false)
                 ? (this._get('value_replace_unit',false)
                     ? this._get('value_custom_unit', stateObj?.attributes?.unit_of_measurement||'')

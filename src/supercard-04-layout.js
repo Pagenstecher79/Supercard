@@ -533,6 +533,20 @@ const FIT_MARGIN = 0.85;
  * part that has never been set still has to be drawn somewhere, and the frame
  * has to go to the same place.
  */
+/**
+ * The weights a text on a gauge can be set to, and the button that steps
+ * through them.
+ *
+ * Drawn as an A in the weight it would give, because that is the whole
+ * setting: three words in a select say less about it than three letters do.
+ */
+const textWeights = (/** @type {string} */ key, /** @type {string} */ dflt) => ({
+  key, dflt, order: ['400', '600', '700'],
+  of: { '400': { glyph: 'A', label: 'to normal', weight: 400 },
+        '600': { glyph: 'A', label: 'to semi-bold', weight: 600 },
+        '700': { glyph: 'A', label: 'to bold', weight: 700 } },
+});
+
 const GAUGE_PARTS = Object.freeze({
   gauge_label: { label: 'Label', x: 'gauge_label_offset_x', y: 'gauge_label_offset_y',
                  size: 'gauge_label_font_size', dx: 0, dy: -8, dsize: 8,
@@ -543,13 +557,15 @@ const GAUGE_PARTS = Object.freeze({
                  // A label with no text draws nothing however active it is, so
                  // switching it on here seeds the form's own placeholder -
                  // otherwise the button would look broken.
-                 needs: 'gauge_label_text', seed: 'Gauge' },
+                 needs: 'gauge_label_text', seed: 'Gauge',
+                 weight: textWeights('gauge_label_font_weight', '600') },
   value: { label: 'Value', x: 'value_offset_x', y: 'value_offset_y',
            size: 'value_font_size', dx: 0, dy: 15, dsize: 12,
            section: '_section_labels',
            // The value's y is a baseline - the label's is the text's middle - so
            // its chip has to stand half a cap height above the number it offers.
-           baseline: true, active: 'show_value' },
+           baseline: true, active: 'show_value',
+           weight: textWeights('value_font_weight', '700') },
 });
 
 /**
@@ -618,8 +634,8 @@ const GAUGE_RINGS = Object.freeze({
     // Shape is the other thing a needle is, and with only two of them a button
     // on the chip says it better than a select eight folds down the dialog.
     shapes: { key: 'pointer_type', dflt: 'needle', order: ['needle', 'triangle'],
-              of: { needle: { glyph: '\u25AC', label: 'needle' },
-                    triangle: { glyph: '\u25B2', label: 'triangle' } } },
+              of: { needle: { glyph: '\u25AC', label: 'a needle' },
+                    triangle: { glyph: '\u25B2', label: 'a triangle' } } },
   },
   pointer_center: {
     label: 'Centre point', section: '_section_pointer', pivot: true,
@@ -937,6 +953,7 @@ class ScCanvasEditor extends LitElement {
   updated(changed) {
     super.updated(changed);
     this._measureInner();
+    this._placeNeedle();
     this._followInner();
     // The first canvas to arrive brings back the zoom this shape was last
     // looked at. Only the first: afterwards the zoom is whatever the person
@@ -1266,6 +1283,10 @@ class ScCanvasEditor extends LitElement {
         border: 1px solid rgba(0,0,0,0.45); background: rgba(0,0,0,0.25);
         color: var(--sc-part-sel-ink); }
       .ring-shape:hover { background: rgba(0,0,0,0.45); }
+      /* The tag itself takes no presses - it is a label on a frame that is
+         dragged - so the one button inside it has to ask for them back. */
+      .inner-tag .ring-shape { pointer-events: auto; margin-left: 4px;
+        vertical-align: -2px; }
       /* Where the ring's number lives: directly under the chip that names the
          part, so the two read as one control rather than as a cluster in a
          corner that has to be matched up with a selection across the gauge.
@@ -2315,10 +2336,19 @@ class ScCanvasEditor extends LitElement {
   _followInner() {
     if (this._innerFrame || !this._innerOn) return;
     let still = 0;
+    let wasAngle = null;
     const step = () => {
       this._innerFrame = 0;
       if (!this._innerOn) return;
-      still = this._measureInner() ? 0 : still + 1;
+      const moved = this._measureInner();
+      // Exactly, not within a twentieth of a degree: the tail of the needle's
+      // easing moves by less than that per frame, and a threshold there let
+      // the loop call it still and stop with the frame a few degrees short of
+      // the needle - which is the lag you could see.
+      const angle = this._placeNeedle();
+      const spun = angle !== null && angle !== wasAngle;
+      wasAngle = angle;
+      still = (moved || spun) ? 0 : still + 1;
       if (still < INNER_STILL_FRAMES) this._innerFrame = requestAnimationFrame(step);
     };
     this._innerFrame = requestAnimationFrame(step);
@@ -2379,6 +2409,56 @@ class ScCanvasEditor extends LitElement {
     };
     this._ptr = { x: e.clientX, y: e.clientY };
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no live pointer */ }
+  }
+
+  /**
+   * Lay the needle's frame back over the needle, straight onto the DOM.
+   *
+   * The angle is read at the last possible moment and written to the nodes
+   * without going through a render, because a render is a frame late: the
+   * needle is composited by the browser while the config that describes it
+   * has not changed, so anything drawn from state trails visibly behind it.
+   * Called from `updated` and from every frame of the follow loop, which is
+   * alive for as long as the needle is moving. Answers the angle it used, or
+   * null when there was no needle to read - which is what tells that loop
+   * whether anything is still turning.
+   */
+  _placeNeedle() {
+    const root = this.shadowRoot;
+    const line = root?.querySelector('.needle-line');
+    const cfg = this._innerTarget?.cfg;
+    const svgBox = this._innerRects?.svg;
+    if (!line || !cfg || !svgBox) return null;
+    const gauge = root.querySelector(`.el[data-item-id="${this._inner}"] sc-gauge`);
+    const a = needleAngle(gauge?.shadowRoot?.querySelector('[data-sc-needle]')) * Math.PI / 180;
+    const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
+    const ring = ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale);
+    const C = GAUGE_VIEW / 2;
+    const cx = C + SC.safeFloat(cfg.pivot_offset_x, 0);
+    const cy = C + SC.safeFloat(cfg.pivot_offset_y, 0);
+    const ends = needleEnds(SC.safeFloat(cfg.pointer_offset, 2),
+                            SC.safeFloat(cfg.pointer_length, 10), ring, scale);
+    const on = (/** @type {number} */ r) =>
+      ({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    const at = { tip: on(ends.tip), tail: on(ends.tail) };
+    line.setAttribute('x1', String(at.tail.x));
+    line.setAttribute('y1', String(at.tail.y));
+    line.setAttribute('x2', String(at.tip.x));
+    line.setAttribute('y2', String(at.tip.y));
+    root.querySelectorAll('.grip-layer [data-end]').forEach((/** @type {any} */ n) => {
+      const p = at[n.dataset.end];
+      if (!p) return;
+      n.setAttribute('cx', String(p.x));
+      n.setAttribute('cy', String(p.y));
+    });
+    // The chip rides beside the line's middle, so it moves with it.
+    const mid = { x: (at.tail.x + at.tip.x) / 2 - 4 * Math.sin(a),
+                  y: (at.tail.y + at.tip.y) / 2 + 4 * Math.cos(a) };
+    const l = Math.max(2, Math.min(98, svgBox.l + svgBox.w * mid.x / GAUGE_VIEW));
+    const t = Math.max(2, Math.min(98, svgBox.t + svgBox.h * mid.y / GAUGE_VIEW));
+    root.querySelectorAll('.ring-tag[data-part="pointer"], .ring-steps[data-part="pointer"]')
+      .forEach((/** @type {any} */ n) => { n.style.left = l + '%'; n.style.top = t + '%'; });
+    return a;
   }
 
   /** Where the part is now that the pointer has moved. */
@@ -2679,7 +2759,8 @@ class ScCanvasEditor extends LitElement {
              style="left:${r.l}%; top:${r.t}%; width:${r.w}%; height:${r.h}%;"
              title=${`Drag the ${spec.label.toLowerCase()}, or its corner to resize it`}
              @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'move')}>
-          <span class="inner-tag">${spec.label}</span>
+          <span class="inner-tag">${spec.label}${spec.weight && this._innerSel === part
+            ? this._renderSwap(spec.label, spec.weight, 'Set') : ''}</span>
           <button class="inner-drop"
                   title=${`Hide the ${spec.label.toLowerCase()} on this gauge`}
                   @pointerdown=${swallow}
@@ -2783,12 +2864,13 @@ class ScCanvasEditor extends LitElement {
           const sel = this._innerSel === part;
           const n = needleAt(spec);
           return svg`
-            <line class="ring-band ${sel ? 'sel' : ''}"
+            <line class="ring-band needle-line ${sel ? 'sel' : ''}"
                   x1=${n.tail.x} y1=${n.tail.y} x2=${n.tip.x} y2=${n.tip.y}></line>
             ${Object.entries(NEEDLE_ENDS).map(([end, e2]) => svg`
-              <circle class="ring-grip ${sel ? 'sel' : ''}"
+              <circle class="ring-grip ${sel ? 'sel' : ''}" data-end=${end}
                       cx=${n[end].x} cy=${n[end].y} r="1.1"></circle>
-              <circle class="ring-grip-hit" cx=${n[end].x} cy=${n[end].y} r="2.4"
+              <circle class="ring-grip-hit" data-end=${end}
+                      cx=${n[end].x} cy=${n[end].y} r="2.4"
                       @pointerdown=${(/** @type {any} */ ev) => this._innerDown(ev, part, 'needle', end)}>
                 <title>${'Drag the needle\'s ' + e2.what + ' to set its length'}</title>
               </circle>`)}`;
@@ -2820,11 +2902,12 @@ class ScCanvasEditor extends LitElement {
         const t = svgBox.t + svgBox.h * spot.y / GAUGE_VIEW;
         if (!spec.needle && (l < 0 || l > 100 || t < 0 || t > 100)) return '';
         return html`
-          <span class="ring-tag ${this._innerSel === part ? 'sel' : ''}"
+          <span class="ring-tag ${this._innerSel === part ? 'sel' : ''}" data-part=${part}
                 style="left:${clampPc(l)}%; top:${clampPc(t)}%;"
                 @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'ring')}>
             ${spec.label}
-            ${spec.shapes && this._innerSel === part ? this._renderShapeSwap(spec) : ''}
+            ${spec.shapes && this._innerSel === part
+              ? this._renderSwap(spec.label, spec.shapes, 'Make') : ''}
             ${spec.turnOff ? html`
               <button class="ring-drop"
                       title=${`Take the ${spec.label.toLowerCase()} off this gauge`}
@@ -2863,7 +2946,8 @@ class ScCanvasEditor extends LitElement {
               @pointerdown=${swallow}
               @click=${() => this._stepRing(dir)}>${glyph}</button>`;
     return html`
-      <div class="ring-steps" style="left:${left}%; top:${top}%;"
+      <div class="ring-steps" data-part=${this._innerSel}
+           style="left:${left}%; top:${top}%;"
            title=${`${spec.label}: ${st.what}`}>
         ${btn(-1, '−')}<span class="ring-step-val">${now}</span>${btn(1, '+')}
       </div>`;
@@ -2876,17 +2960,19 @@ class ScCanvasEditor extends LitElement {
    * that is stepped up and down, and a shape is neither - it is the same one
    * setting the form's select writes, offered where the part is.
    */
-  _renderShapeSwap(spec) {
+  _renderSwap(label, sw, verb) {
     const target = this._innerTarget;
     if (!target) return '';
-    const sh = spec.shapes;
-    const now = sh.order.includes(target.cfg[sh.key]) ? target.cfg[sh.key] : sh.dflt;
-    const next = sh.order[(sh.order.indexOf(now) + 1) % sh.order.length];
+    const held = String(target.cfg[sw.key] ?? '');
+    const now = sw.order.includes(held) ? held : sw.dflt;
+    const next = sw.order[(sw.order.indexOf(now) + 1) % sw.order.length];
     return html`
-      <button class="ring-shape" title=${`Make the ${spec.label.toLowerCase()} a ${sh.of[next].label}`}
+      <button class="ring-shape"
+              style=${sw.of[now].weight ? `font-weight:${sw.of[now].weight}` : ''}
+              title=${`${verb} the ${label.toLowerCase()} ${sw.of[next].label}`}
               @pointerdown=${(/** @type {any} */ e) => { e.stopPropagation(); e.preventDefault(); }}
-              @click=${() => this._writeGauge(target.idx, { [sh.key]: next }, false)}>
-        ${sh.of[now].glyph}</button>`;
+              @click=${() => this._writeGauge(target.idx, { [sw.key]: next }, false)}>
+        ${sw.of[now].glyph}</button>`;
   }
 
   /** The next step up (`dir > 0`) or down from wherever the zoom is now. */

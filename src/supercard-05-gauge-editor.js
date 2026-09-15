@@ -276,6 +276,7 @@ const STYLE_FIELDS = [
   { id: '_section_labels',        label: '── 🔢 Value & Labels',           type: 'section' },
   { id: 'show_value',             label: 'Show value',              type: 'checkbox' },
   { id: 'value_font_size',        label: 'Value font size',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  condition: cfg => !!cfg.show_value, framedBy: 'value' },
+  { id: 'value_font_weight',      label: 'Value weight',             type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => !!cfg.show_value, framedBy: 'value' },
   { id: 'value_offset_x',         label: 'Value offset X',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value, framedBy: 'value' },
   { id: 'value_offset_y',         label: 'Value offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value, framedBy: 'value' },
   { id: 'value_color_type',       label: 'Value colour mode',            type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_value },
@@ -308,7 +309,7 @@ const STYLE_FIELDS = [
   { id: 'gauge_label_active',      label: 'Label active',          type: 'checkbox', on: true },
   { id: 'gauge_label_text',        label: 'Label text',           type: 'text',     placeholder: 'Gauge',  condition: cfg => cfg.gauge_label_active !== false },
   { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
-  { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => cfg.gauge_label_active !== false },
+  { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
   { id: 'gauge_label_offset_x',    label: 'Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
   { id: 'gauge_label_offset_y',    label: 'Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
   { id: 'gauge_label_color_type',  label: 'Colour mode',           type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => cfg.gauge_label_active !== false },
@@ -783,8 +784,9 @@ class ScGaugeEditor extends LitElement {
       : RING_PARTS.has(framed.framedBy)
       ? html`Distance and count are on the canvas while this one is selected -
              drag its ring, or use the buttons under its chip.`
-      : html`Size and position are on the canvas while this one is selected -
-             drag its frame, or the corner of it.`}</div>`;
+      : html`Size, weight and position are on the canvas while this one is
+             selected - drag its frame or the corner of it, and use the button
+             on its chip.`}</div>`;
   }
 
   _renderLitField(field, entry, idx, gauges) {
