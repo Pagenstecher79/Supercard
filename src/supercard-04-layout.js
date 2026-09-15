@@ -2271,9 +2271,16 @@ class ScCanvasEditor extends LitElement {
   _toggleInner() {
     const target = this._innerTarget;
     if (!target) return;
+    const opening = !this._innerOn;
     this._inner = this._innerOn ? null : target.id;
     this._innerRects = null;
     this._innerSel = null;
+    // Once, on the way in. The parts being framed are a couple of viewBox
+    // units across, and at the zoom a whole canvas is arranged at they cannot
+    // be aimed at, let alone dragged - so the gauge fills the window as it is
+    // opened. Only on the way in: after that the zoom is the person's own,
+    // and putting it back on the way out would undo whatever they made it.
+    if (opening) this._zoomToSelection();
   }
 
   /**
