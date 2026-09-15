@@ -679,6 +679,9 @@ const NEEDLE_ENDS = Object.freeze({
 const RING_CHIP_ANGLE = Object.freeze({ ticks: -90, sub_ticks: -50, tick_labels: -20,
                                        pointer_center: 200 });
 
+/** How near the pivot a chip may stand, in viewBox units. */
+const RING_CHIP_MIN = 7;
+
 /**
  * Which way the needle is pointing at this instant, in degrees clockwise from
  * three o'clock.
@@ -1219,6 +1222,11 @@ class ScCanvasEditor extends LitElement {
          every press on the gauge inside it. */
       .ring-layer { position: absolute; overflow: visible; z-index: 4;
         pointer-events: none; }
+      /* The needle's handles sit above the chips, not below them. A chip is a
+         label that happens to be pressable; a handle is the thing being
+         dragged, and the tail is dragged in towards the pivot where the hub's
+         own chip stands. */
+      .grip-layer { z-index: 7; }
       /* Half transparent, both of them: the band lies across the very marks it
          is there to place, and at full strength the selected one hid the ticks
          and sub-ticks under it. Which ring is in hand is said by its width and
@@ -2718,6 +2726,11 @@ class ScCanvasEditor extends LitElement {
    * is, grabbed by either end, and laid out along the angle measured off the
    * live needle so the handles ride with it.
    *
+   * It is also drawn last, after every ring, because in SVG the last thing
+   * drawn is the first thing hit - and the tail handle is dragged towards the
+   * pivot, straight through the hub's own band, which would otherwise take
+   * the press meant for the handle sitting on top of it.
+   *
    * @param {(e: any) => void} swallow
    */
   _renderRings(swallow) {
@@ -2748,30 +2761,34 @@ class ScCanvasEditor extends LitElement {
     return html`
       <svg class="ring-layer" viewBox="0 0 ${GAUGE_VIEW} ${GAUGE_VIEW}"
            style="left:${svgBox.l}%; top:${svgBox.t}%; width:${svgBox.w}%; height:${svgBox.h}%;">
-        ${live.map(([part, spec]) => {
+        ${live.filter(([, spec]) => !spec.needle).map(([part, spec]) => {
           const c = cen(spec);
-          const sel = this._innerSel === part;
-          if (spec.needle) {
-            const n = needleAt(spec);
-            return svg`
-              <line class="ring-band ${sel ? 'sel' : ''}"
-                    x1=${n.tail.x} y1=${n.tail.y} x2=${n.tip.x} y2=${n.tip.y}></line>
-              ${Object.entries(NEEDLE_ENDS).map(([end, e2]) => svg`
-                <circle class="ring-grip ${sel ? 'sel' : ''}"
-                        cx=${n[end].x} cy=${n[end].y} r="1.1"></circle>
-                <circle class="ring-grip-hit" cx=${n[end].x} cy=${n[end].y} r="2.4"
-                        @pointerdown=${(/** @type {any} */ ev) => this._innerDown(ev, part, 'needle', end)}>
-                  <title>${'Drag the needle\'s ' + e2.what + ' to set its length'}</title>
-                </circle>`)}`;
-          }
           const r = at(spec);
           if (r < 0.5) return '';
           return svg`
-            <circle class="ring-band ${sel ? 'sel' : ''}" cx=${c.x} cy=${c.y} r=${r}></circle>
+            <circle class="ring-band ${this._innerSel === part ? 'sel' : ''}"
+                    cx=${c.x} cy=${c.y} r=${r}></circle>
             <circle class="ring-hit" cx=${c.x} cy=${c.y} r=${r}
                     @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'ring')}>
               <title>${'Drag the ' + spec.label.toLowerCase() + ' in or out'}</title>
             </circle>`;
+        })}
+      </svg>
+      <svg class="ring-layer grip-layer" viewBox="0 0 ${GAUGE_VIEW} ${GAUGE_VIEW}"
+           style="left:${svgBox.l}%; top:${svgBox.t}%; width:${svgBox.w}%; height:${svgBox.h}%;">
+        ${live.filter(([, spec]) => spec.needle).map(([part, spec]) => {
+          const sel = this._innerSel === part;
+          const n = needleAt(spec);
+          return svg`
+            <line class="ring-band ${sel ? 'sel' : ''}"
+                  x1=${n.tail.x} y1=${n.tail.y} x2=${n.tip.x} y2=${n.tip.y}></line>
+            ${Object.entries(NEEDLE_ENDS).map(([end, e2]) => svg`
+              <circle class="ring-grip ${sel ? 'sel' : ''}"
+                      cx=${n[end].x} cy=${n[end].y} r="1.1"></circle>
+              <circle class="ring-grip-hit" cx=${n[end].x} cy=${n[end].y} r="2.4"
+                      @pointerdown=${(/** @type {any} */ ev) => this._innerDown(ev, part, 'needle', end)}>
+                <title>${'Drag the needle\'s ' + e2.what + ' to set its length'}</title>
+              </circle>`)}`;
         })}
       </svg>
       ${live.map(([part, spec]) => {
@@ -2788,7 +2805,11 @@ class ScCanvasEditor extends LitElement {
                        y: (n.tail.y + n.tip.y) / 2 + 4 * Math.cos(a2) };
             })()
           : (() => {
-              const r = at(spec);
+              // Never nearer than this: the hub's ring is a couple of units
+              // across, and a chip drawn on it stands on the pivot itself -
+              // over the needle's own tail handle, which is dragged to exactly
+              // there.
+              const r = Math.max(at(spec), RING_CHIP_MIN);
               const a2 = (RING_CHIP_ANGLE[part] ?? -90) * Math.PI / 180;
               return { x: c.x + r * Math.cos(a2), y: c.y + r * Math.sin(a2) };
             })();
