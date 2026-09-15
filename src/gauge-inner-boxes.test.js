@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { offsetsFromDrag, fontFromResize, estimateRect, clamp,
          ringRadius, ringPartRadius, offsetFromRadius,
          OFFSET_LIMIT, FONT_MAX, FONT_MIN, GAUGE_CENTER,
-         needleEnds, needleFromRadius } from './gauge-inner-boxes.js';
+         needleEnds, needleFromRadius,
+         ringInnerEdge, strokeFromRadius } from './gauge-inner-boxes.js';
 
 describe('offsetsFromDrag', () => {
   it('turns pixels into viewBox units at the measured scale', () => {
@@ -167,5 +168,28 @@ describe('the needle', () => {
 
   it('rounds to the tenth the sliders step in', () => {
     expect(needleFromRadius('tail', 3.33, 2, 10, 20, 0.9).pointer_length).toBe(16.5);
+  });
+});
+
+describe('the ring thickness', () => {
+  it('grows inward from an outer edge that stands still', () => {
+    expect(ringInnerEdge(3, 1)).toBe(21);
+    expect(ringInnerEdge(5, 1)).toBe(19);
+    expect(ringRadius(3, 1) + 3 / 2).toBe(24);
+    expect(ringRadius(5, 1) + 5 / 2).toBe(24);
+  });
+
+  it('scales with the gauge', () => {
+    expect(ringInnerEdge(3, 0.9)).toBeCloseTo(18.9, 6);
+  });
+
+  it('reads an edge back as the thickness that drew it', () => {
+    expect(strokeFromRadius(21, 1)).toBe(3);
+    expect(strokeFromRadius(18.9, 0.9)).toBe(3);
+  });
+
+  it('never writes a thickness its own slider would refuse', () => {
+    expect(strokeFromRadius(-99, 1)).toBe(5);
+    expect(strokeFromRadius(99, 1)).toBe(0);
   });
 });

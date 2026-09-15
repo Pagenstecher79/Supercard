@@ -179,3 +179,29 @@ export function needleFromRadius(end, at, offset, length, ring, scale) {
     pointer_length: clamp(tenth((ring - off * s - ends.tail) / s), 0, POINTER_LENGTH_MAX),
   };
 }
+
+/** The thickest the ring's own slider allows. */
+export const STROKE_MAX = 5;
+
+/**
+ * The ring's inner edge, which is the edge of it that moves.
+ *
+ * A gauge's ring is centred on `ringRadius`, and that radius already carries
+ * half the stroke: the outer edge therefore stands still at `(25 - 1) * scale`
+ * however thick the ring is drawn, and all the thickness grows inward. So the
+ * inner edge is the one thing a thickness can be dragged by.
+ *
+ * @param {number} stroke @param {number} scale
+ */
+export function ringInnerEdge(stroke, scale) {
+  return (GAUGE_CENTER - 1 - (stroke || 0)) * (scale || 1);
+}
+
+/**
+ * The thickness that would put that edge here - `ringInnerEdge` backwards.
+ *
+ * @param {number} radius @param {number} scale
+ */
+export function strokeFromRadius(radius, scale) {
+  return clamp(tenth(GAUGE_CENTER - 1 - radius / (scale || 1)), 0, STROKE_MAX);
+}

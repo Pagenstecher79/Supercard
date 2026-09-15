@@ -11,7 +11,8 @@ import { resolveSnap, gridToUnits, unitsToGrid, applyDrag, applyGroupDrag, distr
 import { needsRowsCompat, rowsAsCanvas } from "./rows-compat.js";
 import { offsetsFromDrag, fontFromResize, GAUGE_VIEW,
          ringRadius, ringPartRadius, offsetFromRadius,
-         needleEnds, needleFromRadius } from "./gauge-inner-boxes.js";
+         needleEnds, needleFromRadius,
+         ringInnerEdge, strokeFromRadius } from "./gauge-inner-boxes.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from "./label-typography.js";
 
@@ -588,6 +589,16 @@ const GAUGE_PARTS = Object.freeze({
  * reaches for next once the distance is right.
  */
 const GAUGE_RINGS = Object.freeze({
+  // The gauge's own ring, framed by the edge of it that moves. First in the
+  // list so every other band is drawn over it rather than under.
+  gauge_ring: {
+    label: 'Ring', section: '_section_color',
+    on: () => true,
+    radiusOf: (/** @type {any} */ cfg, /** @type {number} */ _ring, /** @type {number} */ scale) =>
+      ringInnerEdge(SC.safeFloat(cfg.stroke_width, 3), scale),
+    fromRadius: (/** @type {number} */ r, /** @type {any} */ _cfg, /** @type {number} */ _ring, /** @type {number} */ scale) =>
+      ({ stroke_width: strokeFromRadius(r, scale) }),
+  },
   ticks: {
     label: 'Ticks', offset: 'tick_offset', doffset: 0, limit: 10,
     section: '_section_ticks',
@@ -692,8 +703,8 @@ const NEEDLE_ENDS = Object.freeze({
   tail: { what: 'tail' },
 });
 
-const RING_CHIP_ANGLE = Object.freeze({ ticks: -90, sub_ticks: -50, tick_labels: -20,
-                                       pointer_center: 200 });
+const RING_CHIP_ANGLE = Object.freeze({ gauge_ring: 120, ticks: -90, sub_ticks: -50,
+                                       tick_labels: -20, pointer_center: 200 });
 
 /** How near the pivot a chip may stand, in viewBox units. */
 const RING_CHIP_MIN = 7;
@@ -1288,6 +1299,19 @@ class ScCanvasEditor extends LitElement {
         border: 1px solid rgba(0,0,0,0.45); background: rgba(0,0,0,0.25);
         color: var(--sc-part-sel-ink); }
       .ring-shape:hover { background: rgba(0,0,0,0.45); }
+      /* The way into a gauge's own parts, on the gauge it would open. It used
+         to be a button in the toolbar, where nothing said which element it
+         was about - and the corner it stands in is the one the ring's numbers
+         left when they moved under their chips. */
+      .inner-open { position: absolute; top: 6px; left: 6px; z-index: 7;
+        width: 24px; height: 24px; padding: 0; font-size: 15px; line-height: 1;
+        border-radius: 5px; cursor: pointer; touch-action: none;
+        border: 1px solid var(--sc-part); background: rgba(0,0,0,0.62);
+        color: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
+      .inner-open:hover:not([disabled]) { background: var(--primary-color,#03a9f4); }
+      .inner-open.on { border-color: var(--sc-part-sel);
+        background: var(--sc-part-sel); color: var(--sc-part-sel-ink); }
+      .inner-open[disabled] { opacity: 0.35; cursor: default; }
       /* The tag itself takes no presses - it is a label on a frame that is
          dragged - so the one button inside it has to ask for them back. */
       .inner-tag .ring-shape { pointer-events: auto; margin-left: 4px;
@@ -3845,6 +3869,16 @@ class ScCanvasEditor extends LitElement {
                    data-item-id=${el.id} title=${this._title(el, pinned)}
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
                 ${live ?? el.id}
+                ${inner?.id === el.id ? html`
+                  <button class="inner-open ${this._innerOn ? 'on' : ''}"
+                          title=${!this._live
+                            ? 'Switch the live preview on - the frames sit on the drawn text'
+                            : (this._innerOn
+                                ? "Done with this gauge's own parts"
+                                : "Take this gauge's own parts in hand - its label, its value, its scale, its needle")}
+                          ?disabled=${!this._live}
+                          @pointerdown=${(/** @type {any} */ e) => { e.stopPropagation(); e.preventDefault(); }}
+                          @click=${() => this._toggleInner()}>✎</button>` : ''}
                 ${this._innerOn && this._inner === el.id ? this._renderInner() : ''}
                 ${pinned || selected.length > 1 ? '' : html`
                 <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>`}
@@ -3879,18 +3913,6 @@ class ScCanvasEditor extends LitElement {
                                 ['bottom', 'Line up their bottom edges']].map(alignBtn)}</div>
           <div class="group">${[['hcenter', 'Line them up through one vertical middle'],
                                 ['vcenter', 'Line them up through one horizontal middle']].map(alignBtn)}</div>
-          <div class="group">
-            <button class="toggle ${this._innerOn ? 'on' : ''}"
-                    title=${!inner
-                      ? 'Select a single gauge to work on its label and its value on the canvas'
-                      : (!this._live
-                          ? 'Switch the live preview on - the frames sit on the drawn text'
-                          : (this._innerOn
-                              ? 'Done with the label and the value'
-                              : 'Show, place and resize the label and the value right here'))}
-                    ?disabled=${!inner || !this._live}
-                    @click=${() => this._toggleInner()}>✎</button>
-          </div>
           <span class="spacer"></span>
           <div class="group">
             <button class="toggle ${this._allLocked && selected.length ? 'on' : ''}"

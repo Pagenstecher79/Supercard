@@ -47,7 +47,8 @@ const hasOwnBox = (cfg, slot) => !SC.gaugeIsResponsive(cfg, !!slot?.canvas);
  * The two are framed on the canvas in different ways, so the line that says so
  * has to say which.
  */
-const RING_PARTS = new Set(['ticks', 'sub_ticks', 'tick_labels', 'pointer', 'pointer_center']);
+const RING_PARTS = new Set(['gauge_ring', 'ticks', 'sub_ticks', 'tick_labels',
+                            'pointer', 'pointer_center']);
 
 const TICK_PRESETS = Object.freeze({
   fine: { label: 'Fine', patch: {
@@ -165,7 +166,7 @@ const STYLE_FIELDS = [
   { id: 'autoscale_hysteresis', label: 'Hysteresis (%)',          type: 'number', placeholder: '10'  },
 
   { id: '_section_color',    label: '── 🎨 Colour & Gradient',   type: 'section' },
-  { id: 'stroke_width',        label: 'Ring thickness',            type: 'range',    min: 0, max: 5, step: 0.01,  placeholder: '3'    },
+  { id: 'stroke_width',        label: 'Ring thickness',            type: 'range',    min: 0, max: 5, step: 0.01,  placeholder: '3', framedBy: 'gauge_ring'   },
   { id: 'gradient_preset',   label: 'Colour mode',             type: 'select', options: [ { value: 'manual', label: 'Manual (list)' }, { value: 'symmetriccustom', label: 'Symmetric (custom)' }, { value: 'symmetric', label: 'Symmetric (default)' }, { value: 'linear', label: 'Linear traffic light' } ] },
 
   { id: 'gradient_mode',     label: 'Gradient type',           type: 'select', options: [ { value: 'smooth', label: 'Smooth' }, { value: 'stepped', label: 'Stepped' } ], condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
@@ -777,7 +778,12 @@ class ScGaugeEditor extends LitElement {
     if (!framed) return '';
     // The needle is the one framed part that is dragged by its ends rather
     // than in and out, so it is the one that has to say so.
-    return html`<div class="framed-note">${framed.framedBy === 'pointer'
+    // The ring grows inward from an outer edge that stands still, so what is
+    // dragged is the inner edge and the note has to say which.
+    return html`<div class="framed-note">${framed.framedBy === 'gauge_ring'
+      ? html`Thickness is on the canvas while this one is selected - drag the
+             ring's inner edge, which is the edge of it that moves.`
+      : framed.framedBy === 'pointer'
       ? html`Shape, length and offset are on the canvas while this one is
              selected - drag either end of the needle, or use the buttons on
              and under its chip.`
