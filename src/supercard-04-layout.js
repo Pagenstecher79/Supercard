@@ -2926,6 +2926,19 @@ class ScCanvasEditor extends LitElement {
     // A frame in hand borrows the two middle-axis buttons for itself.
     const centring = this._innerOn && this._innerSel && GAUGE_PARTS[this._innerSel];
     const movers = this._distributable;
+    // Three groups, in the order the work is usually done: the gaps first,
+    // then the edges, then the middles - which are also the two a gauge's own
+    // label and value borrow, so they sit together at the end.
+    const alignBtn = ([edge, what]) => html`
+      <button class="icon" title=${centring && MIDDLE_AXIS[edge]
+                ? `Put the ${GAUGE_PARTS[this._innerSel].label.toLowerCase()} back on the gauge's ${MIDDLE_AXIS[edge].what} middle`
+                : (movers < 2
+                    ? 'Two selected elements that can move are needed to line anything up'
+                    : `${what}. The outermost of them stays where it is.`)}
+              ?disabled=${centring && MIDDLE_AXIS[edge] ? false : movers < 2}
+              @click=${() => (centring && MIDDLE_AXIS[edge]
+                ? this._innerAlign(MIDDLE_AXIS[edge].axis)
+                : this._align(/** @type {any} */ (edge)))}>${alignIcon(/** @type {any} */ (edge))}</button>`;
 
     return html`
       <div class="col ${centring ? 'part-in-hand' : ''}">
@@ -3023,23 +3036,6 @@ class ScCanvasEditor extends LitElement {
 
         <div class="tools">
           <div class="group">
-            ${[['left', 'Line up their left edges'],
-               ['hcenter', 'Line them up through one vertical middle'],
-               ['right', 'Line up their right edges'],
-               ['top', 'Line up their top edges'],
-               ['vcenter', 'Line them up through one horizontal middle'],
-               ['bottom', 'Line up their bottom edges']].map(([edge, what]) => html`
-              <button class="icon" title=${centring && MIDDLE_AXIS[edge]
-                        ? `Put the ${GAUGE_PARTS[this._innerSel].label.toLowerCase()} back on the gauge's ${MIDDLE_AXIS[edge].what} middle`
-                        : (movers < 2
-                            ? 'Two selected elements that can move are needed to line anything up'
-                            : `${what}. The outermost of them stays where it is.`)}
-                      ?disabled=${centring && MIDDLE_AXIS[edge] ? false : movers < 2}
-                      @click=${() => (centring && MIDDLE_AXIS[edge]
-                        ? this._innerAlign(MIDDLE_AXIS[edge].axis)
-                        : this._align(/** @type {any} */ (edge)))}>${alignIcon(/** @type {any} */ (edge))}</button>`)}
-          </div>
-          <div class="group">
             <button title=${movers < 3
                       ? 'Three selected elements that can move are needed to even out the gaps between them'
                       : 'Even gaps left to right. The outermost two stay where they are.'}
@@ -3051,6 +3047,12 @@ class ScCanvasEditor extends LitElement {
                     ?disabled=${movers < 3}
                     @click=${() => this._distribute('y')}>⇕</button>
           </div>
+          <div class="group">${[['left', 'Line up their left edges'],
+                                ['right', 'Line up their right edges'],
+                                ['top', 'Line up their top edges'],
+                                ['bottom', 'Line up their bottom edges']].map(alignBtn)}</div>
+          <div class="group">${[['hcenter', 'Line them up through one vertical middle'],
+                                ['vcenter', 'Line them up through one horizontal middle']].map(alignBtn)}</div>
           <div class="group">
             <button class="${this._innerOn ? 'on' : ''}"
                     title=${!inner

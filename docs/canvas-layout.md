@@ -1243,7 +1243,7 @@ one.
 
 ### A gauge's own label and value, moved where they stand
 
-The ✎ button beside the distribute pair, offered when exactly one gauge is
+The ✎ button after the align groups, offered when exactly one gauge is
 selected, puts a frame around the label and the value the gauge draws and lets
 both be dragged and resized on the canvas rather than through two sliders
 each.
@@ -1278,8 +1278,9 @@ build the editor afresh at a new place in the tree and every fold in it would
 spring shut. The order goes back as soon as the frames do.
 
 Clicking a frame without dragging selects it, and the two middle-axis buttons
-of the align group - which need two elements for anything else - then act on
-that one part instead: an offset of zero is the gauge's own middle, so putting
+- their own group, after the four edges, which is also the order the work
+tends to be done in: the gaps first, then the edges, then the middles - which
+need two elements for anything else, then act on that one part instead: an offset of zero is the gauge's own middle, so putting
 a label back on the axis is a press rather than a slider dragged to nothing.
 The other four stay out: a text has no left edge to line up against here.
 
