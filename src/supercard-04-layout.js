@@ -1126,11 +1126,15 @@ class ScCanvasEditor extends LitElement {
          every press on the gauge inside it. */
       .ring-layer { position: absolute; overflow: visible; z-index: 4;
         pointer-events: none; }
+      /* Half transparent, both of them: the band lies across the very marks it
+         is there to place, and at full strength the selected one hid the ticks
+         and sub-ticks under it. Which ring is in hand is said by its width and
+         by its unbroken line instead, neither of which costs any legibility. */
       .ring-band { fill: none; stroke: #8ce0ff; stroke-width: 0.35;
-        stroke-dasharray: 1.2 1.2; opacity: 0.85;
-        filter: drop-shadow(0 0 0.6px #000) drop-shadow(0 0 0.6px #000); }
-      .ring-band.sel { stroke-width: 0.7; stroke-dasharray: none; opacity: 1;
-        filter: drop-shadow(0 0 1.6px rgba(3,169,244,0.9)) drop-shadow(0 0 0.6px #000); }
+        stroke-dasharray: 1.2 1.2; opacity: 0.5;
+        filter: drop-shadow(0 0 0.5px rgba(0,0,0,0.9)); }
+      .ring-band.sel { stroke-width: 0.6; stroke-dasharray: none; opacity: 0.5;
+        filter: drop-shadow(0 0 0.5px rgba(0,0,0,0.9)); }
       .ring-hit { fill: none; stroke: transparent; stroke-width: 2.4;
         pointer-events: stroke; cursor: ns-resize; touch-action: none; }
       .ring-tag { position: absolute; transform: translate(-50%, -50%);
