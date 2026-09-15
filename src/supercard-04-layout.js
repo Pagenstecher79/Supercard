@@ -2721,7 +2721,8 @@ class ScCanvasEditor extends LitElement {
         <sc-gauge-editor .hass=${props.hass} .slot=${props.slot}
                          .commitFn=${props.commitFn} .only=${Number(m[1])}
                          .priority=${this._innerOn && this._innerSel
-                           ? (GAUGE_PARTS[this._innerSel]?.section || '') : ''}></sc-gauge-editor>`);
+                           ? (GAUGE_PARTS[this._innerSel]?.section || '') : ''}
+                         .framed=${this._innerOn && this._innerSel ? [this._innerSel] : []}></sc-gauge-editor>`);
     }
     if ((m = id.match(/^label_(\d+)(?:_(?:icon|name|value))?$/))) {
       const box = this._canvas.elements.find(e => e.id === id);

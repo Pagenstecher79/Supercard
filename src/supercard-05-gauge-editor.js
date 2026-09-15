@@ -222,9 +222,9 @@ const STYLE_FIELDS = [
 
   { id: '_section_labels',        label: '── 🔢 Value & Labels',           type: 'section' },
   { id: 'show_value',             label: 'Show value',              type: 'checkbox' },
-  { id: 'value_font_size',        label: 'Value font size',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  condition: cfg => !!cfg.show_value },
-  { id: 'value_offset_x',         label: 'Value offset X',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value },
-  { id: 'value_offset_y',         label: 'Value offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value },
+  { id: 'value_font_size',        label: 'Value font size',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  condition: cfg => !!cfg.show_value, framedBy: 'value' },
+  { id: 'value_offset_x',         label: 'Value offset X',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value, framedBy: 'value' },
+  { id: 'value_offset_y',         label: 'Value offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value, framedBy: 'value' },
   { id: 'value_color_type',       label: 'Value colour mode',            type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_value },
   { id: 'value_color',            label: 'Value colour (fixed)',           type: 'color',   condition: cfg => !!cfg.show_value && cfg.value_color_type !== 'adaptive' },
   { id: 'value_decimals',         label: 'Decimal places',             type: 'range',    min: 0, max: 6, step: 1, placeholder: '0',   condition: cfg => !!cfg.show_value },
@@ -254,10 +254,10 @@ const STYLE_FIELDS = [
   // said "off" hid every field belonging to the label it was drawing.
   { id: 'gauge_label_active',      label: 'Label active',          type: 'checkbox', on: true },
   { id: 'gauge_label_text',        label: 'Label text',           type: 'text',     placeholder: 'Gauge',  condition: cfg => cfg.gauge_label_active !== false },
-  { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   condition: cfg => cfg.gauge_label_active !== false },
+  { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
   { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => cfg.gauge_label_active !== false },
-  { id: 'gauge_label_offset_x',    label: 'Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false },
-  { id: 'gauge_label_offset_y',    label: 'Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false },
+  { id: 'gauge_label_offset_x',    label: 'Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
+  { id: 'gauge_label_offset_y',    label: 'Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
   { id: 'gauge_label_color_type',  label: 'Colour mode',           type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => cfg.gauge_label_active !== false },
   { id: 'gauge_label_color',       label: 'Colour (fixed)',            type: 'color',    condition: cfg => cfg.gauge_label_color_type === 'fixed' }
 ];
@@ -269,7 +269,8 @@ class ScGaugeEditor extends LitElement {
       slot: { type: Object },
       commitFn: { type: Object },
       only: { type: Number },
-      priority: { type: String }
+      priority: { type: String },
+      framed: { type: Array }
     };
   }
 
@@ -311,6 +312,7 @@ class ScGaugeEditor extends LitElement {
          by rendering it somewhere else, so nothing here is rebuilt and no fold
          springs shut on the way. */
       details.inner-section.wanted { order: -1; border-color: var(--primary-color,#03a9f4); }
+      .framed-note { font-size: 12px; color: var(--secondary-text-color); font-style: italic; }
       .inner-content { padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); margin-top: 4px; padding-top: 12px; }
       ha-entity-picker, ha-selector { display: block; width: 100%; }
       .entity-row { display: flex; flex-direction: column; gap: 4px; }
@@ -679,6 +681,9 @@ class ScGaugeEditor extends LitElement {
             </summary>
             
             <div class="inner-content">
+              ${sec.items.some(f => f.framedBy && this._framed.has(f.framedBy)) ? html`
+                <div class="framed-note">Size and position are on the canvas while this
+                     one is selected - drag its frame, or the corner of it.</div>` : ''}
               ${renderItems(sec.items)}
               
               ${sec.subsections.map(subsec => {
@@ -703,9 +708,16 @@ class ScGaugeEditor extends LitElement {
     });
   }
 
+  /** The gauge parts in hand on the canvas - the frame that is selected. */
+  get _framed() { return new Set(Array.isArray(this.framed) ? this.framed : []); }
+
   _renderLitField(field, entry, idx, gauges) {
     if (!field) return html``;
     if (field.condition && !field.condition(entry, this.slot)) return html``;
+    // Size and place are the frame's job while that frame is the one in hand:
+    // two ways to set one number, side by side, is one way too many. The other
+    // part keeps its sliders, because only the selected one is being worked on.
+    if (field.framedBy && this._framed.has(field.framedBy)) return html``;
 
     let content;
     const val = entry[field.id];
