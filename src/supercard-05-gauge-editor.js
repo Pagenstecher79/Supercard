@@ -47,7 +47,7 @@ const hasOwnBox = (cfg, slot) => !SC.gaugeIsResponsive(cfg, !!slot?.canvas);
  * The two are framed on the canvas in different ways, so the line that says so
  * has to say which.
  */
-const RING_PARTS = new Set(['ticks', 'sub_ticks', 'tick_labels']);
+const RING_PARTS = new Set(['ticks', 'sub_ticks', 'tick_labels', 'pointer', 'pointer_center']);
 
 const TICK_PRESETS = Object.freeze({
   fine: { label: 'Fine', patch: {
@@ -194,10 +194,10 @@ const STYLE_FIELDS = [
 
   { id: '_section_pointer',       label: '── 🧭 Pointer',                  type: 'section' },
   { id: 'pointer_type',           label: 'Pointer shape',                type: 'select',  options: [ { value: 'needle', label: 'Needle' }, { value: 'triangle', label: 'Triangle' } ] },
-  { id: 'pointer_width',          label: 'Pointer width',              type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '2'   },
-  { id: 'pointer_length',         label: 'Pointer length',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10'  },
+  { id: 'pointer_width',          label: 'Pointer width',              type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '2', framedBy: 'pointer'   },
+  { id: 'pointer_length',         label: 'Pointer length',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10', framedBy: 'pointer'  },
   { id: 'pointer_offset',         label: 'Pointer offset from ring',     type: 'range',    min: -10, max: 10, step: 0.1,  placeholder: '2'   },
-  { id: 'pointer_center_radius',  label: 'Centre point size',          type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '2'   },
+  { id: 'pointer_center_radius',  label: 'Centre point size',          type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '2', framedBy: 'pointer_center'   },
   { id: 'pivot_offset_x',         label: 'Pivot offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'   },
   { id: 'pivot_offset_y',         label: 'Pivot offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'  },
   { id: 'pointer_color_type',     label: 'Pointer colour mode',          type: 'select',  options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },

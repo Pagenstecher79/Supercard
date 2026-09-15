@@ -38,6 +38,10 @@ class ScGauge extends LitElement {
       // Set by the card when it renders from a canvas, where the element's
       // box is the gauge's size and the gauge's own pixel figure is not.
       onCanvas: { type: Boolean },
+      // Set by the canvas editor while the pointer or its hub is the part in
+      // hand. A needle that swings away mid-drag is a needle whose length
+      // cannot be set, and a live entity is free to move at any moment.
+      frozen: { type: Boolean },
       _isInitialized: { type: Boolean, state: true }
     };
   }
@@ -428,7 +432,17 @@ class ScGauge extends LitElement {
     const pct    = Math.max(0, Math.min(1, (data.val - data.min) / (range || 1)));
     
     const targetAngle = startAngle + pct * totalAngle;
-    const renderAngle = this._isInitialized ? targetAngle : startAngle;
+    // Frozen holds the angle it was at when the freeze began, rather than
+    // merely switching the transition off: without it a new state would still
+    // jump the needle to wherever the entity has got to, which is the very
+    // thing being frozen out.
+    if (!this.frozen) this._frozenAngle = null;
+    else if (this._frozenAngle === null || this._frozenAngle === undefined) {
+      this._frozenAngle = this._isInitialized ? targetAngle : startAngle;
+    }
+    const renderAngle = this.frozen
+      ? this._frozenAngle
+      : (this._isInitialized ? targetAngle : startAngle);
 
     // --- NEW: CALCULATE DIFFERENCE AND DYNAMIC DURATION ---
     if (this._lastRenderAngle === null) this._lastRenderAngle = startAngle;
@@ -909,7 +923,7 @@ class ScGauge extends LitElement {
     const layer = (originX, originY, rotate, content) => html`
       <div class="sc-gauge-layer"
            style="transform-origin: ${(originX / this.SIZE * 100).toFixed(4)}% ${(originY / this.SIZE * 100).toFixed(4)}%;${
-             rotate ? ` transform: rotate(${renderAngle}deg); transition: transform ${this._isInitialized ? dur : 0}s ${easingCurve};` : ''}">
+             rotate ? ` transform: rotate(${renderAngle}deg); transition: transform ${this.frozen || !this._isInitialized ? 0 : dur}s ${easingCurve};` : ''}">
         <svg viewBox="0 0 ${this.SIZE} ${this.SIZE}" style="width:100%;height:100%;overflow:visible;display:block;">
           ${content}
         </svg>

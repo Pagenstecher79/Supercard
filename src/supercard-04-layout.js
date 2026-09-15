@@ -601,7 +601,49 @@ const GAUGE_RINGS = Object.freeze({
     step: { key: 'tick_label_font_size', by: 0.5, min: 1, max: 20, dflt: 7,
             what: 'label type' },
   },
+  // The needle's base end, which is what a length moves - the tip stays where
+  // `pointer_offset` puts it, so the ring shown is the circle the base rides
+  // on. Always drawn: a gauge has no switch for its pointer, so there is
+  // nothing to offer and nothing to take away.
+  pointer: {
+    label: 'Pointer', section: '_section_pointer', pivot: true,
+    on: () => true,
+    radiusOf: (/** @type {any} */ cfg, /** @type {number} */ ring, /** @type {number} */ scale) =>
+      ring - (SC.safeFloat(cfg.pointer_offset, 2) + SC.safeFloat(cfg.pointer_length, 10)) * scale,
+    fromRadius: (/** @type {number} */ r, /** @type {any} */ cfg, /** @type {number} */ ring, /** @type {number} */ scale) => ({
+      pointer_length: offsetFromRadius(0, ring - SC.safeFloat(cfg.pointer_offset, 2) * scale - r, scale, 25),
+    }),
+    step: { key: 'pointer_width', by: 0.1, min: 0.1, max: 10, dflt: 2, what: 'pointer width' },
+  },
+  pointer_center: {
+    label: 'Centre point', section: '_section_pointer', pivot: true,
+    on: (/** @type {any} */ cfg) => SC.safeFloat(cfg.pointer_center_radius, 2) > 0,
+    turnOn: { pointer_center_radius: 2 }, turnOff: { pointer_center_radius: 0 },
+    radiusOf: (/** @type {any} */ cfg, /** @type {number} */ _ring, /** @type {number} */ scale) =>
+      SC.safeFloat(cfg.pointer_center_radius, 2) * scale,
+    fromRadius: (/** @type {number} */ r, /** @type {any} */ _cfg, /** @type {number} */ _ring, /** @type {number} */ scale) => ({
+      pointer_center_radius: offsetFromRadius(0, r, scale, 25),
+    }),
+  },
 });
+
+/**
+ * The radius a ring part is drawn at, and the fields that would put it at a
+ * radius - the two halves of what a ring frame does.
+ *
+ * Most rings are an offset from the gauge's own ring, which is the default
+ * here; the pointer's base and the hub are measured differently, so those two
+ * bring their own arithmetic.
+ */
+const ringPartAt = (/** @type {any} */ spec, /** @type {any} */ cfg,
+                    /** @type {number} */ ring, /** @type {number} */ scale) =>
+  spec.radiusOf ? spec.radiusOf(cfg, ring, scale)
+                : ringPartRadius(ring, SC.safeFloat(cfg[spec.offset], spec.doffset), scale);
+
+const ringPartPatch = (/** @type {any} */ spec, /** @type {number} */ r, /** @type {any} */ cfg,
+                       /** @type {number} */ ring, /** @type {number} */ scale) =>
+  spec.fromRadius ? spec.fromRadius(r, cfg, ring, scale)
+                  : { [spec.offset]: offsetFromRadius(ring, r, scale, spec.limit) };
 
 /**
  * Where each ring's offer stands on its ring, in degrees clockwise from three
@@ -609,7 +651,15 @@ const GAUGE_RINGS = Object.freeze({
  * offers on one gauge can all be read, and clear of the top-left corner where
  * the ring steppers sit.
  */
-const RING_CHIP_ANGLE = Object.freeze({ ticks: -90, sub_ticks: -50, tick_labels: -20 });
+/**
+ * The parts whose frame the needle would otherwise run away from. Both are
+ * measured along the needle's own line, so the gauge holds its angle while
+ * either is being set - see `frozen` in the gauge renderer.
+ */
+const FROZEN_WHILE_HELD = new Set(['pointer', 'pointer_center']);
+
+const RING_CHIP_ANGLE = Object.freeze({ ticks: -90, sub_ticks: -50, tick_labels: -20,
+                                       pointer: 150, pointer_center: 200 });
 
 /** Either kind of inner part, looked up by the one name the editor holds. */
 const innerSpec = (/** @type {string} */ part) => GAUGE_PARTS[part] || GAUGE_RINGS[part];
@@ -2221,7 +2271,7 @@ class ScCanvasEditor extends LitElement {
     // A ring is dragged in and out rather than about, so what the gesture
     // carries is the geometry it is measured against, not a pair of offsets.
     if (mode === 'ring') {
-      const geo = this._ringGeometry();
+      const geo = this._ringGeometry(part);
       if (!geo) return;
       this._innerDrag = { idx: target.idx, part, mode, ...geo, started: false };
       this._ptr = { x: e.clientX, y: e.clientY };
@@ -2255,8 +2305,8 @@ class ScCanvasEditor extends LitElement {
       const spec = GAUGE_RINGS[d.part];
       if (!spec) return;
       const dist = Math.hypot(p.x - d.cx, p.y - d.cy) / d.pxPerUnit;
-      this._writeGauge(d.idx,
-        { [spec.offset]: offsetFromRadius(d.ring, dist, d.scale, spec.limit) }, d.started);
+      const cfg = this._innerTarget?.cfg || {};
+      this._writeGauge(d.idx, ringPartPatch(spec, dist, cfg, d.ring, d.scale), d.started);
       d.started = true;
       return;
     }
@@ -2314,7 +2364,7 @@ class ScCanvasEditor extends LitElement {
     } else if (this._innerSel === part) {
       this._innerSel = null;
     }
-    const patch = { ...(on ? spec.turnOn : spec.turnOff) };
+    const patch = { ...((on ? spec.turnOn : spec.turnOff) || {}) };
     // The seed only where the card says nothing: a gauge that already has 21
     // ticks keeps them when its labels are switched on.
     if (on) for (const [k, v] of Object.entries(spec.seed || {})) {
@@ -2348,16 +2398,24 @@ class ScCanvasEditor extends LitElement {
    * letterboxes inside a box of any shape, and the SVG's own rect is the one
    * thing that knows where it landed and how big a viewBox unit came out.
    */
-  _ringGeometry() {
+  _ringGeometry(part) {
     const box = this.shadowRoot?.querySelector(`.el[data-item-id="${this._inner}"]`);
     const svg = box?.querySelector('sc-gauge')?.shadowRoot?.querySelector('svg');
     const r = svg?.getBoundingClientRect();
     if (!r?.width) return null;
     const cfg = this._innerTarget?.cfg || {};
     const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
+    const pxPerUnit = r.width / GAUGE_VIEW;
+    // The pointer and its hub turn about the pivot, which a card may have moved
+    // off the gauge's centre - and `pivot_offset_*` is not scaled, the way the
+    // renderer reads it.
+    const off = GAUGE_RINGS[part]?.pivot
+      ? { x: SC.safeFloat(cfg.pivot_offset_x, 0), y: SC.safeFloat(cfg.pivot_offset_y, 0) }
+      : { x: 0, y: 0 };
     return {
-      cx: r.left + r.width / 2, cy: r.top + r.height / 2,
-      pxPerUnit: r.width / GAUGE_VIEW, scale,
+      cx: r.left + r.width / 2 + off.x * pxPerUnit,
+      cy: r.top + r.height / 2 + off.y * pxPerUnit,
+      pxPerUnit, scale,
       ring: ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale),
     };
   }
@@ -2404,10 +2462,17 @@ class ScCanvasEditor extends LitElement {
     const cfg = this._innerTarget?.cfg || {};
     const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
     const ring = ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale);
-    const r = ringPartRadius(ring, SC.safeFloat(cfg[spec.offset], spec.doffset), scale);
+    const r = ringPartAt(spec, cfg, ring, scale);
     const rx = Math.abs(r) / GAUGE_VIEW * svg.w;
     const ry = Math.abs(r) / GAUGE_VIEW * svg.h;
-    return { cx: svg.l + svg.w / 2, cy: svg.t + svg.h / 2, rx, ry };
+    const off = spec.pivot
+      ? { x: SC.safeFloat(cfg.pivot_offset_x, 0), y: SC.safeFloat(cfg.pivot_offset_y, 0) }
+      : { x: 0, y: 0 };
+    return {
+      cx: svg.l + svg.w * (0.5 + off.x / GAUGE_VIEW),
+      cy: svg.t + svg.h * (0.5 + off.y / GAUGE_VIEW),
+      rx, ry,
+    };
   }
 
   /**
@@ -2573,19 +2638,24 @@ class ScCanvasEditor extends LitElement {
     if (!live.length) return '';
     const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
     const ring = ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale);
-    const at = (/** @type {any} */ spec) =>
-      Math.abs(ringPartRadius(ring, SC.safeFloat(cfg[spec.offset], spec.doffset), scale));
+    const at = (/** @type {any} */ spec) => Math.abs(ringPartAt(spec, cfg, ring, scale));
     const C = GAUGE_VIEW / 2;
+    // The pointer and its hub turn about the pivot, wherever the card has put
+    // it; everything else is drawn about the gauge's centre.
+    const cen = (/** @type {any} */ spec) => spec.pivot
+      ? { x: C + SC.safeFloat(cfg.pivot_offset_x, 0), y: C + SC.safeFloat(cfg.pivot_offset_y, 0) }
+      : { x: C, y: C };
     return html`
       <svg class="ring-layer" viewBox="0 0 ${GAUGE_VIEW} ${GAUGE_VIEW}"
            style="left:${svgBox.l}%; top:${svgBox.t}%; width:${svgBox.w}%; height:${svgBox.h}%;">
         ${live.map(([part, spec]) => {
           const r = at(spec);
           if (r < 0.5) return '';
+          const c = cen(spec);
           const sel = this._innerSel === part;
           return svg`
-            <circle class="ring-band ${sel ? 'sel' : ''}" cx=${C} cy=${C} r=${r}></circle>
-            <circle class="ring-hit" cx=${C} cy=${C} r=${r}
+            <circle class="ring-band ${sel ? 'sel' : ''}" cx=${c.x} cy=${c.y} r=${r}></circle>
+            <circle class="ring-hit" cx=${c.x} cy=${c.y} r=${r}
                     @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'ring')}>
               <title>${'Drag the ' + spec.label.toLowerCase() + ' in or out'}</title>
             </circle>`;
@@ -2593,19 +2663,21 @@ class ScCanvasEditor extends LitElement {
       </svg>
       ${live.map(([part, spec]) => {
         const r = at(spec);
+        const c = cen(spec);
         const ang = (RING_CHIP_ANGLE[part] ?? -90) * Math.PI / 180;
-        const l = svgBox.l + svgBox.w * (0.5 + (r / GAUGE_VIEW) * Math.cos(ang));
-        const t = svgBox.t + svgBox.h * (0.5 + (r / GAUGE_VIEW) * Math.sin(ang));
+        const l = svgBox.l + svgBox.w * (c.x + r * Math.cos(ang)) / GAUGE_VIEW;
+        const t = svgBox.t + svgBox.h * (c.y + r * Math.sin(ang)) / GAUGE_VIEW;
         if (l < 0 || l > 100 || t < 0 || t > 100) return '';
         return html`
           <span class="ring-tag ${this._innerSel === part ? 'sel' : ''}"
                 style="left:${l}%; top:${t}%;"
                 @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'ring')}>
             ${spec.label}
-            <button class="ring-drop"
-                    title=${`Take the ${spec.label.toLowerCase()} off this gauge`}
-                    @pointerdown=${swallow}
-                    @click=${() => this._setInnerRing(part, false)}>−</button>
+            ${spec.turnOff ? html`
+              <button class="ring-drop"
+                      title=${`Take the ${spec.label.toLowerCase()} off this gauge`}
+                      @pointerdown=${swallow}
+                      @click=${() => this._setInnerRing(part, false)}>−</button>` : ''}
           </span>`;
       })}`;
   }
@@ -2625,7 +2697,10 @@ class ScCanvasEditor extends LitElement {
   _renderRingSteppers() {
     const spec = GAUGE_RINGS[this._innerSel || ''];
     const target = this._innerTarget;
-    if (!spec || !target) return '';
+    // Not every ring has a second number worth a pair of buttons - the hub is
+    // one size and nothing else - and an empty corner says so better than a
+    // cluster that does nothing.
+    if (!spec?.step || !target) return '';
     const st = spec.step;
     const now = SC.safeFloat(target.cfg[st.key], st.dflt);
     const swallow = (/** @type {any} */ e) => { e.stopPropagation(); e.preventDefault(); };
@@ -2808,7 +2883,12 @@ class ScCanvasEditor extends LitElement {
       const cfg = gauges[idx];
       if (!cfg) return null;
       // onCanvas: the element's box is the size here, exactly as on the card.
-      return html`<sc-gauge .config=${cfg} .hass=${this.hass}
+      // frozen: a needle that swings away mid-drag is a needle whose length
+      // cannot be set, and a live entity is free to move at any moment. Only
+      // this gauge, and only while one of its two pointer parts is in hand.
+      const frozen = this._innerOn && this._inner === el.id
+                     && FROZEN_WHILE_HELD.has(this._innerSel || '');
+      return html`<sc-gauge .config=${cfg} .hass=${this.hass} .frozen=${frozen}
                             .globalEntities=${slot.global_entities} .onCanvas=${true}></sc-gauge>`;
     }
 
