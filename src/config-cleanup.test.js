@@ -98,6 +98,16 @@ describe('stripDeadConfig', () => {
     // A guard on the list itself: adding a key here removes it from people's
     // dashboards, so it has to be one the code genuinely never looks at.
     expect(DEAD_ENTRY_KEYS.progressbars).toEqual(['position_mode', 'offset_x', 'offset_y']);
+    expect(DEAD_ENTRY_KEYS.gauges).toEqual(['pivot_offset_x', 'pivot_offset_y']);
+  });
+
+  it('takes the pivot offsets off a gauge and leaves the rest of it', () => {
+    const out = stripDeadConfig({ gauges: [
+      { entity: 'x', pivot_offset_x: 3, pivot_offset_y: -2, pointer_length: 10 },
+      { entity: 'y', pointer_length: 8 },
+    ] });
+    expect(out.gauges[0]).toEqual({ entity: 'x', pointer_length: 10 });
+    expect(out.gauges[1]).toEqual({ entity: 'y', pointer_length: 8 });
   });
 });
 

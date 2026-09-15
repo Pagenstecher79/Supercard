@@ -15,6 +15,7 @@ import { offsetsFromDrag, fontFromResize, GAUGE_VIEW,
          ringInnerEdge, strokeFromRadius } from "./gauge-inner-boxes.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from "./label-typography.js";
+import { applyCardConfig } from "./card-apply.js";
 
 const SC = window.SupercardUtils;
 
@@ -525,6 +526,30 @@ const zoomMemory = new Map();
 const FIT_MARGIN = 0.85;
 
 /**
+ * The same, on the way into a gauge's own parts: none.
+ *
+ * The air the button leaves is what lets a selection be seen in its
+ * surroundings, and on the way in there are no surroundings to see - the
+ * gauge is the whole of what is being worked on, and every one of its parts
+ * is a couple of viewBox units across. So it fills the window.
+ */
+const INNER_FILL = 1;
+
+/**
+ * The shape the window is drawn at while a gauge's own parts are being
+ * edited: a square, whatever shape the canvas is.
+ *
+ * The window otherwise carries the canvas' shape, so on a flat card - 12
+ * columns by 2 rows - the height is already the tight axis at 100%: the zoom
+ * that fits one gauge into it is *below* one, and asking to work on a gauge
+ * made the whole drawing smaller. A square gives the vertical axis the room
+ * the horizontal one already has, and it is the shape a gauge itself is. A
+ * canvas taller than it is wide is left alone: there the width is the tight
+ * axis and the fit works already.
+ */
+const INNER_RATIO = 1;
+
+/**
  * The parts of a gauge the canvas can edit directly, and the fields each of
  * them is.
  *
@@ -583,11 +608,21 @@ const GAUGE_PARTS = Object.freeze({
  * says; `seed` only where the card says nothing, and it carries whatever else
  * has to be true for the ring to be seen at all.
  *
- * `step` is what the two corner buttons add to and take from while this ring
- * is the one in hand: the count for the two rings made of marks, and the type
- * size for the one made of numbers, because that is the number a person
- * reaches for next once the distance is right.
+ * `steps` are the numbers offered under the chip while this ring is the one in
+ * hand - the ones a person reaches for next once the distance is right. A ring
+ * of marks is how many, how long and how thick; a ring of numbers is the type
+ * size. Each carries the glyph that says which of them it is, because three
+ * pairs of buttons in a row are otherwise three of the same thing.
  */
+/**
+ * The two glyphs that tell a mark's length from its thickness.
+ *
+ * A tick runs outward from the ring, so its length is the up-and-down arrow
+ * and its width the one across - the same way round as the mark itself.
+ */
+const LONG = '\u2195';
+const THICK = '\u2194';
+
 const GAUGE_RINGS = Object.freeze({
   // The gauge's own ring, framed by the edge of it that moves. First in the
   // list so every other band is drawn over it rather than under.
@@ -604,7 +639,11 @@ const GAUGE_RINGS = Object.freeze({
     section: '_section_ticks',
     on: (/** @type {any} */ cfg) => SC.safeFloat(cfg.tick_count, 0) > 0,
     turnOn: { tick_count: 11 }, turnOff: { tick_count: 0 }, seed: {},
-    step: { key: 'tick_count', by: 1, min: 2, max: 50, dflt: 11, what: 'ticks' },
+    steps: [
+      { key: 'tick_count', icon: '#', by: 1, min: 2, max: 50, dflt: 11, what: 'ticks' },
+      { key: 'tick_length', icon: LONG, by: 0.1, min: 0, max: 6, dflt: 3, what: 'tick length' },
+      { key: 'tick_width', icon: THICK, by: 0.1, min: 0, max: 5, dflt: 1, what: 'tick width' },
+    ],
   },
   sub_ticks: {
     label: 'Subticks', offset: 'sub_tick_offset', doffset: 0, limit: 10,
@@ -614,7 +653,13 @@ const GAUGE_RINGS = Object.freeze({
     turnOn: { sub_tick_count: 4 }, turnOff: { sub_tick_count: 0 },
     // Sub-ticks are drawn between ticks, so a gauge with none gets ticks too.
     seed: { tick_count: 11 },
-    step: { key: 'sub_tick_count', by: 1, min: 1, max: 10, dflt: 4, what: 'sub-ticks' },
+    steps: [
+      { key: 'sub_tick_count', icon: '#', by: 1, min: 1, max: 10, dflt: 4, what: 'sub-ticks' },
+      { key: 'sub_tick_length', icon: LONG, by: 0.1, min: 0, max: 3, dflt: 1.5,
+        what: 'sub-tick length' },
+      { key: 'sub_tick_width', icon: THICK, by: 0.1, min: 0, max: 3, dflt: 0.5,
+        what: 'sub-tick width' },
+    ],
   },
   tick_labels: {
     label: 'Tick labels', offset: 'tick_label_offset', doffset: -8, limit: 15,
@@ -626,8 +671,8 @@ const GAUGE_RINGS = Object.freeze({
     // box the gauge is clipped to - labels switched on and left at it are
     // labels nobody sees. The form's placeholder has always said -8.
     seed: { tick_count: 11, tick_label_offset: -8 },
-    step: { key: 'tick_label_font_size', by: 0.5, min: 1, max: 20, dflt: 7,
-            what: 'label type' },
+    steps: [{ key: 'tick_label_font_size', icon: 'A', by: 0.5, min: 1, max: 20, dflt: 7,
+              what: 'label type' }],
   },
   // The needle is not a ring at all - it is a line, and it is grabbed by
   // either end. A circle the base rides on cannot be pulled through the pivot,
@@ -636,12 +681,13 @@ const GAUGE_RINGS = Object.freeze({
   // Always drawn: a gauge has no switch for its pointer, so there is nothing
   // to offer and nothing to take away.
   pointer: {
-    label: 'Pointer', section: '_section_pointer', pivot: true, needle: true,
+    label: 'Pointer', section: '_section_pointer', needle: true,
     on: () => true,
     radiusOf: (/** @type {any} */ cfg, /** @type {number} */ ring, /** @type {number} */ scale) =>
       needleEnds(SC.safeFloat(cfg.pointer_offset, 2), SC.safeFloat(cfg.pointer_length, 10),
                  ring, scale).tip,
-    step: { key: 'pointer_width', by: 0.1, min: 0.1, max: 10, dflt: 2, what: 'pointer width' },
+    steps: [{ key: 'pointer_width', icon: THICK, by: 0.1, min: 0.1, max: 10, dflt: 2,
+              what: 'pointer width' }],
     // Shape is the other thing a needle is, and with only two of them a button
     // on the chip says it better than a select eight folds down the dialog.
     shapes: { key: 'pointer_type', dflt: 'needle', order: ['needle', 'triangle'],
@@ -649,7 +695,7 @@ const GAUGE_RINGS = Object.freeze({
                     triangle: { glyph: '\u25B2', label: 'a triangle' } } },
   },
   pointer_center: {
-    label: 'Centre point', section: '_section_pointer', pivot: true,
+    label: 'Centre point', section: '_section_pointer',
     on: (/** @type {any} */ cfg) => SC.safeFloat(cfg.pointer_center_radius, 2) > 0,
     turnOn: { pointer_center_radius: 2 }, turnOff: { pointer_center_radius: 0 },
     radiusOf: (/** @type {any} */ cfg, /** @type {number} */ _ring, /** @type {number} */ scale) =>
@@ -683,6 +729,11 @@ const ringPartPatch = (/** @type {any} */ spec, /** @type {number} */ r, /** @ty
  * o'clock. Across the top and down the right, far enough apart that three
  * offers on one gauge can all be read, and clear of the top-left corner where
  * the ring steppers sit.
+ *
+ * The gaps have to clear more than the chips themselves: the numbers of
+ * whichever ring is in hand hang under its chip, three lines deep, and the
+ * tick labels' chip used to stand where the sub-ticks' numbers land. Past
+ * three o'clock it is below them with room to spare.
  */
 /**
  * The parts whose frame the needle would otherwise run away from. Both are
@@ -704,7 +755,10 @@ const NEEDLE_ENDS = Object.freeze({
 });
 
 const RING_CHIP_ANGLE = Object.freeze({ gauge_ring: 120, ticks: -90, sub_ticks: -50,
-                                       tick_labels: -20, pointer_center: 200 });
+                                       tick_labels: 10, pointer_center: 200 });
+
+/** How long Apply stays on "Saved" before it is a button again. */
+const APPLY_SAVED_MS = 2000;
 
 /** How near the pivot a chip may stand, in viewBox units. */
 const RING_CHIP_MIN = 7;
@@ -780,6 +834,8 @@ class ScCanvasEditor extends LitElement {
       _dragCanvas: { type: Object, state: true },
       _configOpen: { type: Boolean, state: true },
       _menu: { type: Boolean, state: true },
+      _applyState: { type: String, state: true },
+      _applyError: { type: String, state: true },
       _menuKind: { type: String, state: true },
       _placing: { type: String, state: true },
       _ghost: { type: Object, state: true },
@@ -935,6 +991,7 @@ class ScCanvasEditor extends LitElement {
     this._stopEdgeScroll();
     if (this._innerFrame) cancelAnimationFrame(this._innerFrame);
     this._innerFrame = 0;
+    clearTimeout(this._appliedTimer);
     super.disconnectedCallback();
   }
 
@@ -1052,7 +1109,8 @@ class ScCanvasEditor extends LitElement {
       .canvas-pad.hand, .canvas-pad.hand * { cursor: grab !important; }
       .canvas-pad.hand:active, .canvas-pad.hand:active * { cursor: grabbing !important; }
       /* The window the canvas is zoomed inside. It keeps the footprint the
-         canvas has at 100% - width of the strip, shape of the canvas - so
+         canvas has at 100% - width of the strip, shape of the canvas, save
+         for the stretch a gauge's own editing borrows in height - so
          zooming in makes the drawing bigger and the editor no taller: the
          part that no longer fits is reached by scrolling, not by pushing
          everything below the canvas down the page.
@@ -1341,11 +1399,26 @@ class ScCanvasEditor extends LitElement {
          part, so the two read as one control rather than as a cluster in a
          corner that has to be matched up with a selection across the gauge.
          Hung from the chip's own spot, half a chip's height below its middle. */
+      /* One number per line, in four columns - glyph, less, the number,
+         more - so the three read as a list rather than as a row that wraps
+         wherever the gauge happens to end. A grid rather than a stack of
+         rows, because the numbers are of different widths and a column that
+         does not line up is harder to read than one that does.
+         width: max-content, or an absolutely placed box is shrunk to the room
+         left of it in its containing block - half the gauge - and the box
+         would stand wider than the column inside it. */
       .ring-steps { position: absolute; transform: translate(-50%, 12px);
         z-index: 7;
-        display: flex; align-items: center; gap: 3px; padding: 2px 3px;
+        display: grid; grid-template-columns: auto auto auto auto;
+        align-items: center; justify-items: center;
+        width: max-content; gap: 3px; padding: 3px 5px;
         border-radius: 5px; background: rgba(0,0,0,0.62);
         box-shadow: 0 0 0 1px rgba(242,181,68,0.6); }
+      /* The group is what a number is made of, not a box of its own: its four
+         parts are cells of the one grid, which is what lines the columns up. */
+      .ring-group { display: contents; }
+      .ring-step-icon { font-size: 12px; line-height: 1; color: var(--sc-part-sel);
+        min-width: 10px; text-align: center; }
       .ring-step { width: 20px; height: 20px; padding: 0; font-size: 15px;
         line-height: 1; border-radius: 4px; cursor: pointer; touch-action: none;
         border: 1px solid var(--sc-part-sel); background: rgba(0,0,0,0.5); color: #fff; }
@@ -1420,6 +1493,11 @@ class ScCanvasEditor extends LitElement {
          the placing overlay and the menu sit just above those. */
       .tool-row { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; flex-wrap: wrap; }
       .menu-wrap { position: relative; }
+      /* Solid where Add element is dashed: one of them offers a thing that is
+         not there yet, the other does something to what is. */
+      .apply-btn { border-style: solid; }
+      .apply-btn[disabled] { opacity: 0.4; cursor: default; }
+      .apply-error { color: var(--error-color, #db4437); }
       .menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; min-width: 200px;
               max-height: 280px; overflow-y: auto; padding: 4px; border-radius: 6px;
               border: 1px solid var(--divider-color,#444); box-shadow: 0 6px 20px rgba(0,0,0,0.45);
@@ -1986,6 +2064,11 @@ class ScCanvasEditor extends LitElement {
       return this._startPan(e);
     }
     e.stopPropagation();
+    // A press that gets this far is on bare canvas or on an element's own box,
+    // never on a gauge's part - every one of those stops the event where it is
+    // taken hold of. So it is how a part is let go of again, which until now
+    // could only be done by taking hold of a different one.
+    this._letGoOfPart();
     const surface = e.currentTarget.closest('.canvas');
     const rect = surface.getBoundingClientRect();
     // A resize handle names its own element; only a press on the box itself
@@ -2027,8 +2110,45 @@ class ScCanvasEditor extends LitElement {
     e.currentTarget.setPointerCapture?.(e.pointerId);
   }
 
+  /**
+   * Save the card without closing the dialog.
+   *
+   * The dialog's own save does this and then shuts, which is the wrong shape
+   * for a canvas: arranging one is a long job, and the way to keep it safe
+   * should not also be the way to stop working on it. The reaching-into-HA
+   * part is in `card-apply.js`; what is left here is what the button says.
+   */
+  async _apply() {
+    if (this._applyState === 'saving') return;
+    this._applyState = 'saving';
+    this._applyError = '';
+    const result = await applyCardConfig(this);
+    if (!result.ok) {
+      this._applyState = 'idle';
+      this._applyError = result.error;
+      return;
+    }
+    this._applyState = 'saved';
+    clearTimeout(this._appliedTimer);
+    this._appliedTimer = setTimeout(() => { this._applyState = 'idle'; }, APPLY_SAVED_MS);
+  }
+
   /** The window the canvas is zoomed and scrolled inside. */
   get _view() { return this.shadowRoot?.querySelector('.canvas-view') ?? null; }
+
+  /**
+   * How many times its own height the window is drawn at.
+   *
+   * One everywhere except inside a gauge, where the window is squared off -
+   * so the stretch is exactly what a flat canvas is missing, and nothing on
+   * a canvas that is not flat. See INNER_RATIO.
+   */
+  get _viewStretch() {
+    if (!this._innerOn) return 1;
+    const c = this._canvas;
+    if (!c?.h) return 1;
+    return Math.max(1, c.w / c.h / INNER_RATIO);
+  }
 
   /** Whether the pointer is standing over the canvas and its strip. */
   _pointerOverCanvas() {
@@ -2229,13 +2349,23 @@ class ScCanvasEditor extends LitElement {
   /**
    * Fill the window with what is selected.
    *
-   * The window carries the canvas' own aspect ratio, so the zoom that fits a
-   * box is the ratio of the canvas to that box in whichever axis is tighter -
-   * no pixels in it, which is also why it is right before the canvas has been
-   * laid out at the new zoom. The scroll that centres it needs the new
-   * layout, so it waits for the render.
+   * The window carries the canvas' own aspect ratio, stretched in height
+   * where a gauge is being taken apart, so the zoom that fits a box is the
+   * ratio of the canvas to that box in whichever axis is tighter - no pixels
+   * in it, which is also why it is right before the canvas has been laid out
+   * at the new zoom. The scroll that centres it needs the new layout, so it
+   * waits for the render.
+   *
+   * `margin` is how much of the window is left as air around what is fitted,
+   * and `atLeast` a floor the fit may not go under. The button uses both
+   * defaults - air to see a selection in its surroundings, and no floor,
+   * because shrinking to show the whole of something is the point there. The
+   * way into a gauge uses neither: it fills the window, and never zooms out
+   * of where it already was.
+   *
+   * @param {{atLeast?: number, margin?: number}} [opts]
    */
-  _zoomToSelection() {
+  _zoomToSelection({ atLeast = 0, margin = FIT_MARGIN } = {}) {
     const c = this._canvas;
     const boxes = c.elements.filter(el => this._isSel(el.id));
     if (!boxes.length) return;
@@ -2243,7 +2373,11 @@ class ScCanvasEditor extends LitElement {
     const y0 = Math.min(...boxes.map(b => b.y));
     const x1 = Math.max(...boxes.map(b => b.x + b.w));
     const y1 = Math.max(...boxes.map(b => b.y + b.h));
-    const z = FIT_MARGIN * Math.min(c.w / Math.max(x1 - x0, 0.001), c.h / Math.max(y1 - y0, 0.001));
+    // The window's height is the canvas' own times the stretch, so the
+    // vertical fit has that much more room than the shape alone says.
+    const z = Math.max(atLeast,
+                       margin * Math.min(c.w / Math.max(x1 - x0, 0.001),
+                                         c.h * this._viewStretch / Math.max(y1 - y0, 0.001)));
     this._zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
     if (this._zoomKey) zoomMemory.set(this._zoomKey, this._zoom);
     const mid = { x: (x0 + x1) / 2 / c.w, y: (y0 + y1) / 2 / c.h };
@@ -2304,7 +2438,8 @@ class ScCanvasEditor extends LitElement {
     // left by selecting something else, which never comes through here.
     if (opening) {
       this._zoomBefore = this._zoom;
-      this._zoomToSelection();
+      // Fill the window, and never out: the way in is only ever a way closer.
+      this._zoomToSelection({ atLeast: this._zoom, margin: INNER_FILL });
     }
   }
 
@@ -2416,6 +2551,18 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
+   * Let go of whichever of a gauge's parts was in hand.
+   *
+   * A part is framed for as long as it is the one being set, and the frame is
+   * also what hides its fields in the form - so there has to be a way out of
+   * it that is not taking hold of a different part. Bare canvas is that way
+   * out, inside the gauge as well as beside it.
+   */
+  _letGoOfPart() {
+    if (this._innerSel) this._innerSel = null;
+  }
+
+  /**
    * Pick up one of a gauge's parts.
    *
    * The snapshot is the first commit's, and every commit after it inside the
@@ -2495,9 +2642,8 @@ class ScCanvasEditor extends LitElement {
     const a = needleAngle(gauge?.shadowRoot?.querySelector('[data-sc-needle]')) * Math.PI / 180;
     const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
     const ring = ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale);
-    const C = GAUGE_VIEW / 2;
-    const cx = C + SC.safeFloat(cfg.pivot_offset_x, 0);
-    const cy = C + SC.safeFloat(cfg.pivot_offset_y, 0);
+    const cx = GAUGE_VIEW / 2;
+    const cy = cx;
     const ends = needleEnds(SC.safeFloat(cfg.pointer_offset, 2),
                             SC.safeFloat(cfg.pointer_length, 10), ring, scale);
     const on = (/** @type {number} */ r) =>
@@ -2614,17 +2760,15 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
-   * Add to or take from the number the two corner buttons hold for whichever
-   * ring is in hand - a tick count, a sub-tick count, a label's type size.
+   * Add to or take from one of the numbers offered under the chip of whichever
+   * ring is in hand - a tick count, how long a mark is, how thick.
    *
    * One press is one step and one undo step, which is what separates it from
    * the ring drag beside it.
    */
-  _stepRing(dir) {
+  _stepRing(st, dir) {
     const target = this._innerTarget;
-    const spec = GAUGE_RINGS[this._innerSel || ''];
-    if (!target || !spec) return;
-    const st = spec.step;
+    if (!target || !st) return;
     const was = SC.safeFloat(target.cfg[st.key], st.dflt);
     const next = Math.min(st.max, Math.max(st.min, Math.round((was + dir * st.by) * 10) / 10));
     if (next === was) return;
@@ -2646,15 +2790,9 @@ class ScCanvasEditor extends LitElement {
     const cfg = this._innerTarget?.cfg || {};
     const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
     const pxPerUnit = r.width / GAUGE_VIEW;
-    // The pointer and its hub turn about the pivot, which a card may have moved
-    // off the gauge's centre - and `pivot_offset_*` is not scaled, the way the
-    // renderer reads it.
-    const off = GAUGE_RINGS[part]?.pivot
-      ? { x: SC.safeFloat(cfg.pivot_offset_x, 0), y: SC.safeFloat(cfg.pivot_offset_y, 0) }
-      : { x: 0, y: 0 };
     return {
-      cx: r.left + r.width / 2 + off.x * pxPerUnit,
-      cy: r.top + r.height / 2 + off.y * pxPerUnit,
+      cx: r.left + r.width / 2,
+      cy: r.top + r.height / 2,
       pxPerUnit, scale,
       ring: ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale),
     };
@@ -2705,12 +2843,9 @@ class ScCanvasEditor extends LitElement {
     const r = ringPartAt(spec, cfg, ring, scale);
     const rx = Math.abs(r) / GAUGE_VIEW * svg.w;
     const ry = Math.abs(r) / GAUGE_VIEW * svg.h;
-    const off = spec.pivot
-      ? { x: SC.safeFloat(cfg.pivot_offset_x, 0), y: SC.safeFloat(cfg.pivot_offset_y, 0) }
-      : { x: 0, y: 0 };
     return {
-      cx: svg.l + svg.w * (0.5 + off.x / GAUGE_VIEW),
-      cy: svg.t + svg.h * (0.5 + off.y / GAUGE_VIEW),
+      cx: svg.l + svg.w * 0.5,
+      cy: svg.t + svg.h * 0.5,
       rx, ry,
     };
   }
@@ -2891,14 +3026,12 @@ class ScCanvasEditor extends LitElement {
     const ring = ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale);
     const at = (/** @type {any} */ spec) => Math.abs(ringPartAt(spec, cfg, ring, scale));
     const C = GAUGE_VIEW / 2;
-    // The pointer and its hub turn about the pivot, wherever the card has put
-    // it; everything else is drawn about the gauge's centre.
-    const cen = (/** @type {any} */ spec) => spec.pivot
-      ? { x: C + SC.safeFloat(cfg.pivot_offset_x, 0), y: C + SC.safeFloat(cfg.pivot_offset_y, 0) }
-      : { x: C, y: C };
+    // Every part of a gauge is drawn about its centre, the needle and its hub
+    // included - they turn about it.
+    const cen = { x: C, y: C };
     // Both ends laid out on the line the needle is pointing along right now.
     const needleAt = (/** @type {any} */ spec) => {
-      const c = cen(spec);
+      const c = cen;
       const a2 = (this._innerRects?.angle ?? 0) * Math.PI / 180;
       const ends = needleEnds(SC.safeFloat(cfg.pointer_offset, 2),
                               SC.safeFloat(cfg.pointer_length, 10), ring, scale);
@@ -2910,7 +3043,7 @@ class ScCanvasEditor extends LitElement {
       <svg class="ring-layer" viewBox="0 0 ${GAUGE_VIEW} ${GAUGE_VIEW}"
            style="left:${svgBox.l}%; top:${svgBox.t}%; width:${svgBox.w}%; height:${svgBox.h}%;">
         ${live.filter(([, spec]) => !spec.needle).map(([part, spec]) => {
-          const c = cen(spec);
+          const c = cen;
           const r = at(spec);
           if (r < 0.5) return '';
           return svg`
@@ -2946,7 +3079,7 @@ class ScCanvasEditor extends LitElement {
         })}
       </svg>
       ${live.map(([part, spec]) => {
-        const c = cen(spec);
+        const c = cen;
         const clampPc = (/** @type {number} */ v) => Math.max(2, Math.min(98, v));
         // The needle's chip cannot stand on a ring, so it stands beside the
         // line instead - at its middle, a little way off to one side, clear of
@@ -2989,36 +3122,45 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
-   * The two buttons under the chip of whichever part is in hand.
+   * The numbers under the chip of whichever part is in hand.
    *
-   * They hold the number a person reaches for once the distance is right - a
-   * tick count, a sub-tick count, the size of the label type. Under the chip
-   * rather than on the ring, because the ring is already saying one thing by
-   * being dragged and a second control on it would be a second meaning for
-   * the same gesture; and under the chip rather than in the frame's corner,
-   * because the corner is the far side of the gauge from the part the buttons
-   * belong to.
+   * They hold what a person reaches for once the distance is right - how many
+   * marks there are, how long they run and how thick they are drawn, or the
+   * size of the tick labels' type. Under the chip rather than on the ring,
+   * because the ring is already saying one thing by being dragged and a second
+   * control on it would be a second meaning for the same gesture; and under
+   * the chip rather than in the frame's corner, because the corner is the far
+   * side of the gauge from the part the numbers belong to.
+   *
+   * One number per line, each wearing its own glyph. Three pairs of identical
+   * buttons would say nothing about which is which, and a word in front of
+   * each would be wider than the gauge they stand on.
    */
   _renderRingSteppers(left, top) {
     const spec = GAUGE_RINGS[this._innerSel || ''];
     const target = this._innerTarget;
-    // Not every ring has a second number worth a pair of buttons - the hub is
-    // one size and nothing else - and no cluster at all says so better than
-    // one that does nothing.
-    if (!spec?.step || !target) return '';
-    const st = spec.step;
-    const now = SC.safeFloat(target.cfg[st.key], st.dflt);
+    // Not every ring has a number worth a pair of buttons - the hub is one
+    // size and nothing else - and no cluster at all says so better than one
+    // that does nothing.
+    if (!spec?.steps?.length || !target) return '';
     const swallow = (/** @type {any} */ e) => { e.stopPropagation(); e.preventDefault(); };
-    const btn = (/** @type {number} */ dir, /** @type {string} */ glyph) => html`
-      <button class="ring-step" ?disabled=${dir > 0 ? now >= st.max : now <= st.min}
-              title=${`${dir > 0 ? 'More' : 'Fewer'} ${st.what}`}
-              @pointerdown=${swallow}
-              @click=${() => this._stepRing(dir)}>${glyph}</button>`;
+    const group = (/** @type {any} */ st) => {
+      const now = SC.safeFloat(target.cfg[st.key], st.dflt);
+      const btn = (/** @type {number} */ dir, /** @type {string} */ glyph) => html`
+        <button class="ring-step" ?disabled=${dir > 0 ? now >= st.max : now <= st.min}
+                title=${`${dir > 0 ? 'More' : 'Less'} ${st.what}`}
+                @pointerdown=${swallow}
+                @click=${() => this._stepRing(st, dir)}>${glyph}</button>`;
+      return html`
+        <span class="ring-group">
+          <span class="ring-step-icon" title=${`${spec.label}: ${st.what}`}>${st.icon}</span>
+          ${btn(-1, '−')}<span class="ring-step-val">${now}</span>${btn(1, '+')}
+        </span>`;
+    };
     return html`
       <div class="ring-steps" data-part=${this._innerSel}
-           style="left:${left}%; top:${top}%;"
-           title=${`${spec.label}: ${st.what}`}>
-        ${btn(-1, '−')}<span class="ring-step-val">${now}</span>${btn(1, '+')}
+           style="left:${left}%; top:${top}%;">
+        ${spec.steps.map(group)}
       </div>`;
   }
 
@@ -3100,6 +3242,7 @@ class ScCanvasEditor extends LitElement {
     // past its client box, which is the scrollbar's own strip.
     if (view && e.target === view
         && (e.offsetX >= view.clientWidth || e.offsetY >= view.clientHeight)) return;
+    this._letGoOfPart();
     const canvas = e.currentTarget.querySelector('.canvas');
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -3838,13 +3981,22 @@ class ScCanvasEditor extends LitElement {
             </button>
             ${this._menu ? this._renderAddMenu() : ''}
           </div>
+          ${this._placing ? '' : SC.tipDot('Later in the list draws on top. A gauge and a '
+                     + 'round bar stay square and fill their box.')}
+          <button class="add-btn apply-btn" style="width:auto; padding:6px 12px;"
+                  ?disabled=${this._applyState === 'saving'}
+                  title="Put the card on the dashboard now and carry on - the dialog stays open"
+                  @click=${() => this._apply()}>
+            ${this._applyState === 'saved' ? '✓ Saved'
+              : this._applyState === 'saving' ? '💾 Saving…' : '💾 Apply'}
+          </button>
+          ${this._applyError ? html`<span class="hint apply-error">${this._applyError}</span>` : ''}
           ${this._placing
             // The one line of prose that is not an explanation but an
             // instruction for a mode the editor is in, so it stays on screen.
             ? html`<span class="hint" style="flex:1">Click on the canvas to place the
                    ${this._placingLabel}. Escape cancels.</span>`
-            : html`${SC.tipDot('Later in the list draws on top. A gauge and a round bar stay '
-                     + 'square and fill their box.')}<span style="flex:1"></span>`}
+            : html`<span style="flex:1"></span>`}
           <div class="names history">
             <button title=${this._undoStack.length
                       ? 'Undo the last change to the canvas or its elements'
@@ -3874,7 +4026,7 @@ class ScCanvasEditor extends LitElement {
                @pointerdown=${this._onCanvasDown}
                @auxclick=${e => { if (e.button === 1) e.preventDefault(); }}
                @wheel=${this._onWheel}>
-          <div class="canvas-view" style="aspect-ratio:${c.w} / ${c.h};">
+          <div class="canvas-view" style="aspect-ratio:${c.w} / ${c.h * this._viewStretch};">
           <div class="canvas ${this._pushed('main') ? 'pushed' : ''}" style="aspect-ratio:${c.w} / ${c.h}; width:${this._zoom * 100}%;">
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
             ${this._placing ? html`

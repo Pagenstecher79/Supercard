@@ -287,6 +287,14 @@ an editor that has a field array, and do not invent a second renderer: a block
 that is not a field - a preview, a picker grid, a datalist - is
 `type: 'custom'` and hands the markup back through `render(ctx)`.
 
+**Settings that the drawing expresses belong on the drawing**, and the form
+has to let go of them in the same change - `field.framedBy` names the part
+whose frame replaces a field, and the field disappears while that part is
+framed. Two live controls for one value is worse than one badly placed
+control. `docs/canvas-editing.md` is the guide to the rest of it: what may be
+a control on a canvas, the hit-testing and stacking rules, how the zoom
+belongs to the mode, and how to know any of it works.
+
 A folded section is `type: 'details'`, drawn the same everywhere - the gauge
 and the bar build theirs from a `'section'` field instead, because their own
 renderers split a flat list into sections, but the fold looks the same. Every

@@ -932,8 +932,10 @@ class ScGauge extends LitElement {
       </div>`;
 
     const is3d = this._get('pointer_3d_effect', false);
-    const pivotX = this.CENTER + safeFloat(this._get('pivot_offset_x',0),0);
-    const pivotY = this.CENTER + safeFloat(this._get('pivot_offset_y',0),0);
+    // The needle turns about the gauge's centre. It used to be movable off it,
+    // which is why the pivot is still named rather than written out: the shadow
+    // is placed against it, and everything the needle draws is drawn from it.
+    const pivot = this.CENTER;
     const dotR = safeFloat(this._get('pointer_center_radius',2),2) * scale;
     const shape = (color, gradId) => this._get('pointer_type','needle') === 'triangle'
       ? svg`<polygon points="${rTip},0 ${xBase},${(-pW/2).toFixed(2)} ${xBase},${(pW/2).toFixed(2)}" fill="${color}"/>${
@@ -941,19 +943,19 @@ class ScGauge extends LitElement {
       : svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="${color}" stroke-width="${pW}" stroke-linecap="round"/>${
           gradId ? svg`<line x1="${xBase}" y1="0" x2="${rTip}" y2="0" stroke="url(#${gradId})" stroke-width="${pW}" stroke-linecap="round"/>` : ''}`;
 
-    // The shadow rotates about its own offset pivot, as it did when it was a
-    // translate inside the rotating group.
-    const shadowAt = (content) => layer(pivotX + sX, pivotY + sY, true, svg`
+    // The shadow rotates about its own pivot, offset from the needle's - as it
+    // did when it was a translate inside the rotating group.
+    const shadowAt = (content) => layer(pivot + sX, pivot + sY, true, svg`
           ${shadowDef}
-          <g transform="translate(${(pivotX + sX).toFixed(2)}, ${(pivotY + sY).toFixed(2)})" filter="${filterAttr}" opacity="${sOpacity}">
+          <g transform="translate(${(pivot + sX).toFixed(2)}, ${(pivot + sY).toFixed(2)})" filter="${filterAttr}" opacity="${sOpacity}">
             ${content}
           </g>`);
 
     const pointerLayers = html`
       ${filterAttr ? shadowAt(svg`<circle cx="0" cy="0" r="${dotR}" fill="${sCol}"/>${is3d ? '' : shape(sCol, null)}`) : ''}
-      ${layer(pivotX, pivotY, false, svg`<circle cx="${pivotX}" cy="${pivotY}" r="${dotR}" fill="${resolveColor(this._get('pointer_dot_color_type','fixed'), this._get('pointer_dot_color',[255,255,255]))}"/>`)}
+      ${layer(pivot, pivot, false, svg`<circle cx="${pivot}" cy="${pivot}" r="${dotR}" fill="${resolveColor(this._get('pointer_dot_color_type','fixed'), this._get('pointer_dot_color',[255,255,255]))}"/>`)}
       ${(filterAttr && is3d) ? shadowAt(shape(sCol, null)) : ''}
-      ${layer(pivotX, pivotY, true, svg`
+      ${layer(pivot, pivot, true, svg`
           ${is3d ? svg`<defs>
             <linearGradient id="sc-3d-pointer-grad" x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stop-color="white" stop-opacity="0.8"/>
@@ -962,7 +964,7 @@ class ScGauge extends LitElement {
               <stop offset="100%" stop-color="black" stop-opacity="0.6"/>
             </linearGradient>
           </defs>` : ''}
-          <g transform="translate(${pivotX.toFixed(2)}, ${pivotY.toFixed(2)})">${shape(pCol, is3d ? 'sc-3d-pointer-grad' : null)}</g>`, true)}`;
+          <g transform="translate(${pivot.toFixed(2)}, ${pivot.toFixed(2)})">${shape(pCol, is3d ? 'sc-3d-pointer-grad' : null)}</g>`, true)}`;
 
     return html`
       <div class="sc-gauge-wrap" @touchstart=${this._handleTouch} style="${wrapStyle}">
