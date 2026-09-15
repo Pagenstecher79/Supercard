@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { offsetsFromDrag, fontFromResize, estimateRect, clamp,
          ringRadius, ringPartRadius, offsetFromRadius,
-         OFFSET_LIMIT, FONT_MAX, FONT_MIN, GAUGE_CENTER } from './gauge-inner-boxes.js';
+         OFFSET_LIMIT, FONT_MAX, FONT_MIN, GAUGE_CENTER,
+         needleEnds, needleFromRadius } from './gauge-inner-boxes.js';
 
 describe('offsetsFromDrag', () => {
   it('turns pixels into viewBox units at the measured scale', () => {
@@ -121,5 +122,50 @@ describe('the ring', () => {
     const ring = ringRadius(4, 1);
     expect(offsetFromRadius(ring, ring + 500, 1, 15)).toBe(15);
     expect(offsetFromRadius(ring, ring - 500, 1, 15)).toBe(-15);
+  });
+});
+
+describe('the needle', () => {
+  it('puts the tail a length back from the tip', () => {
+    const e = needleEnds(2, 10, 20, 1);
+    expect(e.tip).toBe(18);
+    expect(e.tail).toBe(8);
+  });
+
+  it('lets a long needle put its tail past the pivot', () => {
+    expect(needleEnds(2, 25, 20, 1).tail).toBe(-7);
+  });
+
+  it('scales both ends with the gauge', () => {
+    const e = needleEnds(2, 10, 18, 0.9);
+    expect(e.tip).toBeCloseTo(16.2, 6);
+    expect(e.tail).toBeCloseTo(7.2, 6);
+  });
+
+  it('reads a dragged tail back as a length, tip untouched', () => {
+    expect(needleFromRadius('tail', 8, 2, 10, 20, 1)).toEqual({ pointer_length: 10 });
+    expect(needleFromRadius('tail', 4, 2, 10, 20, 1)).toEqual({ pointer_length: 14 });
+  });
+
+  it('keeps counting when the tail is dragged through the pivot', () => {
+    expect(needleFromRadius('tail', -6, 2, 10, 20, 1)).toEqual({ pointer_length: 24 });
+  });
+
+  it('holds the tail still when the tip is dragged', () => {
+    const p = needleFromRadius('tip', 22, 2, 10, 20, 1);
+    expect(p.pointer_offset).toBe(-2);
+    expect(p.pointer_length).toBe(14);
+    expect(needleEnds(p.pointer_offset, p.pointer_length, 20, 1).tail).toBe(8);
+  });
+
+  it('never writes a length its own slider would refuse', () => {
+    expect(needleFromRadius('tail', 999, 2, 10, 20, 1).pointer_length).toBe(0);
+    expect(needleFromRadius('tail', -999, 2, 10, 20, 1).pointer_length).toBe(50);
+    expect(needleFromRadius('tip', -999, 2, 10, 20, 1).pointer_offset).toBe(10);
+    expect(needleFromRadius('tip', 999, 2, 10, 20, 1).pointer_offset).toBe(-10);
+  });
+
+  it('rounds to the tenth the sliders step in', () => {
+    expect(needleFromRadius('tail', 3.33, 2, 10, 20, 0.9).pointer_length).toBe(16.5);
   });
 });

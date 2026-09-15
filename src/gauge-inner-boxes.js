@@ -132,3 +132,50 @@ export function ringPartRadius(ring, offset, scale) {
 export function offsetFromRadius(ring, radius, scale, limit = OFFSET_LIMIT) {
   return clamp(tenth((radius - ring) / (scale || 1)), -limit, limit);
 }
+
+/** What the pointer's own two sliders allow, which a drag may not step past. */
+export const POINTER_LENGTH_MAX = 50;
+export const POINTER_OFFSET_LIMIT = 10;
+
+/**
+ * Where the needle's two ends stand, as radii from the pivot.
+ *
+ * The tip is the ring less the pointer's offset; the tail is a length back
+ * along the same line, and that one is free to be negative - a needle longer
+ * than its tip's radius has a tail out the other side of the pivot, which is
+ * a dial people draw on purpose.
+ *
+ * @param {number} offset `pointer_offset` @param {number} length `pointer_length`
+ * @param {number} ring @param {number} scale
+ */
+export function needleEnds(offset, length, ring, scale) {
+  const tip = ring - (offset || 0) * (scale || 1);
+  return { tip, tail: tip - (length || 0) * (scale || 1) };
+}
+
+/**
+ * One end dragged to a radius, read back as the fields that would put it
+ * there - `needleEnds` backwards, which is what a needle handle has to do.
+ *
+ * The radius is signed along the needle's own line, so an end dragged through
+ * the pivot and out the far side keeps counting rather than folding back.
+ * Each end moves only itself: the tail is a length against a tip that stays,
+ * and the tip carries an offset while the tail stays, which is why the tip
+ * writes both fields.
+ *
+ * @param {'tip' | 'tail'} end
+ * @param {number} at the radius the end has been dragged to
+ * @param {number} offset @param {number} length @param {number} ring @param {number} scale
+ */
+export function needleFromRadius(end, at, offset, length, ring, scale) {
+  const s = scale || 1;
+  const ends = needleEnds(offset, length, ring, s);
+  if (end === 'tail') {
+    return { pointer_length: clamp(tenth((ends.tip - at) / s), 0, POINTER_LENGTH_MAX) };
+  }
+  const off = clamp(tenth((ring - at) / s), -POINTER_OFFSET_LIMIT, POINTER_OFFSET_LIMIT);
+  return {
+    pointer_offset: off,
+    pointer_length: clamp(tenth((ring - off * s - ends.tail) / s), 0, POINTER_LENGTH_MAX),
+  };
+}

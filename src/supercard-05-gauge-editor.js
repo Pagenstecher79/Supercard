@@ -196,7 +196,7 @@ const STYLE_FIELDS = [
   { id: 'pointer_type',           label: 'Pointer shape',                type: 'select',  options: [ { value: 'needle', label: 'Needle' }, { value: 'triangle', label: 'Triangle' } ] },
   { id: 'pointer_width',          label: 'Pointer width',              type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '2', framedBy: 'pointer'   },
   { id: 'pointer_length',         label: 'Pointer length',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10', framedBy: 'pointer'  },
-  { id: 'pointer_offset',         label: 'Pointer offset from ring',     type: 'range',    min: -10, max: 10, step: 0.1,  placeholder: '2'   },
+  { id: 'pointer_offset',         label: 'Pointer offset from ring',     type: 'range',    min: -10, max: 10, step: 0.1,  placeholder: '2', framedBy: 'pointer'   },
   { id: 'pointer_center_radius',  label: 'Centre point size',          type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '2', framedBy: 'pointer_center'   },
   { id: 'pivot_offset_x',         label: 'Pivot offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'   },
   { id: 'pivot_offset_y',         label: 'Pivot offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'  },
@@ -774,7 +774,13 @@ class ScGaugeEditor extends LitElement {
   _framedNote(items) {
     const framed = items.find(f => f.framedBy && this._framed.has(f.framedBy));
     if (!framed) return '';
-    return html`<div class="framed-note">${RING_PARTS.has(framed.framedBy)
+    // The needle is the one framed part that is dragged by its ends rather
+    // than in and out, so it is the one that has to say so.
+    return html`<div class="framed-note">${framed.framedBy === 'pointer'
+      ? html`Length and offset are on the canvas while this one is selected -
+             drag either end of the needle, or use the buttons in the frame's
+             corner.`
+      : RING_PARTS.has(framed.framedBy)
       ? html`Distance and count are on the canvas while this one is selected -
              drag its ring, or use the buttons in the frame's corner.`
       : html`Size and position are on the canvas while this one is selected -

@@ -10,7 +10,8 @@ import { resolveSnap, gridToUnits, unitsToGrid, applyDrag, applyGroupDrag, distr
          NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
 import { needsRowsCompat, rowsAsCanvas } from "./rows-compat.js";
 import { offsetsFromDrag, fontFromResize, GAUGE_VIEW,
-         ringRadius, ringPartRadius, offsetFromRadius } from "./gauge-inner-boxes.js";
+         ringRadius, ringPartRadius, offsetFromRadius,
+         needleEnds, needleFromRadius } from "./gauge-inner-boxes.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from "./label-typography.js";
 
@@ -601,18 +602,18 @@ const GAUGE_RINGS = Object.freeze({
     step: { key: 'tick_label_font_size', by: 0.5, min: 1, max: 20, dflt: 7,
             what: 'label type' },
   },
-  // The needle's base end, which is what a length moves - the tip stays where
-  // `pointer_offset` puts it, so the ring shown is the circle the base rides
-  // on. Always drawn: a gauge has no switch for its pointer, so there is
-  // nothing to offer and nothing to take away.
+  // The needle is not a ring at all - it is a line, and it is grabbed by
+  // either end. A circle the base rides on cannot be pulled through the pivot,
+  // because a radius has no far side; two handles on a signed line can, which
+  // is how a needle gets the tail out the other side that dials often have.
+  // Always drawn: a gauge has no switch for its pointer, so there is nothing
+  // to offer and nothing to take away.
   pointer: {
-    label: 'Pointer', section: '_section_pointer', pivot: true,
+    label: 'Pointer', section: '_section_pointer', pivot: true, needle: true,
     on: () => true,
     radiusOf: (/** @type {any} */ cfg, /** @type {number} */ ring, /** @type {number} */ scale) =>
-      ring - (SC.safeFloat(cfg.pointer_offset, 2) + SC.safeFloat(cfg.pointer_length, 10)) * scale,
-    fromRadius: (/** @type {number} */ r, /** @type {any} */ cfg, /** @type {number} */ ring, /** @type {number} */ scale) => ({
-      pointer_length: offsetFromRadius(0, ring - SC.safeFloat(cfg.pointer_offset, 2) * scale - r, scale, 25),
-    }),
+      needleEnds(SC.safeFloat(cfg.pointer_offset, 2), SC.safeFloat(cfg.pointer_length, 10),
+                 ring, scale).tip,
     step: { key: 'pointer_width', by: 0.1, min: 0.1, max: 10, dflt: 2, what: 'pointer width' },
   },
   pointer_center: {
@@ -658,8 +659,37 @@ const ringPartPatch = (/** @type {any} */ spec, /** @type {number} */ r, /** @ty
  */
 const FROZEN_WHILE_HELD = new Set(['pointer', 'pointer_center']);
 
+/**
+ * The needle's two ends, and what each one is for.
+ *
+ * Each moves only itself: the tail is a length taken from a tip that stays
+ * put, and the tip carries its offset while the tail stays put - so the two
+ * together set a length from whichever end is nearer the hand.
+ */
+const NEEDLE_ENDS = Object.freeze({
+  tip: { what: 'point' },
+  tail: { what: 'tail' },
+});
+
 const RING_CHIP_ANGLE = Object.freeze({ ticks: -90, sub_ticks: -50, tick_labels: -20,
-                                       pointer: 150, pointer_center: 200 });
+                                       pointer_center: 200 });
+
+/**
+ * Which way the needle is pointing at this instant, in degrees clockwise from
+ * three o'clock.
+ *
+ * The matrix rather than the inline `rotate()`: that one says where the needle
+ * is going, and while the transition runs the two are different numbers.
+ */
+function needleAngle(el) {
+  if (!el) return 0;
+  try {
+    const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+    return Math.atan2(m.b, m.a) * 180 / Math.PI;
+  } catch {
+    return 0;
+  }
+}
 
 /** Either kind of inner part, looked up by the one name the editor holds. */
 const innerSpec = (/** @type {string} */ part) => GAUGE_PARTS[part] || GAUGE_RINGS[part];
@@ -1189,6 +1219,14 @@ class ScCanvasEditor extends LitElement {
         filter: drop-shadow(0 0 0.5px rgba(0,0,0,0.9)); }
       .ring-hit { fill: none; stroke: transparent; stroke-width: 2.4;
         pointer-events: stroke; cursor: ns-resize; touch-action: none; }
+      /* The needle's two ends. Filled, unlike the bands: a grip is small
+         enough that taking every press inside it is what it is for, and the
+         needle has nothing underneath it worth reading through. */
+      .ring-grip { fill: #8ce0ff; stroke: rgba(0,0,0,0.9); stroke-width: 0.2;
+        opacity: 0.6; }
+      .ring-grip.sel { opacity: 1; }
+      .ring-grip-hit { fill: transparent; stroke: none; pointer-events: all;
+        cursor: move; touch-action: none; }
       .ring-tag { position: absolute; transform: translate(-50%, -50%);
         display: flex; align-items: center; gap: 3px; z-index: 6;
         font-size: 9px; line-height: 1; padding: 2px 4px; border-radius: 3px;
@@ -2181,6 +2219,7 @@ class ScCanvasEditor extends LitElement {
     // inside it, so this is what an offset in viewBox units is a fraction of.
     const svg = gauge?.shadowRoot?.querySelector('svg');
     const texts = gauge?.shadowRoot?.querySelectorAll('[data-sc-part]') || [];
+    const needle = gauge?.shadowRoot?.querySelector('[data-sc-needle]');
     if (!box || !svg) {
       if (this._innerRects) this._innerRects = null;
       return false;
@@ -2191,6 +2230,10 @@ class ScCanvasEditor extends LitElement {
     /** @type {any} */
     const next = {
       parts: {},
+      // Off the computed transform rather than off the config: mid-animation
+      // the needle is wherever the transition has got to, and that is where
+      // its handles have to be. Zero when there is no needle to read.
+      angle: needleAngle(needle),
       svg: {
         l: (svgRect.left - elRect.left) / elRect.width * 100,
         t: (svgRect.top - elRect.top) / elRect.height * 100,
@@ -2220,6 +2263,7 @@ class ScCanvasEditor extends LitElement {
     const same = was
       && Object.keys(next.parts).length === Object.keys(was.parts).length
       && ['l', 't', 'w', 'h'].every(f => Math.abs(was.svg[f] - next.svg[f]) < 0.05)
+      && Math.abs(was.angle - next.angle) < 0.05
       && Object.entries(next.parts).every(([k, v]) => {
         const o = was.parts[k];
         return o && ['l', 't', 'w', 'h'].every(f => Math.abs(o[f] - v[f]) < 0.05)
@@ -2258,7 +2302,7 @@ class ScCanvasEditor extends LitElement {
    * same gesture is kept off the stack the way an undo's own writes are -
    * dragging a label across the gauge is one thing done, not forty.
    */
-  _innerDown(e, part, mode) {
+  _innerDown(e, part, mode, end = null) {
     const target = this._innerTarget;
     if (!target) return;
     e.stopPropagation();
@@ -2270,10 +2314,19 @@ class ScCanvasEditor extends LitElement {
     if (fresh) this._revealPart(part);
     // A ring is dragged in and out rather than about, so what the gesture
     // carries is the geometry it is measured against, not a pair of offsets.
-    if (mode === 'ring') {
+    if (mode === 'ring' || mode === 'needle') {
       const geo = this._ringGeometry(part);
       if (!geo) return;
-      this._innerDrag = { idx: target.idx, part, mode, ...geo, started: false };
+      // The needle's other end is taken once, here, and held for the whole
+      // gesture: recomputing it from the config every move would feed each
+      // rounding back into the next one, and the end nobody is touching would
+      // creep away under the hand.
+      const cfg = target.cfg;
+      const from = mode === 'needle'
+        ? { offset: SC.safeFloat(cfg.pointer_offset, 2),
+            length: SC.safeFloat(cfg.pointer_length, 10) }
+        : null;
+      this._innerDrag = { idx: target.idx, part, mode, end, from, ...geo, started: false };
       this._ptr = { x: e.clientX, y: e.clientY };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no live pointer */ }
       return;
@@ -2301,6 +2354,17 @@ class ScCanvasEditor extends LitElement {
     const d = this._innerDrag;
     const p = this._ptr;
     if (!d || !p) return;
+    if (d.mode === 'needle') {
+      // Along the needle's own line, signed: a distance would fold the far
+      // side of the pivot back onto the near one, and the far side is exactly
+      // where a tail is dragged to.
+      const ang = (this._innerRects?.angle ?? 0) * Math.PI / 180;
+      const at = ((p.x - d.cx) * Math.cos(ang) + (p.y - d.cy) * Math.sin(ang)) / d.pxPerUnit;
+      this._writeGauge(d.idx, needleFromRadius(d.end, at, d.from.offset, d.from.length,
+                                               d.ring, d.scale), d.started);
+      d.started = true;
+      return;
+    }
     if (d.mode === 'ring') {
       const spec = GAUGE_RINGS[d.part];
       if (!spec) return;
@@ -2619,7 +2683,8 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
-   * The ring frames, and the chip on each that names it and takes it off.
+   * The ring frames, the needle's two handles, and the chip on each that names
+   * it and takes it off.
    *
    * One SVG over the gauge's own square, in the gauge's own viewBox, so a ring
    * is a circle and not an ellipse however the element's box is shaped. The
@@ -2627,6 +2692,10 @@ class ScCanvasEditor extends LitElement {
    * transparent circle - because a filled one would swallow every press on the
    * gauge inside it, the text frames and the drag of the element itself
    * included.
+   *
+   * The needle is the one part that is not a ring: it is drawn as the line it
+   * is, grabbed by either end, and laid out along the angle measured off the
+   * live needle so the handles ride with it.
    *
    * @param {(e: any) => void} swallow
    */
@@ -2645,14 +2714,37 @@ class ScCanvasEditor extends LitElement {
     const cen = (/** @type {any} */ spec) => spec.pivot
       ? { x: C + SC.safeFloat(cfg.pivot_offset_x, 0), y: C + SC.safeFloat(cfg.pivot_offset_y, 0) }
       : { x: C, y: C };
+    // Both ends laid out on the line the needle is pointing along right now.
+    const needleAt = (/** @type {any} */ spec) => {
+      const c = cen(spec);
+      const a2 = (this._innerRects?.angle ?? 0) * Math.PI / 180;
+      const ends = needleEnds(SC.safeFloat(cfg.pointer_offset, 2),
+                              SC.safeFloat(cfg.pointer_length, 10), ring, scale);
+      const on = (/** @type {number} */ r) =>
+        ({ x: c.x + r * Math.cos(a2), y: c.y + r * Math.sin(a2) });
+      return { tip: on(ends.tip), tail: on(ends.tail) };
+    };
     return html`
       <svg class="ring-layer" viewBox="0 0 ${GAUGE_VIEW} ${GAUGE_VIEW}"
            style="left:${svgBox.l}%; top:${svgBox.t}%; width:${svgBox.w}%; height:${svgBox.h}%;">
         ${live.map(([part, spec]) => {
-          const r = at(spec);
-          if (r < 0.5) return '';
           const c = cen(spec);
           const sel = this._innerSel === part;
+          if (spec.needle) {
+            const n = needleAt(spec);
+            return svg`
+              <line class="ring-band ${sel ? 'sel' : ''}"
+                    x1=${n.tail.x} y1=${n.tail.y} x2=${n.tip.x} y2=${n.tip.y}></line>
+              ${Object.entries(NEEDLE_ENDS).map(([end, e2]) => svg`
+                <circle class="ring-grip ${sel ? 'sel' : ''}"
+                        cx=${n[end].x} cy=${n[end].y} r="1.1"></circle>
+                <circle class="ring-grip-hit" cx=${n[end].x} cy=${n[end].y} r="2.4"
+                        @pointerdown=${(/** @type {any} */ ev) => this._innerDown(ev, part, 'needle', end)}>
+                  <title>${'Drag the needle\'s ' + e2.what + ' to set its length'}</title>
+                </circle>`)}`;
+          }
+          const r = at(spec);
+          if (r < 0.5) return '';
           return svg`
             <circle class="ring-band ${sel ? 'sel' : ''}" cx=${c.x} cy=${c.y} r=${r}></circle>
             <circle class="ring-hit" cx=${c.x} cy=${c.y} r=${r}
@@ -2662,15 +2754,29 @@ class ScCanvasEditor extends LitElement {
         })}
       </svg>
       ${live.map(([part, spec]) => {
-        const r = at(spec);
         const c = cen(spec);
-        const ang = (RING_CHIP_ANGLE[part] ?? -90) * Math.PI / 180;
-        const l = svgBox.l + svgBox.w * (c.x + r * Math.cos(ang)) / GAUGE_VIEW;
-        const t = svgBox.t + svgBox.h * (c.y + r * Math.sin(ang)) / GAUGE_VIEW;
-        if (l < 0 || l > 100 || t < 0 || t > 100) return '';
+        const clampPc = (/** @type {number} */ v) => Math.max(2, Math.min(98, v));
+        // The needle's chip cannot stand on a ring, so it stands beside the
+        // line instead - at its middle, a little way off to one side, clear of
+        // both handles however long the needle is.
+        const spot = spec.needle
+          ? (() => {
+              const n = needleAt(spec);
+              const a2 = (this._innerRects?.angle ?? 0) * Math.PI / 180;
+              return { x: (n.tail.x + n.tip.x) / 2 - 4 * Math.sin(a2),
+                       y: (n.tail.y + n.tip.y) / 2 + 4 * Math.cos(a2) };
+            })()
+          : (() => {
+              const r = at(spec);
+              const a2 = (RING_CHIP_ANGLE[part] ?? -90) * Math.PI / 180;
+              return { x: c.x + r * Math.cos(a2), y: c.y + r * Math.sin(a2) };
+            })();
+        const l = svgBox.l + svgBox.w * spot.x / GAUGE_VIEW;
+        const t = svgBox.t + svgBox.h * spot.y / GAUGE_VIEW;
+        if (!spec.needle && (l < 0 || l > 100 || t < 0 || t > 100)) return '';
         return html`
           <span class="ring-tag ${this._innerSel === part ? 'sel' : ''}"
-                style="left:${l}%; top:${t}%;"
+                style="left:${clampPc(l)}%; top:${clampPc(t)}%;"
                 @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'ring')}>
             ${spec.label}
             ${spec.turnOff ? html`

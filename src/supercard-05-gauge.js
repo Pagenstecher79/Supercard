@@ -920,8 +920,10 @@ class ScGauge extends LitElement {
     // draws lands where it always did, and the stylesheet sizes it to the
     // square that viewBox fills - which is what makes a percentage origin
     // land exactly on the pivot.
-    const layer = (originX, originY, rotate, content) => html`
-      <div class="sc-gauge-layer"
+    // `needle` marks the one layer whose live angle the canvas editor reads off
+    // the DOM, so the handles on its two ends can ride along with it.
+    const layer = (originX, originY, rotate, content, needle = false) => html`
+      <div class="sc-gauge-layer" ?data-sc-needle=${needle}
            style="transform-origin: ${(originX / this.SIZE * 100).toFixed(4)}% ${(originY / this.SIZE * 100).toFixed(4)}%;${
              rotate ? ` transform: rotate(${renderAngle}deg); transition: transform ${this.frozen || !this._isInitialized ? 0 : dur}s ${easingCurve};` : ''}">
         <svg viewBox="0 0 ${this.SIZE} ${this.SIZE}" style="width:100%;height:100%;overflow:visible;display:block;">
@@ -960,7 +962,7 @@ class ScGauge extends LitElement {
               <stop offset="100%" stop-color="black" stop-opacity="0.6"/>
             </linearGradient>
           </defs>` : ''}
-          <g transform="translate(${pivotX.toFixed(2)}, ${pivotY.toFixed(2)})">${shape(pCol, is3d ? 'sc-3d-pointer-grad' : null)}</g>`)}`;
+          <g transform="translate(${pivotX.toFixed(2)}, ${pivotY.toFixed(2)})">${shape(pCol, is3d ? 'sc-3d-pointer-grad' : null)}</g>`, true)}`;
 
     return html`
       <div class="sc-gauge-wrap" @touchstart=${this._handleTouch} style="${wrapStyle}">
