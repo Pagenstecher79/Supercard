@@ -597,11 +597,21 @@ const GAUGE_PARTS = Object.freeze({
  * says; `seed` only where the card says nothing, and it carries whatever else
  * has to be true for the ring to be seen at all.
  *
- * `step` is what the two corner buttons add to and take from while this ring
- * is the one in hand: the count for the two rings made of marks, and the type
- * size for the one made of numbers, because that is the number a person
- * reaches for next once the distance is right.
+ * `steps` are the numbers offered under the chip while this ring is the one in
+ * hand - the ones a person reaches for next once the distance is right. A ring
+ * of marks is how many, how long and how thick; a ring of numbers is the type
+ * size. Each carries the glyph that says which of them it is, because three
+ * pairs of buttons in a row are otherwise three of the same thing.
  */
+/**
+ * The two glyphs that tell a mark's length from its thickness.
+ *
+ * A tick runs outward from the ring, so its length is the up-and-down arrow
+ * and its width the one across - the same way round as the mark itself.
+ */
+const LONG = '\u2195';
+const THICK = '\u2194';
+
 const GAUGE_RINGS = Object.freeze({
   // The gauge's own ring, framed by the edge of it that moves. First in the
   // list so every other band is drawn over it rather than under.
@@ -618,7 +628,11 @@ const GAUGE_RINGS = Object.freeze({
     section: '_section_ticks',
     on: (/** @type {any} */ cfg) => SC.safeFloat(cfg.tick_count, 0) > 0,
     turnOn: { tick_count: 11 }, turnOff: { tick_count: 0 }, seed: {},
-    step: { key: 'tick_count', by: 1, min: 2, max: 50, dflt: 11, what: 'ticks' },
+    steps: [
+      { key: 'tick_count', icon: '#', by: 1, min: 2, max: 50, dflt: 11, what: 'ticks' },
+      { key: 'tick_length', icon: LONG, by: 0.1, min: 0, max: 6, dflt: 3, what: 'tick length' },
+      { key: 'tick_width', icon: THICK, by: 0.1, min: 0, max: 5, dflt: 1, what: 'tick width' },
+    ],
   },
   sub_ticks: {
     label: 'Subticks', offset: 'sub_tick_offset', doffset: 0, limit: 10,
@@ -628,7 +642,13 @@ const GAUGE_RINGS = Object.freeze({
     turnOn: { sub_tick_count: 4 }, turnOff: { sub_tick_count: 0 },
     // Sub-ticks are drawn between ticks, so a gauge with none gets ticks too.
     seed: { tick_count: 11 },
-    step: { key: 'sub_tick_count', by: 1, min: 1, max: 10, dflt: 4, what: 'sub-ticks' },
+    steps: [
+      { key: 'sub_tick_count', icon: '#', by: 1, min: 1, max: 10, dflt: 4, what: 'sub-ticks' },
+      { key: 'sub_tick_length', icon: LONG, by: 0.1, min: 0, max: 3, dflt: 1.5,
+        what: 'sub-tick length' },
+      { key: 'sub_tick_width', icon: THICK, by: 0.1, min: 0, max: 3, dflt: 0.5,
+        what: 'sub-tick width' },
+    ],
   },
   tick_labels: {
     label: 'Tick labels', offset: 'tick_label_offset', doffset: -8, limit: 15,
@@ -640,8 +660,8 @@ const GAUGE_RINGS = Object.freeze({
     // box the gauge is clipped to - labels switched on and left at it are
     // labels nobody sees. The form's placeholder has always said -8.
     seed: { tick_count: 11, tick_label_offset: -8 },
-    step: { key: 'tick_label_font_size', by: 0.5, min: 1, max: 20, dflt: 7,
-            what: 'label type' },
+    steps: [{ key: 'tick_label_font_size', icon: 'A', by: 0.5, min: 1, max: 20, dflt: 7,
+              what: 'label type' }],
   },
   // The needle is not a ring at all - it is a line, and it is grabbed by
   // either end. A circle the base rides on cannot be pulled through the pivot,
@@ -655,7 +675,8 @@ const GAUGE_RINGS = Object.freeze({
     radiusOf: (/** @type {any} */ cfg, /** @type {number} */ ring, /** @type {number} */ scale) =>
       needleEnds(SC.safeFloat(cfg.pointer_offset, 2), SC.safeFloat(cfg.pointer_length, 10),
                  ring, scale).tip,
-    step: { key: 'pointer_width', by: 0.1, min: 0.1, max: 10, dflt: 2, what: 'pointer width' },
+    steps: [{ key: 'pointer_width', icon: THICK, by: 0.1, min: 0.1, max: 10, dflt: 2,
+              what: 'pointer width' }],
     // Shape is the other thing a needle is, and with only two of them a button
     // on the chip says it better than a select eight folds down the dialog.
     shapes: { key: 'pointer_type', dflt: 'needle', order: ['needle', 'triangle'],
@@ -1356,11 +1377,26 @@ class ScCanvasEditor extends LitElement {
          part, so the two read as one control rather than as a cluster in a
          corner that has to be matched up with a selection across the gauge.
          Hung from the chip's own spot, half a chip's height below its middle. */
+      /* One number per line, in four columns - glyph, less, the number,
+         more - so the three read as a list rather than as a row that wraps
+         wherever the gauge happens to end. A grid rather than a stack of
+         rows, because the numbers are of different widths and a column that
+         does not line up is harder to read than one that does.
+         width: max-content, or an absolutely placed box is shrunk to the room
+         left of it in its containing block - half the gauge - and the box
+         would stand wider than the column inside it. */
       .ring-steps { position: absolute; transform: translate(-50%, 12px);
         z-index: 7;
-        display: flex; align-items: center; gap: 3px; padding: 2px 3px;
+        display: grid; grid-template-columns: auto auto auto auto;
+        align-items: center; justify-items: center;
+        width: max-content; gap: 3px; padding: 3px 5px;
         border-radius: 5px; background: rgba(0,0,0,0.62);
         box-shadow: 0 0 0 1px rgba(242,181,68,0.6); }
+      /* The group is what a number is made of, not a box of its own: its four
+         parts are cells of the one grid, which is what lines the columns up. */
+      .ring-group { display: contents; }
+      .ring-step-icon { font-size: 12px; line-height: 1; color: var(--sc-part-sel);
+        min-width: 10px; text-align: center; }
       .ring-step { width: 20px; height: 20px; padding: 0; font-size: 15px;
         line-height: 1; border-radius: 4px; cursor: pointer; touch-action: none;
         border: 1px solid var(--sc-part-sel); background: rgba(0,0,0,0.5); color: #fff; }
@@ -2647,17 +2683,15 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
-   * Add to or take from the number the two corner buttons hold for whichever
-   * ring is in hand - a tick count, a sub-tick count, a label's type size.
+   * Add to or take from one of the numbers offered under the chip of whichever
+   * ring is in hand - a tick count, how long a mark is, how thick.
    *
    * One press is one step and one undo step, which is what separates it from
    * the ring drag beside it.
    */
-  _stepRing(dir) {
+  _stepRing(st, dir) {
     const target = this._innerTarget;
-    const spec = GAUGE_RINGS[this._innerSel || ''];
-    if (!target || !spec) return;
-    const st = spec.step;
+    if (!target || !st) return;
     const was = SC.safeFloat(target.cfg[st.key], st.dflt);
     const next = Math.min(st.max, Math.max(st.min, Math.round((was + dir * st.by) * 10) / 10));
     if (next === was) return;
@@ -3022,36 +3056,45 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
-   * The two buttons under the chip of whichever part is in hand.
+   * The numbers under the chip of whichever part is in hand.
    *
-   * They hold the number a person reaches for once the distance is right - a
-   * tick count, a sub-tick count, the size of the label type. Under the chip
-   * rather than on the ring, because the ring is already saying one thing by
-   * being dragged and a second control on it would be a second meaning for
-   * the same gesture; and under the chip rather than in the frame's corner,
-   * because the corner is the far side of the gauge from the part the buttons
-   * belong to.
+   * They hold what a person reaches for once the distance is right - how many
+   * marks there are, how long they run and how thick they are drawn, or the
+   * size of the tick labels' type. Under the chip rather than on the ring,
+   * because the ring is already saying one thing by being dragged and a second
+   * control on it would be a second meaning for the same gesture; and under
+   * the chip rather than in the frame's corner, because the corner is the far
+   * side of the gauge from the part the numbers belong to.
+   *
+   * One number per line, each wearing its own glyph. Three pairs of identical
+   * buttons would say nothing about which is which, and a word in front of
+   * each would be wider than the gauge they stand on.
    */
   _renderRingSteppers(left, top) {
     const spec = GAUGE_RINGS[this._innerSel || ''];
     const target = this._innerTarget;
-    // Not every ring has a second number worth a pair of buttons - the hub is
-    // one size and nothing else - and no cluster at all says so better than
-    // one that does nothing.
-    if (!spec?.step || !target) return '';
-    const st = spec.step;
-    const now = SC.safeFloat(target.cfg[st.key], st.dflt);
+    // Not every ring has a number worth a pair of buttons - the hub is one
+    // size and nothing else - and no cluster at all says so better than one
+    // that does nothing.
+    if (!spec?.steps?.length || !target) return '';
     const swallow = (/** @type {any} */ e) => { e.stopPropagation(); e.preventDefault(); };
-    const btn = (/** @type {number} */ dir, /** @type {string} */ glyph) => html`
-      <button class="ring-step" ?disabled=${dir > 0 ? now >= st.max : now <= st.min}
-              title=${`${dir > 0 ? 'More' : 'Fewer'} ${st.what}`}
-              @pointerdown=${swallow}
-              @click=${() => this._stepRing(dir)}>${glyph}</button>`;
+    const group = (/** @type {any} */ st) => {
+      const now = SC.safeFloat(target.cfg[st.key], st.dflt);
+      const btn = (/** @type {number} */ dir, /** @type {string} */ glyph) => html`
+        <button class="ring-step" ?disabled=${dir > 0 ? now >= st.max : now <= st.min}
+                title=${`${dir > 0 ? 'More' : 'Less'} ${st.what}`}
+                @pointerdown=${swallow}
+                @click=${() => this._stepRing(st, dir)}>${glyph}</button>`;
+      return html`
+        <span class="ring-group">
+          <span class="ring-step-icon" title=${`${spec.label}: ${st.what}`}>${st.icon}</span>
+          ${btn(-1, '−')}<span class="ring-step-val">${now}</span>${btn(1, '+')}
+        </span>`;
+    };
     return html`
       <div class="ring-steps" data-part=${this._innerSel}
-           style="left:${left}%; top:${top}%;"
-           title=${`${spec.label}: ${st.what}`}>
-        ${btn(-1, '−')}<span class="ring-step-val">${now}</span>${btn(1, '+')}
+           style="left:${left}%; top:${top}%;">
+        ${spec.steps.map(group)}
       </div>`;
   }
 
