@@ -15,6 +15,7 @@ import { offsetsFromDrag, fontFromResize, GAUGE_VIEW,
          ringInnerEdge, strokeFromRadius } from "./gauge-inner-boxes.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from "./label-typography.js";
+import { applyCardConfig } from "./card-apply.js";
 
 const SC = window.SupercardUtils;
 
@@ -756,6 +757,9 @@ const NEEDLE_ENDS = Object.freeze({
 const RING_CHIP_ANGLE = Object.freeze({ gauge_ring: 120, ticks: -90, sub_ticks: -50,
                                        tick_labels: 10, pointer_center: 200 });
 
+/** How long Apply stays on "Saved" before it is a button again. */
+const APPLY_SAVED_MS = 2000;
+
 /** How near the pivot a chip may stand, in viewBox units. */
 const RING_CHIP_MIN = 7;
 
@@ -830,6 +834,8 @@ class ScCanvasEditor extends LitElement {
       _dragCanvas: { type: Object, state: true },
       _configOpen: { type: Boolean, state: true },
       _menu: { type: Boolean, state: true },
+      _applyState: { type: String, state: true },
+      _applyError: { type: String, state: true },
       _menuKind: { type: String, state: true },
       _placing: { type: String, state: true },
       _ghost: { type: Object, state: true },
@@ -985,6 +991,7 @@ class ScCanvasEditor extends LitElement {
     this._stopEdgeScroll();
     if (this._innerFrame) cancelAnimationFrame(this._innerFrame);
     this._innerFrame = 0;
+    clearTimeout(this._appliedTimer);
     super.disconnectedCallback();
   }
 
@@ -1486,6 +1493,11 @@ class ScCanvasEditor extends LitElement {
          the placing overlay and the menu sit just above those. */
       .tool-row { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; flex-wrap: wrap; }
       .menu-wrap { position: relative; }
+      /* Solid where Add element is dashed: one of them offers a thing that is
+         not there yet, the other does something to what is. */
+      .apply-btn { border-style: solid; }
+      .apply-btn[disabled] { opacity: 0.4; cursor: default; }
+      .apply-error { color: var(--error-color, #db4437); }
       .menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; min-width: 200px;
               max-height: 280px; overflow-y: auto; padding: 4px; border-radius: 6px;
               border: 1px solid var(--divider-color,#444); box-shadow: 0 6px 20px rgba(0,0,0,0.45);
@@ -2096,6 +2108,29 @@ class ScCanvasEditor extends LitElement {
     };
     this._ptr = { x: e.clientX, y: e.clientY };
     e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  /**
+   * Save the card without closing the dialog.
+   *
+   * The dialog's own save does this and then shuts, which is the wrong shape
+   * for a canvas: arranging one is a long job, and the way to keep it safe
+   * should not also be the way to stop working on it. The reaching-into-HA
+   * part is in `card-apply.js`; what is left here is what the button says.
+   */
+  async _apply() {
+    if (this._applyState === 'saving') return;
+    this._applyState = 'saving';
+    this._applyError = '';
+    const result = await applyCardConfig(this);
+    if (!result.ok) {
+      this._applyState = 'idle';
+      this._applyError = result.error;
+      return;
+    }
+    this._applyState = 'saved';
+    clearTimeout(this._appliedTimer);
+    this._appliedTimer = setTimeout(() => { this._applyState = 'idle'; }, APPLY_SAVED_MS);
   }
 
   /** The window the canvas is zoomed and scrolled inside. */
@@ -3946,6 +3981,14 @@ class ScCanvasEditor extends LitElement {
             </button>
             ${this._menu ? this._renderAddMenu() : ''}
           </div>
+          <button class="add-btn apply-btn" style="width:auto; padding:6px 12px;"
+                  ?disabled=${this._applyState === 'saving'}
+                  title="Put the card on the dashboard now and carry on - the dialog stays open"
+                  @click=${() => this._apply()}>
+            ${this._applyState === 'saved' ? '✓ Saved'
+              : this._applyState === 'saving' ? '💾 Saving…' : '💾 Apply'}
+          </button>
+          ${this._applyError ? html`<span class="hint apply-error">${this._applyError}</span>` : ''}
           ${this._placing
             // The one line of prose that is not an explanation but an
             // instruction for a mode the editor is in, so it stays on screen.
