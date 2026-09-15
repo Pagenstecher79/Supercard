@@ -892,6 +892,11 @@ class ScCanvasEditor extends LitElement {
       .tools button[disabled] { opacity: 0.4; cursor: default; }
       .tools .level { min-width: 46px; display: flex; align-items: center; justify-content: center; align-self: stretch; font-variant-numeric: tabular-nums; }
       .tools button.on { background: var(--primary-color); color: #fff; }
+      /* A button that stays pressed cannot borrow the hover's fill, or it
+         reads as on while the pointer is over it and as off the moment the
+         pointer leaves - which is the opposite of what it is saying. */
+      .tools button.toggle:hover:not([disabled]) { background: rgba(3,169,244,0.28); color: inherit; }
+      .tools button.toggle.on:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
       .tools button.danger { color: var(--error-color, #f44336); }
       .tools button.danger:hover:not([disabled]) { background: var(--error-color, #f44336); color: #fff; }
       .tools .spacer { flex: 1; }
@@ -3094,7 +3099,7 @@ class ScCanvasEditor extends LitElement {
                     @click=${() => this._redo()}>↷</button>
           </div>
           <div class="names">
-            <button class=${this._names ? 'on' : ''}
+            <button class="toggle ${this._names ? 'on' : ''}"
                     title="Put each element's name on its box. Off, a box says its id - which is what the lists, the glass targets and the colour rules call it."
                     @click=${() => { this._names = !this._names; }}>Names</button>
           </div>
@@ -3172,7 +3177,7 @@ class ScCanvasEditor extends LitElement {
           <div class="group">${[['hcenter', 'Line them up through one vertical middle'],
                                 ['vcenter', 'Line them up through one horizontal middle']].map(alignBtn)}</div>
           <div class="group">
-            <button class="${this._innerOn ? 'on' : ''}"
+            <button class="toggle ${this._innerOn ? 'on' : ''}"
                     title=${!inner
                       ? 'Select a single gauge to work on its label and its value on the canvas'
                       : (!this._live
@@ -3185,7 +3190,8 @@ class ScCanvasEditor extends LitElement {
           </div>
           <span class="spacer"></span>
           <div class="group">
-            <button title=${!selected.length
+            <button class="toggle ${this._allLocked && selected.length ? 'on' : ''}"
+                    title=${!selected.length
                       ? 'Select an element to lock it in place'
                       : (this._allLocked
                           ? `Let ${selected.length === 1 ? 'it' : 'them'} be dragged again`
