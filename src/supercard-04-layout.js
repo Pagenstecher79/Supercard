@@ -534,10 +534,20 @@ const FIT_MARGIN = 0.85;
 const GAUGE_PARTS = Object.freeze({
   gauge_label: { label: 'Label', x: 'gauge_label_offset_x', y: 'gauge_label_offset_y',
                  size: 'gauge_label_font_size', dx: 0, dy: -8, dsize: 8,
-                 section: '_section_gauge_label' },
+                 section: '_section_gauge_label',
+                 // The same key the switch in the form writes, and read the
+                 // way the gauge reads it: absent means on.
+                 active: 'gauge_label_active',
+                 // A label with no text draws nothing however active it is, so
+                 // switching it on here seeds the form's own placeholder -
+                 // otherwise the button would look broken.
+                 needs: 'gauge_label_text', seed: 'Gauge' },
   value: { label: 'Value', x: 'value_offset_x', y: 'value_offset_y',
            size: 'value_font_size', dx: 0, dy: 15, dsize: 12,
-           section: '_section_labels' },
+           section: '_section_labels',
+           // The value's y is a baseline - the label's is the text's middle - so
+           // its chip has to stand half a cap height above the number it offers.
+           baseline: true, active: 'show_value' },
 });
 
 /**
@@ -545,6 +555,9 @@ const GAUGE_PARTS = Object.freeze({
  * A text has no left edge to line up against here - it has a middle, and the
  * gauge has one too.
  */
+/** Half a cap height, in ems: what a baselined part sits above its own y. */
+const BASELINE_LIFT = 0.35;
+
 const MIDDLE_AXIS = Object.freeze({
   hcenter: { axis: 'x', what: 'vertical' },
   vcenter: { axis: 'y', what: 'horizontal' },
@@ -980,19 +993,50 @@ class ScCanvasEditor extends LitElement {
       /* The frames over a gauge's own text. The outline is drawn outside the
          measured rect, because the rect is the glyphs and a border on it would
          sit across them. */
-      .inner-frame { position: absolute; outline: 1px dashed var(--primary-color, #03a9f4);
-        outline-offset: 3px; background: rgba(3,169,244,0.10); cursor: move;
+      /* A preview keeps its layers to itself. A renderer stacks its own parts
+         with SC_LAYERS - 700 for a background, 900 for a value - and while it
+         makes no stacking context of its own those numbers compete with the
+         editor's own overlays inside this box: a gauge with a background drew
+         straight over the part frames, which then could not be seen at all. */
+      .el > sc-gauge, .el > sc-progressbar { isolation: isolate; }
+      /* These lie over whatever the gauge draws - a bright dial, a dark one, a
+         picture - so a single thin line in one colour is legible on some
+         gauges and lost on others. Each carries a dark plate of its own: the
+         shadow fills the outline's offset, so the bright dashes always stand
+         against black rather than against the artwork. */
+      .inner-frame { position: absolute; outline: 1px dashed #8ce0ff;
+        outline-offset: 3px; box-shadow: 0 0 0 4px rgba(0,0,0,0.55);
+        background: rgba(3,169,244,0.14); cursor: move;
         touch-action: none; z-index: 5; }
       .inner-frame::after { content: ''; position: absolute; inset: -8px; }
       /* Which of the two the middle-axis buttons would act on. */
-      .inner-frame.sel { outline-style: solid; background: rgba(3,169,244,0.20); }
+      .inner-frame.sel { outline: 2px solid #8ce0ff; background: rgba(3,169,244,0.28); }
       .inner-tag { position: absolute; left: 0; bottom: 100%; margin-bottom: 6px;
         font-size: 9px; line-height: 1; padding: 2px 4px; border-radius: 3px;
         background: var(--primary-color, #03a9f4); color: #fff; white-space: nowrap;
-        pointer-events: none; opacity: 0.65; }
+        pointer-events: none; opacity: 0.8; box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
       .inner-frame.sel .inner-tag { opacity: 1; }
+      /* The way back out, across the frame's head from its tag: the same key
+         the + chip writes, so a part can be taken off where it was put on. */
+      .inner-drop { position: absolute; right: 0; bottom: 100%; margin-bottom: 6px;
+        width: 13px; height: 13px; padding: 0; font-size: 11px; line-height: 1;
+        border-radius: 3px; cursor: pointer; touch-action: none;
+        border: 1px solid #8ce0ff; background: rgba(0,0,0,0.65); color: #fff;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
+      .inner-drop:hover { background: var(--error-color,#db4437); border-color: var(--error-color,#db4437);
+        color: #fff; }
+      /* The offer to switch a part on, standing where that part would be
+         drawn. It writes the key the form's own switch writes, so there is one
+         setting and not two. Dashed, because nothing is there yet. */
+      .inner-add { position: absolute; transform: translate(-50%, -50%);
+        padding: 1px 5px; font-size: 9px; line-height: 1.5; white-space: nowrap;
+        border-radius: 4px; cursor: pointer; touch-action: none; z-index: 6;
+        border: 1px dashed #8ce0ff; background: rgba(0,0,0,0.65); color: #fff;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
+      .inner-add:hover { background: var(--primary-color,#03a9f4); border-style: solid; }
       .inner-grip { position: absolute; right: -8px; bottom: -8px; width: 10px; height: 10px;
         border-radius: 50%; background: var(--primary-color, #03a9f4);
+        box-shadow: 0 0 0 1.5px rgba(0,0,0,0.6), 0 0 0 2.5px rgba(255,255,255,0.85);
         cursor: nwse-resize; touch-action: none; z-index: 6; }
       .inner-grip::after { content: ''; position: absolute; inset: -8px; }
       .num { width: 68px; }
@@ -1920,7 +1964,7 @@ class ScCanvasEditor extends LitElement {
   /** Whether the frames are up for the element that is selected now. */
   get _innerOn() {
     const target = this._innerTarget;
-    return !!target && target.drawn.length > 0 && this._inner === target.id;
+    return !!target && this._inner === target.id;
   }
 
   _toggleInner() {
@@ -1949,15 +1993,27 @@ class ScCanvasEditor extends LitElement {
     }
     const box = this.shadowRoot?.querySelector(`.el[data-item-id="${this._inner}"]`);
     const gauge = box?.querySelector('sc-gauge');
-    const texts = gauge?.shadowRoot?.querySelectorAll('[data-sc-part]');
-    if (!box || !texts?.length) {
+    // The gauge's own square, not the element's box: the viewBox letterboxes
+    // inside it, so this is what an offset in viewBox units is a fraction of.
+    const svg = gauge?.shadowRoot?.querySelector('svg');
+    const texts = gauge?.shadowRoot?.querySelectorAll('[data-sc-part]') || [];
+    if (!box || !svg) {
       if (this._innerRects) this._innerRects = null;
       return false;
     }
     const elRect = box.getBoundingClientRect();
     if (!elRect.width || !elRect.height) return false;
+    const svgRect = svg.getBoundingClientRect();
     /** @type {any} */
-    const next = { parts: {} };
+    const next = {
+      parts: {},
+      svg: {
+        l: (svgRect.left - elRect.left) / elRect.width * 100,
+        t: (svgRect.top - elRect.top) / elRect.height * 100,
+        w: svgRect.width / elRect.width * 100,
+        h: svgRect.height / elRect.height * 100,
+      },
+    };
     texts.forEach((/** @type {any} */ t) => {
       const part = t.dataset.scPart;
       if (!GAUGE_PARTS[part]) return;
@@ -1974,15 +2030,12 @@ class ScCanvasEditor extends LitElement {
         pxPerUnit: ctm?.a || (elRect.width / GAUGE_VIEW),
       };
     });
-    if (!Object.keys(next.parts).length) {
-      if (this._innerRects) this._innerRects = null;
-      return false;
-    }
     // Only when it actually moved: this runs after every render, and writing
     // state that renders is how a measurement becomes a loop.
     const was = this._innerRects;
     const same = was
       && Object.keys(next.parts).length === Object.keys(was.parts).length
+      && ['l', 't', 'w', 'h'].every(f => Math.abs(was.svg[f] - next.svg[f]) < 0.05)
       && Object.entries(next.parts).every(([k, v]) => {
         const o = was.parts[k];
         return o && ['l', 't', 'w', 'h'].every(f => Math.abs(o[f] - v[f]) < 0.05)
@@ -2066,6 +2119,58 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
+   * Switch a gauge's label or value on or off from the canvas.
+   *
+   * The same key the switch in the form writes, so the two are one setting
+   * seen from two places rather than two settings that have to agree.
+   */
+  _setInnerPart(part, on) {
+    const target = this._innerTarget;
+    const spec = GAUGE_PARTS[part];
+    if (!target || !spec) return;
+    if (on) {
+      // A part just switched on is the one about to be placed, so it arrives
+      // in hand: frame live, fold at the top, sliders stepped aside.
+      this._innerSel = part;
+      this._revealPart(part);
+    } else if (this._innerSel === part) {
+      // A part that is no longer drawn cannot stay the one in hand, or its
+      // sliders would stay hidden behind a frame that is not there.
+      this._innerSel = null;
+    }
+    const patch = { [spec.active]: on };
+    if (on && spec.needs && !target.cfg[spec.needs]) patch[spec.needs] = spec.seed;
+    this._writeGauge(target.idx, patch, false);
+  }
+
+  /**
+   * Where a part would be drawn if it were switched on, in per cent of the
+   * element's box.
+   *
+   * Measured for the gauge's own square rather than the element's box: the
+   * 50x50 viewBox letterboxes inside a box of any shape, and an offset is a
+   * fraction of the viewBox. Reading it against the box instead is what once
+   * put the value's chip at 104% - outside the element altogether, which is
+   * why it never appeared.
+   */
+  _innerHome(part) {
+    const spec = GAUGE_PARTS[part];
+    const svg = this._innerRects?.svg;
+    if (!spec || !svg) return null;
+    const cfg = this._innerTarget?.cfg || {};
+    const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
+    const at = (/** @type {number} */ v) => 0.5 + v * scale / GAUGE_VIEW;
+    const clamp = (/** @type {number} */ v) => Math.max(1, Math.min(99, v));
+    const lift = spec.baseline
+      ? SC.safeFloat(cfg[spec.size], spec.dsize) * BASELINE_LIFT * scale / GAUGE_VIEW * svg.h
+      : 0;
+    return {
+      l: clamp(svg.l + svg.w * at(SC.safeFloat(cfg[spec.x], spec.dx))),
+      t: clamp(svg.t + svg.h * at(SC.safeFloat(cfg[spec.y], spec.dy)) - lift),
+    };
+  }
+
+  /**
    * Bring the settings that belong to the part just taken hold of up to where
    * they can be read.
    *
@@ -2144,20 +2249,39 @@ class ScCanvasEditor extends LitElement {
    * small a thing to take hold of.
    */
   _renderInner() {
+    const drawn = new Set(this._innerTarget?.drawn || []);
     const rects = this._innerRects?.parts;
-    if (!rects) return '';
+    // A press must not reach the element under it, or reaching for one of
+    // these would start dragging the whole gauge.
+    const swallow = (/** @type {any} */ e) => { e.stopPropagation(); e.preventDefault(); };
     return html`${Object.entries(GAUGE_PARTS).map(([part, spec]) => {
-      const r = rects[part];
-      if (!r) return '';
+      const r = rects?.[part];
+      if (!drawn.has(part) || !r) return '';
       return html`
         <div class="inner-frame ${this._innerSel === part ? 'sel' : ''}" data-part=${part}
              style="left:${r.l}%; top:${r.t}%; width:${r.w}%; height:${r.h}%;"
              title=${`Drag the ${spec.label.toLowerCase()}, or its corner to resize it`}
              @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'move')}>
           <span class="inner-tag">${spec.label}</span>
+          <button class="inner-drop"
+                  title=${`Hide the ${spec.label.toLowerCase()} on this gauge`}
+                  @pointerdown=${swallow}
+                  @click=${() => this._setInnerPart(part, false)}>−</button>
           <div class="inner-grip"
                @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'size')}></div>
         </div>`;
+    })}
+    ${Object.entries(GAUGE_PARTS).map(([part, spec]) => {
+      // On the spot the part would take, so the press both switches it on and
+      // says where it is about to appear.
+      if (drawn.has(part)) return '';
+      const home = this._innerHome(part);
+      if (!home) return '';
+      return html`
+        <button class="inner-add" style="left:${home.l}%; top:${home.t}%;"
+                title=${`Show the ${spec.label.toLowerCase()} on this gauge`}
+                @pointerdown=${swallow}
+                @click=${() => this._setInnerPart(part, true)}>+ ${spec.label}</button>`;
     })}`;
   }
 
@@ -3050,15 +3174,13 @@ class ScCanvasEditor extends LitElement {
           <div class="group">
             <button class="${this._innerOn ? 'on' : ''}"
                     title=${!inner
-                      ? 'Select a single gauge to move its label and its value on the canvas'
+                      ? 'Select a single gauge to work on its label and its value on the canvas'
                       : (!this._live
                           ? 'Switch the live preview on - the frames sit on the drawn text'
-                          : (!inner.drawn.length
-                              ? 'This gauge shows neither a label nor a value, so there is nothing to move'
-                              : (this._innerOn
-                                  ? `Done with the ${inner.drawn.length > 1 ? 'label and the value' : GAUGE_PARTS[inner.drawn[0]].label.toLowerCase()}`
-                                  : `Move and resize the ${inner.drawn.length > 1 ? 'label and the value' : GAUGE_PARTS[inner.drawn[0]].label.toLowerCase()} right here`)))}
-                    ?disabled=${!inner || !this._live || !inner.drawn.length}
+                          : (this._innerOn
+                              ? 'Done with the label and the value'
+                              : 'Show, place and resize the label and the value right here'))}
+                    ?disabled=${!inner || !this._live}
                     @click=${() => this._toggleInner()}>✎</button>
           </div>
           <span class="spacer"></span>

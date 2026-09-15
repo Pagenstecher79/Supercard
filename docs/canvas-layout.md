@@ -1298,11 +1298,52 @@ spot until something else happened to re-render. Measured in the dialog, with
 the loop and without: caught up after 24 ms against 162 ms, and the 162 was
 only that short because a state update happened to arrive.
 
-The button is offered only where there is something to take hold of: the live
-preview has to be on, and the gauge has to draw at least one of the two - the
-same two conditions the renderer itself goes by (`gauge_label_text` with
-`gauge_label_active`, and `show_value`). The sliders remain, and `value` gained
-the `value_offset_x` it had never had, so the frame has an axis to write to.
+The button needs only the live preview and a single selected gauge. It used to
+need the gauge to already draw one of the two, which made it useless on exactly
+the gauge that most wanted it - the one with neither. The sliders remain, and
+`value` gained the `value_offset_x` it had never had, so the frame has an axis
+to write to.
+
+### An offer where the part would be
+
+A gauge that draws neither of the two has nothing to take hold of, so edit mode
+puts a dashed chip - **+ Label**, **+ Value** - on the spot each part would
+take if it were switched on. The press both switches the part on and says where
+it is about to appear, which a control in a corner cannot.
+
+The way back out is a **-** at the head of the frame, across from its own tag,
+where the part was put on is where it can be taken off again. Both write the
+very key the form's switch writes, `gauge_label_active` or `show_value`, so the
+canvas and the form are one setting seen from two places rather than two
+settings that have to agree. Switching a part on takes it in hand as well: the
+frame is live, its fold is at the top of the form and its sliders have stepped
+aside, because a part just turned on is the one about to be placed.
+
+The home position is read against the **gauge's own square**, not the element's
+box. The 50x50 viewBox letterboxes inside a box of any shape, and an offset is
+a fraction of the viewBox: against the box instead, the value's chip landed at
+104% - outside the element altogether, which is why it never appeared. So the
+measurement also records the gauge's `svg` rect, and it no longer gives up when
+the gauge draws no text at all: that is precisely the case the chips are for.
+
+A preview keeps its layers to itself. A renderer stacks its own parts with
+`SC_LAYERS` - 700 for a background, 900 for a value - and while it makes no
+stacking context of its own, those numbers compete with the editor's overlays
+inside the element's box: a gauge with a background drew straight over the part
+frames, which could then not be seen at all. `isolation: isolate` on the
+preview is the whole fix, and the frames carry a dark plate besides, so a
+bright dial cannot swallow a thin blue line.
+
+The value's chip is lifted half a cap height above its own coordinate. The
+label is drawn `dominant-baseline="middle"` and the value is not, so the
+value's `y` is a baseline with the digits above it; without the lift the chip
+stood 6.6% of the box below the number it was offering. With it, chip and frame
+agree to a tenth of a per cent.
+
+A label with no text draws nothing however active it is, so switching that one
+on seeds `gauge_label_text` with `Gauge` when the gauge has none - otherwise
+the chip would vanish and the canvas would not change. Switching the label off
+again in the form leaves that text alone: it is the user's now.
 
 ## 9. Build order
 
