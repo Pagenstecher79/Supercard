@@ -819,6 +819,9 @@ class ScCanvasEditor extends LitElement {
     this._placingEntry = null;
     this._ghost = null;
     this._zoom = 1;
+    // The zoom the canvas was being arranged at before a gauge was opened,
+    // and null whenever none is being held for it.
+    this._zoomBefore = null;
     // A pan in progress: where the pointer went down and where the view stood
     // then. Not reactive - scrolling the view is what draws it.
     this._pan = null;
@@ -963,6 +966,24 @@ class ScCanvasEditor extends LitElement {
 
   updated(changed) {
     super.updated(changed);
+    // However a gauge's parts were left - the button, or a different element
+    // selected - the canvas goes back to the zoom it was being arranged at,
+    // and the gauge is properly let go of. Letting go matters: `_inner` holds
+    // an id rather than a flag, so a gauge left by selecting something else
+    // used to come back into edit mode the moment it was selected again -
+    // without the zoom that opening it deliberately brings.
+    if (this._inner && !this._innerOn) {
+      this._inner = null;
+      this._innerRects = null;
+      this._innerSel = null;
+    }
+    // Separately, because the button clears `_inner` on its own way out and
+    // would otherwise never reach this.
+    if (!this._innerOn && this._zoomBefore != null) {
+      const back = this._zoomBefore;
+      this._zoomBefore = null;
+      if (back !== this._zoom) this._applyZoom(back);
+    }
     this._measureInner();
     this._placeNeedle();
     this._followInner();
@@ -2275,12 +2296,16 @@ class ScCanvasEditor extends LitElement {
     this._inner = this._innerOn ? null : target.id;
     this._innerRects = null;
     this._innerSel = null;
-    // Once, on the way in. The parts being framed are a couple of viewBox
-    // units across, and at the zoom a whole canvas is arranged at they cannot
-    // be aimed at, let alone dragged - so the gauge fills the window as it is
-    // opened. Only on the way in: after that the zoom is the person's own,
-    // and putting it back on the way out would undo whatever they made it.
-    if (opening) this._zoomToSelection();
+    // The parts being framed are a couple of viewBox units across, and at the
+    // zoom a whole canvas is arranged at they cannot be aimed at, let alone
+    // dragged - so the gauge fills the window as it is opened, and the canvas
+    // is handed back at the zoom it was left at. Only the way in is recorded
+    // here; the way back out is in `updated`, because a gauge can also be
+    // left by selecting something else, which never comes through here.
+    if (opening) {
+      this._zoomBefore = this._zoom;
+      this._zoomToSelection();
+    }
   }
 
   /**
