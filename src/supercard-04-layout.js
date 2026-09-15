@@ -525,6 +525,16 @@ const zoomMemory = new Map();
 const FIT_MARGIN = 0.85;
 
 /**
+ * The same, on the way into a gauge's own parts: none.
+ *
+ * The air the button leaves is what lets a selection be seen in its
+ * surroundings, and on the way in there are no surroundings to see - the
+ * gauge is the whole of what is being worked on, and every one of its parts
+ * is a couple of viewBox units across. So it fills the window.
+ */
+const INNER_FILL = 1;
+
+/**
  * The shape the window is drawn at while a gauge's own parts are being
  * edited: a square, whatever shape the canvas is.
  *
@@ -2306,16 +2316,16 @@ class ScCanvasEditor extends LitElement {
    * at the new zoom. The scroll that centres it needs the new layout, so it
    * waits for the render.
    *
-   * `atLeast` is a floor the fit may not go under. The margin it leaves is
-   * what a gauge filling its whole canvas has no room for - the fit comes out
-   * at the margin itself, 0.85 - and on the way into a gauge that reads as
-   * the editor backing away from the thing it was asked to come close to. The
-   * button has no floor: there, shrinking to show the whole of a selection is
-   * the point.
+   * `margin` is how much of the window is left as air around what is fitted,
+   * and `atLeast` a floor the fit may not go under. The button uses both
+   * defaults - air to see a selection in its surroundings, and no floor,
+   * because shrinking to show the whole of something is the point there. The
+   * way into a gauge uses neither: it fills the window, and never zooms out
+   * of where it already was.
    *
-   * @param {number} [atLeast]
+   * @param {{atLeast?: number, margin?: number}} [opts]
    */
-  _zoomToSelection(atLeast = 0) {
+  _zoomToSelection({ atLeast = 0, margin = FIT_MARGIN } = {}) {
     const c = this._canvas;
     const boxes = c.elements.filter(el => this._isSel(el.id));
     if (!boxes.length) return;
@@ -2326,8 +2336,8 @@ class ScCanvasEditor extends LitElement {
     // The window's height is the canvas' own times the stretch, so the
     // vertical fit has that much more room than the shape alone says.
     const z = Math.max(atLeast,
-                       FIT_MARGIN * Math.min(c.w / Math.max(x1 - x0, 0.001),
-                                             c.h * this._viewStretch / Math.max(y1 - y0, 0.001)));
+                       margin * Math.min(c.w / Math.max(x1 - x0, 0.001),
+                                         c.h * this._viewStretch / Math.max(y1 - y0, 0.001)));
     this._zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
     if (this._zoomKey) zoomMemory.set(this._zoomKey, this._zoom);
     const mid = { x: (x0 + x1) / 2 / c.w, y: (y0 + y1) / 2 / c.h };
@@ -2388,8 +2398,8 @@ class ScCanvasEditor extends LitElement {
     // left by selecting something else, which never comes through here.
     if (opening) {
       this._zoomBefore = this._zoom;
-      // Never out: the way in is only ever a way closer.
-      this._zoomToSelection(this._zoom);
+      // Fill the window, and never out: the way in is only ever a way closer.
+      this._zoomToSelection({ atLeast: this._zoom, margin: INNER_FILL });
     }
   }
 
