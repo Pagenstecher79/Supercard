@@ -424,28 +424,17 @@ const SAME_SPOT_PX = 4;
  *
  * @param {'left'|'hcenter'|'right'|'top'|'vcenter'|'bottom'} edge
  */
+/**
+ * The mark on an align button.
+ *
+ * Plain glyphs: the row reads as one line of symbols beside the distribute
+ * pair and the pencil, which are glyphs too, rather than as four drawings
+ * among them. The middles carry the stroke through the arrow, which is the
+ * axis they put a thing back on.
+ */
 function alignIcon(edge) {
-  const vertical = edge === 'top' || edge === 'vcenter' || edge === 'bottom';
-  // Where the line is, and where the two bars start from.
-  const line = edge === 'left' || edge === 'top' ? 3 : (edge === 'right' || edge === 'bottom' ? 21 : 12);
-  const bars = vertical
-    ? [{ x: 5, w: 5 }, { x: 14, w: 5 }]
-    : [{ y: 5, h: 5 }, { y: 14, h: 5 }];
-  return svg`
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-      <line x1=${vertical ? 2 : line} y1=${vertical ? line : 2}
-            x2=${vertical ? 22 : line} y2=${vertical ? line : 22}
-            stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
-      ${bars.map(b => {
-        const long = 8;
-        if (vertical) {
-          const y = edge === 'top' ? line : (edge === 'bottom' ? line - long : line - long / 2);
-          return svg`<rect x=${b.x} y=${y} width=${b.w} height=${long} rx="1" fill="currentColor"></rect>`;
-        }
-        const x = edge === 'left' ? line : (edge === 'right' ? line - long : line - long / 2);
-        return svg`<rect x=${x} y=${b.y} width=${long} height=${b.h} rx="1" fill="currentColor"></rect>`;
-      })}
-    </svg>`;
+  return { left: '\u2190', right: '\u2192', top: '\u2191', bottom: '\u2193',
+           hcenter: '\u21F9', vcenter: '\u21F3' }[edge] || '';
 }
 
 /**
@@ -874,6 +863,11 @@ class ScCanvasEditor extends LitElement {
          buttons, and in a stretched box it sits at the top of its own height
          while the buttons beside it are tall. */
       .tools .group { display: flex; align-items: center; gap: 4px; }
+      /* A rule before every group but the first, so the row reads as what it
+         is - gaps, edges, middles, the pencil, then what happens to whole
+         elements - instead of one long undifferentiated run of squares. */
+      .tools .group:not(:first-of-type) {
+        border-left: 1px solid var(--divider-color,#444); padding-left: 10px; }
       /* One square for every tool, whether it holds a glyph or a drawing:
          a row of buttons that are each as wide as their symbol reads as a row
          of different things. Centred by the button itself, so nothing depends
@@ -884,7 +878,6 @@ class ScCanvasEditor extends LitElement {
       .tools button:hover:not([disabled]) { background: var(--primary-color); color: #fff; }
       .tools button[disabled] { opacity: 0.4; cursor: default; }
       .tools .level { min-width: 46px; display: flex; align-items: center; justify-content: center; align-self: stretch; font-variant-numeric: tabular-nums; }
-      .tools button.icon svg { display: block; width: 16px; height: 16px; }
       .tools button.on { background: var(--primary-color); color: #fff; }
       .tools button.danger { color: var(--error-color, #f44336); }
       .tools button.danger:hover:not([disabled]) { background: var(--error-color, #f44336); color: #fff; }
@@ -2930,7 +2923,7 @@ class ScCanvasEditor extends LitElement {
     // then the edges, then the middles - which are also the two a gauge's own
     // label and value borrow, so they sit together at the end.
     const alignBtn = ([edge, what]) => html`
-      <button class="icon" title=${centring && MIDDLE_AXIS[edge]
+      <button title=${centring && MIDDLE_AXIS[edge]
                 ? `Put the ${GAUGE_PARTS[this._innerSel].label.toLowerCase()} back on the gauge's ${MIDDLE_AXIS[edge].what} middle`
                 : (movers < 2
                     ? 'Two selected elements that can move are needed to line anything up'
