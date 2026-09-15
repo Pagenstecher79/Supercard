@@ -1269,6 +1269,12 @@ selection band starts under it; the rest of the gesture rides the canvas's own
 through with history suspended, so dragging a label across a gauge is one step
 to undo and not forty.
 
+The three sliders that frame replaces - font size and the two offsets - are
+taken out of the form while that part is selected, with one line in their
+place saying where they went. Only that part's: the other keeps its sliders,
+because only one of the two is being worked on at a time. They come back when
+the frame is let go.
+
 While a part is in hand the editor below the canvas reorders itself: that
 part's own fold - **Gauge Label** or **Value & Labels** - goes to the top of
 the gauge's form, and the element settings go above the layer list, so the
