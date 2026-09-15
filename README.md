@@ -120,7 +120,9 @@ The plugin includes the following modules:
 * Render dynamic background overlays and colour animations.
 * **Supported Modes**: Solid, Linear, Radial, Solid Gradient (calculated dynamically based on entity numerical states), and Vector Fluid.
 * **Fluid Engine**: Renders inline animated SVGs using filter effects (`gooey`, `smoke`, `aurora`, `particles`).
-* **Effects & Animations**: `pulse`, `pump`, `ripple`, `waves`, `wobble_radial`, `wobble_linear`, and `fluid`.
+* **Effects & Animations**: `pulse`, `pump` (the background alone), `pump_all`
+  (the card or element itself, content included), `ripple`, `waves`,
+  `wobble_radial`, `wobble_linear`, and `fluid`.
 
 ### 3. `progressbar` Module
 * Renders highly customizable progress indicators into card slots.

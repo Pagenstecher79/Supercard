@@ -228,7 +228,8 @@ class ScColorEditor extends LitElement {
         { id: 'animation', label: 'Effect', type: 'select', width: '60%', options: pat => [
           { value: 'none', label: 'None (background only)', selected: pat.animation === 'none' },
           { value: 'pulse', label: 'Pulse (opacity)', selected: pat.animation === 'pulse' },
-          { value: 'pump', label: 'Pump (scale in/out)', selected: pat.animation === 'pump' },
+          { value: 'pump', label: 'Pump (scale the background)', selected: pat.animation === 'pump' },
+          { value: 'pump_all', label: 'Pump (scale everything, content included)', selected: pat.animation === 'pump_all' },
           { value: 'ripple', label: 'Rings (concentric)', selected: pat.animation === 'ripple' },
           { value: 'waves', label: 'Waves (linear traveling)', selected: pat.animation === 'waves' },
           { value: 'wobble_radial', label: 'Water drop (radial fade-out)', selected: pat.animation === 'wobble_radial' },
@@ -252,7 +253,10 @@ class ScColorEditor extends LitElement {
           style: 'margin-top:4px', condition: pat => pat.animation !== 'none',
           label: pat => wobble(pat) ? 'Fade-out time (duration in sec.)' : 'Speed (sec.)' },
         { id: 'pump_scale', label: 'Pump expansion', type: 'range', min: 1.0, max: 1.2, step: 0.001,
-          placeholder: 1.1, condition: pat => pat.animation === 'pump' },
+          placeholder: 1.1, condition: isPump,
+          hint: pat => pat.animation === 'pump_all'
+            ? 'How far the whole thing grows at the top of each breath.'
+            : 'How far the background grows behind the content, which stays where it is.' },
         { id: 'wave_invert', label: 'Reverse direction', type: 'checkbox', condition: waveOrRipple },
       ] },
 
@@ -521,15 +525,20 @@ if (!customElements.get('sc-color-editor')) {
  * step. Only the name and the target are left out - a panel knows both.
  */
 /**
- * The same field with Pump taken out of the effect list.
+ * The same field with the background Pump taken out of the effect list.
  *
- * Pump scales the pattern layer, which is the whole of a card or a surface but
- * only the plate behind a gauge's ring or a bar's track - a pulsing backdrop
- * under an element that stands still. The other effects paint, so they read
- * the same wherever they are.
+ * That one scales the pattern layer, which is the whole of a card or a surface
+ * but only the plate behind a gauge's ring or a bar's track - a pulsing
+ * backdrop under an element that stands still. The whole-element Pump stays:
+ * it scales the element's own box, so the ring or the track breathes with the
+ * colour rather than in front of it. The other effects paint, so they read the
+ * same wherever they are.
  *
  * @param {any} field
  */
+/** Either pump: the background alone, or the whole thing it sits behind. */
+const isPump = (/** @type {any} */ pat) => pat.animation === 'pump' || pat.animation === 'pump_all';
+
 function dropPump(field) {
   if (Array.isArray(field.fields)) return { ...field, fields: field.fields.map(dropPump) };
   if (field.id !== 'animation') return field;
@@ -733,10 +742,15 @@ Object.assign(window.SupercardModules['color'], (() => {
       if (!bgActive) return;
 
       let selector = '';
+      // The box the pattern paints behind, as opposed to the layer it paints.
+      // Only the whole-card pump wants it: that one scales the thing itself,
+      // content and all, where every other effect stays on `::before`.
+      let boxSelector = '';
       const isMain = pat.target === 'main';
 
       if (isMain) {
         selector = 'ha-card::before';
+        boxSelector = 'ha-card';
       } else {
         // A cell and a canvas element are the same kind of thing here: a box
         // the renderer names as a shadow part, whose ::before the pattern
@@ -746,6 +760,7 @@ Object.assign(window.SupercardModules['color'], (() => {
         if (cell) {
           const partSel = `sc-layout-renderer::part(cell-${cell[1]}-${cell[2]})`;
           selector = `${partSel}::before`;
+          boxSelector = partSel;
 
           // CELL: gets z-index 510 as a solid foundation. No isolation hack needed anymore!
           styleStr += `
@@ -761,7 +776,8 @@ Object.assign(window.SupercardModules['color'], (() => {
           // order is the stacking order - that is what the editor's forward and
           // backward buttons move. Lifting one box to 510 would drop a surface
           // on top of the gauges it was emitted underneath.
-          selector = `${SC.elementPartSelector(pat.target.slice(4))}::before`;
+          boxSelector = SC.elementPartSelector(pat.target.slice(4));
+          selector = `${boxSelector}::before`;
         }
       }
       if (!selector) return;
@@ -1035,6 +1051,28 @@ Object.assign(window.SupercardModules['color'], (() => {
   50%       { transform: scale(${pScale}); opacity: calc(var(--pat-op, 1) * 0.6); }
 }\n`;
               animValue = `${pumpName} ${speed}s infinite ease-in-out`;
+            }
+            // The whole thing breathes, not the backdrop behind it. The scale
+            // goes on the box, so the pattern layer - a child of it - is
+            // carried along rather than animated on its own, and the content
+            // travels with the colour instead of standing still inside a
+            // flickering one. No opacity in it: fading the content is not
+            // what a card growing and shrinking does.
+            if (pat.animation === 'pump_all' && boxSelector) {
+              const pScale   = pat.pump_scale || 1.1;
+              const pumpName = `sc-anim-pump-all-${pat.id}-${idx}`;
+              styleStr += `@keyframes ${pumpName} {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(${pScale}); }
+}\n`;
+              // `transform` on the box would otherwise be whatever the
+              // renderer left there, and a canvas element carries none - the
+              // box is placed with insets, which is what makes this safe.
+              styleStr += `${boxSelector} {
+  transform-origin: center center;
+  animation: ${pumpName} ${speed}s infinite ease-in-out;
+  will-change: transform;
+}\n`;
             }
           }
         }
