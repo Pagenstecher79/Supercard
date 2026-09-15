@@ -1186,6 +1186,26 @@ A wheel or a pinch is aimed: the point under the pointer is the one that stays
 where it is, so the element being worked on does not walk off-screen as it
 gets bigger. The buttons name no point and keep the middle of the view.
 
+Ctrl or Cmd with `+`, `-` and `0` does the same from the keyboard, and two
+fingers on a touchscreen pinch - a trackpad's pinch is a Ctrl wheel and needs
+nothing of its own, but a touchscreen sends only two pointers, so the zoom is
+the ratio of how far apart they are to how far apart they started, anchored
+between them and following them as they travel. The second finger takes the
+gesture over from the first: the drag it had started is dropped, uncommitted,
+which puts the element back where the config still has it.
+
+One more button fills the window with what is selected. The window carries the
+canvas' aspect ratio, so the zoom that fits a box is the ratio of the canvas to
+that box in whichever axis is tighter - no pixels in the arithmetic, which is
+why it is right before the canvas has been laid out at the new zoom.
+
+The zoom a shape was last looked at is remembered for as long as the page
+lives, keyed by the canvas' own `w x h`. The editor is built anew each time
+the dialog opens, and without it a glance at another card costs the
+magnification that was set up. Like the zoom itself it never reaches the
+config: no card id is involved, nothing is written, and it is gone with the
+tab.
+
 Zoomed in, the window is smaller than the drawing, and two things move it
 besides the scrollbars. The middle button drags the view, and so does space
 with the left one - space only while the pointer is over the canvas, and never

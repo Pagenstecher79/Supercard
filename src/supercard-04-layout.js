@@ -516,6 +516,21 @@ const ZOOM_STEPS = Object.freeze([0.5, 0.75, 1, 1.5, 2, 3, 4]);
  * the eye can follow and the hand can stop - and it falls off across the
  * strip to a crawl where the pointer only grazes it.
  */
+/**
+ * The zoom a canvas of a given shape was last looked at, for as long as the
+ * page lives.
+ *
+ * The editor is built anew every time the card dialog opens, so without this
+ * a glance at something else costs the magnification you had set up. It is
+ * not config - it is never written, never shared, and gone with the tab - and
+ * it is keyed by the canvas' shape rather than by a card id, because a card
+ * config has no id of its own and the shape is what the zoom was chosen for.
+ */
+const zoomMemory = new Map();
+
+/** How much of the window a "zoom to the selection" leaves around it. */
+const FIT_MARGIN = 0.85;
+
 const EDGE_STRIP_PX = 32;
 const EDGE_SPEED_MAX = 9;
 
@@ -590,6 +605,11 @@ class ScCanvasEditor extends LitElement {
     // A pan in progress: where the pointer went down and where the view stood
     // then. Not reactive - scrolling the view is what draws it.
     this._pan = null;
+    // The touches on the canvas, by pointer id, and the pinch two of them
+    // make. A trackpad pinch arrives as a wheel and is handled there; this is
+    // for a real touchscreen, where nothing else reports one.
+    this._touches = new Map();
+    this._pinch = null;
     // The last pointer position, in client pixels. The edge scroll works from
     // it: the pointer can stand still while the view keeps moving under it.
     this._ptr = null;
@@ -635,6 +655,14 @@ class ScCanvasEditor extends LitElement {
       if (e.key === ' ' && this._pointerOverCanvas() && !this._space && !isTyping(e)) {
         this._space = true;
         e.preventDefault();
+      }
+      // The usual three, but only over the canvas: everywhere else they are
+      // the browser's own page zoom, and taking those globally would take
+      // them from the rest of Home Assistant.
+      if ((e.ctrlKey || e.metaKey) && this._pointerOverCanvas() && !isTyping(e)) {
+        if (e.key === '+' || e.key === '=') { e.preventDefault(); this._stepZoom(1); }
+        else if (e.key === '-' || e.key === '_') { e.preventDefault(); this._stepZoom(-1); }
+        else if (e.key === '0') { e.preventDefault(); this._applyZoom(1); }
       }
     };
     this._onKeyUp = e => { if (e.key === ' ') this._space = false; };
@@ -700,8 +728,22 @@ class ScCanvasEditor extends LitElement {
    * null when there is nothing to do, which is what stops the commit this
    * causes from causing another.
    */
+  /** The shape this canvas is, which is what a remembered zoom belongs to. */
+  get _zoomKey() {
+    const c = this.slot?.canvas;
+    return c ? c.w + 'x' + c.h : null;
+  }
+
   updated(changed) {
     super.updated(changed);
+    // The first canvas to arrive brings back the zoom this shape was last
+    // looked at. Only the first: afterwards the zoom is whatever the person
+    // at the keyboard has made it.
+    if (changed.has('slot') && !this._zoomRestored && this._zoomKey) {
+      this._zoomRestored = true;
+      const was = zoomMemory.get(this._zoomKey);
+      if (was && was !== this._zoom) this._applyZoom(was);
+    }
     if (!changed.has('cardConfig')) return;
     const was = changed.get('cardConfig');
     if (!was) return;
@@ -1569,6 +1611,10 @@ class ScCanvasEditor extends LitElement {
    */
   _onMove(e) {
     this._ptr = { x: e.clientX, y: e.clientY };
+    if (e.pointerType === 'touch' && this._touches.has(e.pointerId)) {
+      this._touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this._pinch && this._touches.size >= 2) return this._pinchTo();
+    }
     if (this._pan) return this._panTo();
     if (!this._band && !this._drag) return;
     this._track();
@@ -1663,6 +1709,44 @@ class ScCanvasEditor extends LitElement {
     e.preventDefault();
   }
 
+  /**
+   * Two fingers on the canvas: the one gesture a touchscreen has for zooming.
+   *
+   * A trackpad's pinch arrives as Ctrl and a wheel and is handled there, but a
+   * touchscreen sends nothing of the sort - only two pointers - so the zoom
+   * is the ratio of how far apart they are now to how far apart they started,
+   * anchored between them. The drag the first finger had started is dropped:
+   * `_dragCanvas` is where an uncommitted drag lives, so letting it go puts
+   * the element back where the config still has it, and nothing is committed.
+   */
+  _startPinch() {
+    const [a, b] = [...this._touches.values()];
+    this._drag = null;
+    this._band = null;
+    this._dragCanvas = null;
+    this._stopEdgeScroll();
+    this._pinch = {
+      dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+      zoom: this._zoom,
+      mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    };
+  }
+
+  _pinchTo() {
+    const [a, b] = [...this._touches.values()];
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    // Two fingers that travel together move the view, the same as one finger
+    // would - a pinch is nearly always a little of both.
+    const view = this._view;
+    if (view) {
+      view.scrollLeft -= mid.x - this._pinch.mid.x;
+      view.scrollTop -= mid.y - this._pinch.mid.y;
+    }
+    this._pinch.mid = mid;
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    this._applyZoom(this._pinch.zoom * (dist / this._pinch.dist), mid);
+  }
+
   _panTo() {
     const view = this._view;
     const p = this._ptr;
@@ -1698,10 +1782,40 @@ class ScCanvasEditor extends LitElement {
                y: (view.scrollTop + inY) / view.scrollHeight };
     }
     this._zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+    if (this._zoomKey) zoomMemory.set(this._zoomKey, this._zoom);
     if (!hold) return;
     this.updateComplete.then(() => {
       view.scrollLeft = hold.x * view.scrollWidth - hold.inX;
       view.scrollTop = hold.y * view.scrollHeight - hold.inY;
+    });
+  }
+
+  /**
+   * Fill the window with what is selected.
+   *
+   * The window carries the canvas' own aspect ratio, so the zoom that fits a
+   * box is the ratio of the canvas to that box in whichever axis is tighter -
+   * no pixels in it, which is also why it is right before the canvas has been
+   * laid out at the new zoom. The scroll that centres it needs the new
+   * layout, so it waits for the render.
+   */
+  _zoomToSelection() {
+    const c = this._canvas;
+    const boxes = c.elements.filter(el => this._isSel(el.id));
+    if (!boxes.length) return;
+    const x0 = Math.min(...boxes.map(b => b.x));
+    const y0 = Math.min(...boxes.map(b => b.y));
+    const x1 = Math.max(...boxes.map(b => b.x + b.w));
+    const y1 = Math.max(...boxes.map(b => b.y + b.h));
+    const z = FIT_MARGIN * Math.min(c.w / Math.max(x1 - x0, 0.001), c.h / Math.max(y1 - y0, 0.001));
+    this._zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+    if (this._zoomKey) zoomMemory.set(this._zoomKey, this._zoom);
+    const mid = { x: (x0 + x1) / 2 / c.w, y: (y0 + y1) / 2 / c.h };
+    this.updateComplete.then(() => {
+      const view = this._view;
+      if (!view) return;
+      view.scrollLeft = mid.x * view.scrollWidth - view.clientWidth / 2;
+      view.scrollTop = mid.y * view.scrollHeight - view.clientHeight / 2;
     });
   }
 
@@ -1742,6 +1856,13 @@ class ScCanvasEditor extends LitElement {
    * every click would flash a zero-sized box.
    */
   _onCanvasDown(e) {
+    // Every touch on the canvas is remembered, whatever it turns out to be:
+    // the second one is a pinch, and a pinch has to be able to take over from
+    // the drag the first one started.
+    if (e.pointerType === 'touch') {
+      this._touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this._touches.size === 2) return this._startPinch();
+    }
     // The hand first: over a zoomed canvas the middle button and space both
     // move the window, and neither is a press on anything in it.
     if (e.button === 1 || (this._space && e.button === 0)) return this._startPan(e);
@@ -1796,7 +1917,17 @@ class ScCanvasEditor extends LitElement {
     this._applySelection([...b.base, ...inside.filter(id => !b.base.includes(id))]);
   }
 
-  _onUp() {
+  _onUp(e) {
+    if (e?.pointerType === 'touch') this._touches.delete(e.pointerId);
+    // A pinch ends with the second finger, and the one still down does not
+    // then start dragging whatever it happens to be resting on.
+    if (this._pinch && this._touches.size < 2) {
+      this._pinch = null;
+      this._drag = null;
+      this._band = null;
+      this._stopEdgeScroll();
+      return;
+    }
     this._stopEdgeScroll();
     if (this._pan) { this._pan = null; return; }
     if (this._band) {
@@ -2590,7 +2721,12 @@ class ScCanvasEditor extends LitElement {
             <span class="hint level">${Math.round(this._zoom * 100)}%</span>
             <button title="Zoom in" ?disabled=${this._zoom >= ZOOM_MAX}
                     @click=${() => this._stepZoom(1)}>＋</button>
-            <button title="Back to 100%, the size at which the whole canvas fits. Zoomed in, the middle button or space and the left one move the view, and Ctrl or Cmd with the wheel zooms where the pointer is."
+            <button title=${selected.length
+                      ? 'Fill the window with what is selected'
+                      : 'Select an element to zoom in on it'}
+                    ?disabled=${!selected.length}
+                    @click=${() => this._zoomToSelection()}>⊡</button>
+            <button title="Back to 100%, the size at which the whole canvas fits. Zoomed in, the middle button or space and the left one move the view; Ctrl or Cmd with the wheel - or two fingers - zooms where the pointer is, and Ctrl or Cmd with +, - and 0 does it from the keyboard."
                     ?disabled=${this._zoom === 1} @click=${() => this._applyZoom(1)}>⟲</button>
           </div>
         </div>
