@@ -9,6 +9,7 @@ import { resolveSnap, gridToUnits, unitsToGrid, applyDrag, applyGroupDrag, distr
          alignElements, restorePatch,
          NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
 import { needsRowsCompat, rowsAsCanvas } from "./rows-compat.js";
+import { offsetsFromDrag, fontFromResize, GAUGE_VIEW } from "./gauge-inner-boxes.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from "./label-typography.js";
 
@@ -531,6 +532,38 @@ const zoomMemory = new Map();
 /** How much of the window a "zoom to the selection" leaves around it. */
 const FIT_MARGIN = 0.85;
 
+/**
+ * The parts of a gauge the canvas can edit directly, and the fields each of
+ * them is.
+ *
+ * The gauge draws both from a centre offset and a font size, in the units of
+ * its own viewBox - so a frame on the canvas is those three numbers, and
+ * dragging or resizing it writes them. The defaults are the gauge's own: a
+ * part that has never been set still has to be drawn somewhere, and the frame
+ * has to go to the same place.
+ */
+const GAUGE_PARTS = Object.freeze({
+  gauge_label: { label: 'Label', x: 'gauge_label_offset_x', y: 'gauge_label_offset_y',
+                 size: 'gauge_label_font_size', dx: 0, dy: -8, dsize: 8,
+                 section: '_section_gauge_label' },
+  value: { label: 'Value', x: 'value_offset_x', y: 'value_offset_y',
+           size: 'value_font_size', dx: 0, dy: 15, dsize: 12,
+           section: '_section_labels' },
+});
+
+/**
+ * The two align buttons that keep a meaning for a gauge's own label and value.
+ * A text has no left edge to line up against here - it has a middle, and the
+ * gauge has one too.
+ */
+const MIDDLE_AXIS = Object.freeze({
+  hcenter: { axis: 'x', what: 'vertical' },
+  vcenter: { axis: 'y', what: 'horizontal' },
+});
+
+/** Frames of no movement that end the follow loop behind the part frames. */
+const INNER_STILL_FRAMES = 4;
+
 const EDGE_STRIP_PX = 32;
 const EDGE_SPEED_MAX = 9;
 
@@ -571,6 +604,9 @@ class ScCanvasEditor extends LitElement {
       _ghost: { type: Object, state: true },
       _zoom: { type: Number, state: true },
       _space: { type: Boolean, state: true },
+      _inner: { type: String, state: true },
+      _innerRects: { type: Object, state: true },
+      _innerSel: { type: String, state: true },
       _names: { type: Boolean, state: true },
       _layers: { type: Boolean, state: true },
       _undoStack: { type: Array, state: true },
@@ -609,6 +645,14 @@ class ScCanvasEditor extends LitElement {
     // make. A trackpad pinch arrives as a wheel and is handled there; this is
     // for a real touchscreen, where nothing else reports one.
     this._touches = new Map();
+    // Which element's own parts are being edited on the canvas, the frames
+    // measured for them, and the gesture moving one. The rects are state
+    // because they are measured from what was drawn and then drawn from.
+    this._inner = null;
+    this._innerSel = null;
+    this._innerFrame = 0;
+    this._innerRects = null;
+    this._innerDrag = null;
     this._pinch = null;
     // The last pointer position, in client pixels. The edge scroll works from
     // it: the pointer can stand still while the view keeps moving under it.
@@ -705,6 +749,8 @@ class ScCanvasEditor extends LitElement {
     document.removeEventListener('pointermove', this._onDocMove, true);
     document.removeEventListener('pointerdown', this._onDocDown, true);
     this._stopEdgeScroll();
+    if (this._innerFrame) cancelAnimationFrame(this._innerFrame);
+    this._innerFrame = 0;
     super.disconnectedCallback();
   }
 
@@ -736,6 +782,8 @@ class ScCanvasEditor extends LitElement {
 
   updated(changed) {
     super.updated(changed);
+    this._measureInner();
+    this._followInner();
     // The first canvas to arrive brings back the zoom this shape was last
     // looked at. Only the first: afterwards the zoom is whatever the person
     // at the keyboard has made it.
@@ -837,6 +885,7 @@ class ScCanvasEditor extends LitElement {
       .tools button[disabled] { opacity: 0.4; cursor: default; }
       .tools .level { min-width: 46px; display: flex; align-items: center; justify-content: center; align-self: stretch; font-variant-numeric: tabular-nums; }
       .tools button.icon svg { display: block; width: 16px; height: 16px; }
+      .tools button.on { background: var(--primary-color); color: #fff; }
       .tools button.danger { color: var(--error-color, #f44336); }
       .tools button.danger:hover:not([disabled]) { background: var(--error-color, #f44336); color: #fff; }
       .tools .spacer { flex: 1; }
@@ -935,6 +984,24 @@ class ScCanvasEditor extends LitElement {
       }
       .handle { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; background: rgba(255,255,255,0.85); border-radius: 100% 0 0 0; cursor: nwse-resize; touch-action: none; }
       .handle::after { content: ''; position: absolute; right: -10px; bottom: -10px; width: 22px; height: 22px; }
+      /* The frames over a gauge's own text. The outline is drawn outside the
+         measured rect, because the rect is the glyphs and a border on it would
+         sit across them. */
+      .inner-frame { position: absolute; outline: 1px dashed var(--primary-color, #03a9f4);
+        outline-offset: 3px; background: rgba(3,169,244,0.10); cursor: move;
+        touch-action: none; z-index: 5; }
+      .inner-frame::after { content: ''; position: absolute; inset: -8px; }
+      /* Which of the two the middle-axis buttons would act on. */
+      .inner-frame.sel { outline-style: solid; background: rgba(3,169,244,0.20); }
+      .inner-tag { position: absolute; left: 0; bottom: 100%; margin-bottom: 6px;
+        font-size: 9px; line-height: 1; padding: 2px 4px; border-radius: 3px;
+        background: var(--primary-color, #03a9f4); color: #fff; white-space: nowrap;
+        pointer-events: none; opacity: 0.65; }
+      .inner-frame.sel .inner-tag { opacity: 1; }
+      .inner-grip { position: absolute; right: -8px; bottom: -8px; width: 10px; height: 10px;
+        border-radius: 50%; background: var(--primary-color, #03a9f4);
+        cursor: nwse-resize; touch-action: none; z-index: 6; }
+      .inner-grip::after { content: ''; position: absolute; inset: -8px; }
       .num { width: 68px; }
       /* The card's box controls read as one column: the mode first, always the
          same width, then the number it needs - which several of them do not,
@@ -974,6 +1041,15 @@ class ScCanvasEditor extends LitElement {
       .icon-btn[disabled] { opacity: 0.3; cursor: default; }
       .icon-btn[disabled]:hover { color: var(--secondary-text-color); }
       .hint { font-size: 11px; color: var(--secondary-text-color); }
+      /* While one of a gauge's own parts is in hand its settings belong right
+         under the canvas, not below a list of sixteen layers - the two have to
+         be within sight of each other to be worth anything. Moved with
+         the order property, not by rendering it somewhere else: lit would build the
+         editor afresh at the new place and every fold in it would spring
+         shut. */
+      .col.part-in-hand > .layers,
+      .col.part-in-hand > .el-rows,
+      .col.part-in-hand > .hint { order: 1; }
       .el-config { border: 1px solid var(--divider-color,#444); border-radius: 6px; background: rgba(0,0,0,0.15); }
       .el-config > summary { padding: 7px 10px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--primary-color,#03a9f4); list-style: none; display: flex; align-items: center; gap: 6px; user-select: none; }
       .el-config > summary::-webkit-details-marker { display: none; }
@@ -1615,6 +1691,7 @@ class ScCanvasEditor extends LitElement {
       this._touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this._pinch && this._touches.size >= 2) return this._pinchTo();
     }
+    if (this._innerDrag) return this._innerTo();
     if (this._pan) return this._panTo();
     if (!this._band && !this._drag) return;
     this._track();
@@ -1819,6 +1896,278 @@ class ScCanvasEditor extends LitElement {
     });
   }
 
+  /**
+   * The gauge whose own parts can be edited on the canvas: exactly one
+   * selected, and a gauge. Two of them have no one frame between them, and
+   * nothing else draws a label and a value of its own yet.
+   */
+  get _innerTarget() {
+    const sel = this._selection;
+    if (sel.length !== 1) return null;
+    const m = /^gauge_(\d+)$/.exec(sel[0]);
+    if (!m) return null;
+    const cfg = this._gaugeConfig(Number(m[1]));
+    if (!cfg) return null;
+    // Only what the gauge actually draws can be taken hold of, and the same
+    // two conditions the renderer itself goes by decide that.
+    const drawn = [];
+    if (cfg.gauge_label_text && cfg.gauge_label_active !== false) drawn.push('gauge_label');
+    if (cfg.show_value) drawn.push('value');
+    return { id: sel[0], idx: Number(m[1]), cfg, drawn };
+  }
+
+  /** The gauge at `idx`, read the way the card reads it. */
+  _gaugeConfig(idx) {
+    const slot = this.slot || {};
+    if (!slot.gauge_active) return null;
+    const gauges = Array.isArray(slot.gauges) && slot.gauges.length ? slot.gauges : [slot];
+    return gauges[idx] || null;
+  }
+
+  /** Whether the frames are up for the element that is selected now. */
+  get _innerOn() {
+    const target = this._innerTarget;
+    return !!target && target.drawn.length > 0 && this._inner === target.id;
+  }
+
+  _toggleInner() {
+    const target = this._innerTarget;
+    if (!target) return;
+    this._inner = this._innerOn ? null : target.id;
+    this._innerRects = null;
+    this._innerSel = null;
+  }
+
+  /**
+   * Measure the parts of the gauge being edited, in per cent of its box.
+   *
+   * Measured rather than worked out: a gauge is letterboxed inside its
+   * element, drawn at a scale of its own and at whatever the canvas is zoomed
+   * to, and the text's own rect already knows all three. Per cent of the box,
+   * so the frames are right at any zoom without measuring again.
+   *
+   * `pxPerUnit` comes from the SVG's screen matrix, which is the only thing
+   * that knows where the letterboxed viewBox actually landed.
+   */
+  _measureInner() {
+    if (!this._innerOn) {
+      if (this._innerRects) this._innerRects = null;
+      return false;
+    }
+    const box = this.shadowRoot?.querySelector(`.el[data-item-id="${this._inner}"]`);
+    const gauge = box?.querySelector('sc-gauge');
+    const texts = gauge?.shadowRoot?.querySelectorAll('[data-sc-part]');
+    if (!box || !texts?.length) {
+      if (this._innerRects) this._innerRects = null;
+      return false;
+    }
+    const elRect = box.getBoundingClientRect();
+    if (!elRect.width || !elRect.height) return false;
+    /** @type {any} */
+    const next = { parts: {} };
+    texts.forEach((/** @type {any} */ t) => {
+      const part = t.dataset.scPart;
+      if (!GAUGE_PARTS[part]) return;
+      const r = t.getBoundingClientRect();
+      if (!r.width && !r.height) return;
+      // Per part, not once: the value is drawn in a layer of its own, and a
+      // layer is free to be scaled differently from the one beside it.
+      const ctm = t.ownerSVGElement?.getScreenCTM?.();
+      next.parts[part] = {
+        l: (r.left - elRect.left) / elRect.width * 100,
+        t: (r.top - elRect.top) / elRect.height * 100,
+        w: r.width / elRect.width * 100,
+        h: r.height / elRect.height * 100,
+        pxPerUnit: ctm?.a || (elRect.width / GAUGE_VIEW),
+      };
+    });
+    if (!Object.keys(next.parts).length) {
+      if (this._innerRects) this._innerRects = null;
+      return false;
+    }
+    // Only when it actually moved: this runs after every render, and writing
+    // state that renders is how a measurement becomes a loop.
+    const was = this._innerRects;
+    const same = was
+      && Object.keys(next.parts).length === Object.keys(was.parts).length
+      && Object.entries(next.parts).every(([k, v]) => {
+        const o = was.parts[k];
+        return o && ['l', 't', 'w', 'h'].every(f => Math.abs(o[f] - v[f]) < 0.05)
+          && Math.abs(o.pxPerUnit - v.pxPerUnit) < 0.01;
+      });
+    if (!same) this._innerRects = next;
+    return !same;
+  }
+
+  /**
+   * Keep measuring until the text has come to rest.
+   *
+   * One measurement after this editor's own render is a measurement of where
+   * the text was: the gauge is a component of its own, and its update is a
+   * microtask away when ours is finished - so a frame put back on the middle
+   * axis would sit on the old spot until something else happened to re-render.
+   * A few frames of following costs nothing while nothing moves and is right
+   * whatever the gauge does in the meantime.
+   */
+  _followInner() {
+    if (this._innerFrame || !this._innerOn) return;
+    let still = 0;
+    const step = () => {
+      this._innerFrame = 0;
+      if (!this._innerOn) return;
+      still = this._measureInner() ? 0 : still + 1;
+      if (still < INNER_STILL_FRAMES) this._innerFrame = requestAnimationFrame(step);
+    };
+    this._innerFrame = requestAnimationFrame(step);
+  }
+
+  /**
+   * Pick up one of a gauge's parts.
+   *
+   * The snapshot is the first commit's, and every commit after it inside the
+   * same gesture is kept off the stack the way an undo's own writes are -
+   * dragging a label across the gauge is one thing done, not forty.
+   */
+  _innerDown(e, part, mode) {
+    const target = this._innerTarget;
+    if (!target) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const fresh = this._innerSel !== part;
+    this._innerSel = part;
+    // After the assignment, never before: what the reveal has to scroll to is
+    // the section the new selection has just pulled to the top of the editor.
+    if (fresh) this._revealPart(part);
+    const spec = GAUGE_PARTS[part];
+    const cfg = target.cfg;
+    this._innerDrag = {
+      idx: target.idx, part, mode,
+      startX: e.clientX, startY: e.clientY,
+      from: {
+        x: SC.safeFloat(cfg[spec.x], spec.dx),
+        y: SC.safeFloat(cfg[spec.y], spec.dy),
+        size: SC.safeFloat(cfg[spec.size], spec.dsize),
+      },
+      pxPerUnit: this._innerRects?.parts?.[part]?.pxPerUnit || 1,
+      scale: SC.safeFloat(cfg.gauge_scale, 0.9) || 1,
+      started: false,
+    };
+    this._ptr = { x: e.clientX, y: e.clientY };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no live pointer */ }
+  }
+
+  /** Where the part is now that the pointer has moved. */
+  _innerTo() {
+    const d = this._innerDrag;
+    const p = this._ptr;
+    if (!d || !p) return;
+    const spec = GAUGE_PARTS[d.part];
+    const patch = d.mode === 'size'
+      ? { [spec.size]: fontFromResize(d.from.size, p.y - d.startY, d.pxPerUnit, d.scale) }
+      : (() => {
+          const at = offsetsFromDrag(d.from, p.x - d.startX, p.y - d.startY, d.pxPerUnit, d.scale);
+          return { [spec.x]: at.x, [spec.y]: at.y };
+        })();
+    this._writeGauge(d.idx, patch, d.started);
+    d.started = true;
+  }
+
+  /**
+   * Bring the settings that belong to the part just taken hold of up to where
+   * they can be read.
+   *
+   * The frames are for the rough placing; the numbers beside them are for the
+   * rest, and those sat eight folds down the dialog. Rather than scroll the
+   * canvas off the screen to reach them - and a frame that cannot be seen
+   * cannot be dragged - the gauge editor is asked to put that one section at
+   * the top of its list for as long as the part is in hand, which leaves the
+   * two things within sight of each other. All this has left to do is make
+   * sure the settings are unfolded at all, and nudge them into view if the
+   * dialog happens to be scrolled past them.
+   */
+  async _revealPart(part) {
+    const section = GAUGE_PARTS[part]?.section;
+    if (!section) return;
+    this._configOpen = true;
+    await this.updateComplete;
+    const editor = /** @type {any} */ (this.shadowRoot?.querySelector('.el-config sc-gauge-editor'));
+    if (!editor) return;
+    await editor.updateComplete;
+    const fold = /** @type {any} */ (editor.shadowRoot?.querySelector(`details[data-section="${section}"]`));
+    if (!fold) return;
+    // The heading, not the whole fold: it is the shortest thing that proves
+    // the settings are there, so the dialog moves as little as it can and the
+    // canvas keeps as much of the screen as it can.
+    (fold.querySelector('summary') || fold).scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  /**
+   * Put the part that is in hand back on the gauge's middle axis.
+   *
+   * The same two buttons that line elements up, because it is the same thing
+   * asked of something smaller: a gauge is drawn about its centre, so an
+   * offset of zero *is* the middle, and no measuring is needed to find it.
+   */
+  _innerAlign(axis) {
+    const target = this._innerTarget;
+    const part = this._innerSel;
+    if (!target || !part || !GAUGE_PARTS[part]) return;
+    const spec = GAUGE_PARTS[part];
+    this._writeGauge(target.idx, { [axis === 'x' ? spec.x : spec.y]: 0 }, false);
+  }
+
+  /**
+   * Write fields onto one gauge. `quiet` keeps the write off the undo stack,
+   * which is what makes a whole drag one step rather than one per frame.
+   */
+  _writeGauge(idx, patch, quiet) {
+    const slot = this.slot || {};
+    const was = this._travelling;
+    if (quiet) this._travelling = true;
+    try {
+      // A card written before the list existed keeps its one gauge on the slot
+      // itself; cloning that into a `gauges` array would copy the whole card
+      // into it, so those fields are merged where they already live.
+      if (!Array.isArray(slot.gauges) || !slot.gauges.length) {
+        if (idx === 0) this._send('__merge__', { ...patch });
+        return;
+      }
+      const next = structuredClone(slot.gauges);
+      if (!next[idx]) return;
+      Object.assign(next[idx], patch);
+      this._send('gauges', next);
+    } finally {
+      this._travelling = was;
+    }
+  }
+
+  /**
+   * The frames over the drawn label and value.
+   *
+   * Drawn from the measured rects rather than from the offsets, so a frame
+   * sits on the text even where the gauge's own scale, its letterboxing or a
+   * long value have put it somewhere the numbers alone do not say. A little
+   * room is added around each one: the text rect of a single digit is too
+   * small a thing to take hold of.
+   */
+  _renderInner() {
+    const rects = this._innerRects?.parts;
+    if (!rects) return '';
+    return html`${Object.entries(GAUGE_PARTS).map(([part, spec]) => {
+      const r = rects[part];
+      if (!r) return '';
+      return html`
+        <div class="inner-frame ${this._innerSel === part ? 'sel' : ''}" data-part=${part}
+             style="left:${r.l}%; top:${r.t}%; width:${r.w}%; height:${r.h}%;"
+             title=${`Drag the ${spec.label.toLowerCase()}, or its corner to resize it`}
+             @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'move')}>
+          <span class="inner-tag">${spec.label}</span>
+          <div class="inner-grip"
+               @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'size')}></div>
+        </div>`;
+    })}`;
+  }
+
   /** The next step up (`dir > 0`) or down from wherever the zoom is now. */
   _stepZoom(dir, at = null) {
     // Against the current value rather than an index into the list, because
@@ -1919,6 +2268,7 @@ class ScCanvasEditor extends LitElement {
 
   _onUp(e) {
     if (e?.pointerType === 'touch') this._touches.delete(e.pointerId);
+    if (this._innerDrag) { this._innerDrag = null; return; }
     // A pinch ends with the second finger, and the one still down does not
     // then start dragging whatever it happens to be resting on.
     if (this._pinch && this._touches.size < 2) {
@@ -2376,7 +2726,9 @@ class ScCanvasEditor extends LitElement {
     if ((m = id.match(/^gauge_(\d+)$/))) {
       return wrap('Gauge settings', html`
         <sc-gauge-editor .hass=${props.hass} .slot=${props.slot}
-                         .commitFn=${props.commitFn} .only=${Number(m[1])}></sc-gauge-editor>`);
+                         .commitFn=${props.commitFn} .only=${Number(m[1])}
+                         .priority=${this._innerOn && this._innerSel
+                           ? (GAUGE_PARTS[this._innerSel]?.section || '') : ''}></sc-gauge-editor>`);
     }
     if ((m = id.match(/^label_(\d+)(?:_(?:icon|name|value))?$/))) {
       const box = this._canvas.elements.find(e => e.id === id);
@@ -2570,10 +2922,13 @@ class ScCanvasEditor extends LitElement {
     const alive = id => els.some(e => e.id === id);
     const sel = alive(this._sel) ? this._sel : null;
     const selected = this._selection.filter(alive);
+    const inner = this._innerTarget;
+    // A frame in hand borrows the two middle-axis buttons for itself.
+    const centring = this._innerOn && this._innerSel && GAUGE_PARTS[this._innerSel];
     const movers = this._distributable;
 
     return html`
-      <div class="col">
+      <div class="col ${centring ? 'part-in-hand' : ''}">
         <style>${this._live ? els.filter(e => !e.surface).map(el => itemTypography(el,
           `.el.live[data-item-id="${el.id}"]`,
           `.el.live[data-item-id="${el.id}"] > :not(.handle)`)).join('\n') : ''}</style>
@@ -2651,6 +3006,7 @@ class ScCanvasEditor extends LitElement {
                    data-item-id=${el.id} title=${this._title(el, pinned)}
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
                 ${live ?? el.id}
+                ${this._innerOn && this._inner === el.id ? this._renderInner() : ''}
                 ${pinned || selected.length > 1 ? '' : html`
                 <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>`}
               </div>`;
@@ -2673,11 +3029,15 @@ class ScCanvasEditor extends LitElement {
                ['top', 'Line up their top edges'],
                ['vcenter', 'Line them up through one horizontal middle'],
                ['bottom', 'Line up their bottom edges']].map(([edge, what]) => html`
-              <button class="icon" title=${movers < 2
-                        ? 'Two selected elements that can move are needed to line anything up'
-                        : `${what}. The outermost of them stays where it is.`}
-                      ?disabled=${movers < 2}
-                      @click=${() => this._align(/** @type {any} */ (edge))}>${alignIcon(/** @type {any} */ (edge))}</button>`)}
+              <button class="icon" title=${centring && MIDDLE_AXIS[edge]
+                        ? `Put the ${GAUGE_PARTS[this._innerSel].label.toLowerCase()} back on the gauge's ${MIDDLE_AXIS[edge].what} middle`
+                        : (movers < 2
+                            ? 'Two selected elements that can move are needed to line anything up'
+                            : `${what}. The outermost of them stays where it is.`)}
+                      ?disabled=${centring && MIDDLE_AXIS[edge] ? false : movers < 2}
+                      @click=${() => (centring && MIDDLE_AXIS[edge]
+                        ? this._innerAlign(MIDDLE_AXIS[edge].axis)
+                        : this._align(/** @type {any} */ (edge)))}>${alignIcon(/** @type {any} */ (edge))}</button>`)}
           </div>
           <div class="group">
             <button title=${movers < 3
@@ -2690,6 +3050,20 @@ class ScCanvasEditor extends LitElement {
                       : 'Even gaps top to bottom. The outermost two stay where they are.'}
                     ?disabled=${movers < 3}
                     @click=${() => this._distribute('y')}>⇕</button>
+          </div>
+          <div class="group">
+            <button class="${this._innerOn ? 'on' : ''}"
+                    title=${!inner
+                      ? 'Select a single gauge to move its label and its value on the canvas'
+                      : (!this._live
+                          ? 'Switch the live preview on - the frames sit on the drawn text'
+                          : (!inner.drawn.length
+                              ? 'This gauge shows neither a label nor a value, so there is nothing to move'
+                              : (this._innerOn
+                                  ? `Done with the ${inner.drawn.length > 1 ? 'label and the value' : GAUGE_PARTS[inner.drawn[0]].label.toLowerCase()}`
+                                  : `Move and resize the ${inner.drawn.length > 1 ? 'label and the value' : GAUGE_PARTS[inner.drawn[0]].label.toLowerCase()} right here`)))}
+                    ?disabled=${!inner || !this._live || !inner.drawn.length}
+                    @click=${() => this._toggleInner()}>✎</button>
           </div>
           <span class="spacer"></span>
           <div class="group">
@@ -2733,7 +3107,7 @@ class ScCanvasEditor extends LitElement {
 
         ${this._renderLayers(els, selected)}
 
-        <div class="col" style="gap:4px;">
+        <div class="col el-rows" style="gap:4px;">
           ${els.map((el, idx) => [el, idx])
                .filter(([el]) => !selected.length || selected.includes(el.id))
                .map(([el, idx]) => {

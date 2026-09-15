@@ -821,7 +821,7 @@ class ScGauge extends LitElement {
       const glW=this._get('gauge_label_font_weight',600);
       const glX=this.CENTER+safeFloat(this._get('gauge_label_offset_x',0),0)*scale, glY=this.CENTER+safeFloat(this._get('gauge_label_offset_y',-8),-8)*scale;
       const glCol=resolveColor(this._get('gauge_label_color_type','adaptive'),this._get('gauge_label_color',null));
-      extraLabels.push(svg`<text class="layer-elm-static" x="${glX.toFixed(2)}" y="${glY.toFixed(2)}" fill="${glCol}" font-size="${glSize}px" font-weight="${glW}" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none">${glTxt}</text>`);
+      extraLabels.push(svg`<text class="layer-elm-static" data-sc-part="gauge_label" x="${glX.toFixed(2)}" y="${glY.toFixed(2)}" fill="${glCol}" font-size="${glSize}px" font-weight="${glW}" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none">${glTxt}</text>`);
     }
 
     const pCol  = resolveColor(this._get('pointer_color_type','fixed'), this._get('pointer_color', [255,255,255]));
@@ -1017,8 +1017,8 @@ class ScGauge extends LitElement {
         ${pointerLayers}
 
         ${this._get('show_value',false) ? layer(this.CENTER, this.CENTER, false, svg`          
-            <text class="layer-elm-dynamic"
-                  x="${this.CENTER}"
+            <text class="layer-elm-dynamic" data-sc-part="value"
+                  x="${this.CENTER + safeFloat(this._get('value_offset_x',0),0)*scale}"
                   y="${this.CENTER + safeFloat(this._get('value_offset_y',15),15)*scale}"
                   fill="${resolveColor(this._get('value_color_type','adaptive'),this._get('value_color',null))}"
                   font-size="${safeFloat(this._get('value_font_size',12),12)*scale}px"

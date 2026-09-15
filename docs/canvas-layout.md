@@ -1241,6 +1241,62 @@ zero as soon as there is an overflow. Both axes need it, which is why the
 window is a flex container - an auto margin only centres vertically inside
 one.
 
+### A gauge's own label and value, moved where they stand
+
+The ✎ button beside the distribute pair, offered when exactly one gauge is
+selected, puts a frame around the label and the value the gauge draws and lets
+both be dragged and resized on the canvas rather than through two sliders
+each.
+
+The frames are **measured, not computed**. A gauge is drawn into a 50x50
+viewBox that letterboxes inside its element, at a `gauge_scale` of its own, on
+a canvas at whatever zoom; the text's own client rect already carries all
+three, and no arithmetic here can be wrong about where the glyphs are. Each
+frame is stored as a per cent of the element's box, so it stays right when the
+canvas is zoomed without measuring again. The measurement runs after every
+render and only writes when something actually moved - writing state that
+renders is how a measurement becomes a loop.
+
+Pixels become units through the SVG's own screen matrix (`getScreenCTM().a`),
+per part rather than once: the value is drawn inside a layer of its own, which
+is free to be scaled differently from the layer beside it. `gauge-inner-boxes.js`
+holds that arithmetic, pure and tested - offsets clamped to the viewBox, font
+sizes to 0.5-20, both rounded to a tenth so the YAML stays readable.
+
+A frame's `pointerdown` stops there, so neither the element drag nor the
+selection band starts under it; the rest of the gesture rides the canvas's own
+`pointermove`. Only the first commit of a gesture is recorded, the rest going
+through with history suspended, so dragging a label across a gauge is one step
+to undo and not forty.
+
+While a part is in hand the editor below the canvas reorders itself: that
+part's own fold - **Gauge Label** or **Value & Labels** - goes to the top of
+the gauge's form, and the element settings go above the layer list, so the
+frames on the canvas and the numbers for them are on one screen. Both moves
+are the `order` property on a flex column, not a different render: lit would
+build the editor afresh at a new place in the tree and every fold in it would
+spring shut. The order goes back as soon as the frames do.
+
+Clicking a frame without dragging selects it, and the two middle-axis buttons
+of the align group - which need two elements for anything else - then act on
+that one part instead: an offset of zero is the gauge's own middle, so putting
+a label back on the axis is a press rather than a slider dragged to nothing.
+The other four stay out: a text has no left edge to line up against here.
+
+The frames follow the text for a few frames after each render rather than
+measuring once. A gauge is a component of its own, and its update is a
+microtask away when this editor's is finished, so a single measurement after a
+centring is a measurement of where the text was: the frame stayed on the old
+spot until something else happened to re-render. Measured in the dialog, with
+the loop and without: caught up after 24 ms against 162 ms, and the 162 was
+only that short because a state update happened to arrive.
+
+The button is offered only where there is something to take hold of: the live
+preview has to be on, and the gauge has to draw at least one of the two - the
+same two conditions the renderer itself goes by (`gauge_label_text` with
+`gauge_label_active`, and `show_value`). The sliders remain, and `value` gained
+the `value_offset_x` it had never had, so the frame has an axis to write to.
+
 ## 9. Build order
 
 1. ~~**The migration function alone**, pure.~~ `src/canvas-model.js`.
