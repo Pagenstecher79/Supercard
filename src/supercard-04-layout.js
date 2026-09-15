@@ -1014,14 +1014,16 @@ class ScCanvasEditor extends LitElement {
          is the one thing about it worth reading from across the canvas, and at
          9px the two glyphs were the same small smudge. The top left is the
          ring steppers' corner now. */
-      .el.pinned::before { content: '🔒'; position: absolute; top: 1px; right: 3px;
+      .el.pinned::before { content: '🔒'; position: absolute; top: 6px; right: 6px;
                            font-size: 18px; line-height: 1; z-index: 6;
                            text-shadow: 0 1px 3px #000, 0 0 4px #000; }
       /* Which boxes answer a push, and so take that click away from the card
          underneath them. Bottom left, clear of the lock above it and of the
-         resize handle opposite. The card's own badge sits on the canvas frame. */
+         resize handle opposite. The card's own badge sits on the canvas frame.
+         Both badges stand off the border the same distance the ring steppers
+         do: against it a glyph reads as part of the frame's edge. */
       .el.pushed::after, .canvas.pushed::after {
-        content: '👆'; position: absolute; bottom: 2px; left: 3px; z-index: 5;
+        content: '👆'; position: absolute; bottom: 6px; left: 6px; z-index: 5;
         font-size: 15px; line-height: 1; pointer-events: none;
         text-shadow: 0 1px 3px #000, 0 0 4px #000;
         /* Read right to left: the glyph is mirrored first, then turned a
