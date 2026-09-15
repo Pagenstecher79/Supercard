@@ -680,7 +680,7 @@ const GAUGE_RINGS = Object.freeze({
   // Always drawn: a gauge has no switch for its pointer, so there is nothing
   // to offer and nothing to take away.
   pointer: {
-    label: 'Pointer', section: '_section_pointer', pivot: true, needle: true,
+    label: 'Pointer', section: '_section_pointer', needle: true,
     on: () => true,
     radiusOf: (/** @type {any} */ cfg, /** @type {number} */ ring, /** @type {number} */ scale) =>
       needleEnds(SC.safeFloat(cfg.pointer_offset, 2), SC.safeFloat(cfg.pointer_length, 10),
@@ -694,7 +694,7 @@ const GAUGE_RINGS = Object.freeze({
                     triangle: { glyph: '\u25B2', label: 'a triangle' } } },
   },
   pointer_center: {
-    label: 'Centre point', section: '_section_pointer', pivot: true,
+    label: 'Centre point', section: '_section_pointer',
     on: (/** @type {any} */ cfg) => SC.safeFloat(cfg.pointer_center_radius, 2) > 0,
     turnOn: { pointer_center_radius: 2 }, turnOff: { pointer_center_radius: 0 },
     radiusOf: (/** @type {any} */ cfg, /** @type {number} */ _ring, /** @type {number} */ scale) =>
@@ -2607,9 +2607,8 @@ class ScCanvasEditor extends LitElement {
     const a = needleAngle(gauge?.shadowRoot?.querySelector('[data-sc-needle]')) * Math.PI / 180;
     const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
     const ring = ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale);
-    const C = GAUGE_VIEW / 2;
-    const cx = C + SC.safeFloat(cfg.pivot_offset_x, 0);
-    const cy = C + SC.safeFloat(cfg.pivot_offset_y, 0);
+    const cx = GAUGE_VIEW / 2;
+    const cy = cx;
     const ends = needleEnds(SC.safeFloat(cfg.pointer_offset, 2),
                             SC.safeFloat(cfg.pointer_length, 10), ring, scale);
     const on = (/** @type {number} */ r) =>
@@ -2756,15 +2755,9 @@ class ScCanvasEditor extends LitElement {
     const cfg = this._innerTarget?.cfg || {};
     const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
     const pxPerUnit = r.width / GAUGE_VIEW;
-    // The pointer and its hub turn about the pivot, which a card may have moved
-    // off the gauge's centre - and `pivot_offset_*` is not scaled, the way the
-    // renderer reads it.
-    const off = GAUGE_RINGS[part]?.pivot
-      ? { x: SC.safeFloat(cfg.pivot_offset_x, 0), y: SC.safeFloat(cfg.pivot_offset_y, 0) }
-      : { x: 0, y: 0 };
     return {
-      cx: r.left + r.width / 2 + off.x * pxPerUnit,
-      cy: r.top + r.height / 2 + off.y * pxPerUnit,
+      cx: r.left + r.width / 2,
+      cy: r.top + r.height / 2,
       pxPerUnit, scale,
       ring: ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale),
     };
@@ -2815,12 +2808,9 @@ class ScCanvasEditor extends LitElement {
     const r = ringPartAt(spec, cfg, ring, scale);
     const rx = Math.abs(r) / GAUGE_VIEW * svg.w;
     const ry = Math.abs(r) / GAUGE_VIEW * svg.h;
-    const off = spec.pivot
-      ? { x: SC.safeFloat(cfg.pivot_offset_x, 0), y: SC.safeFloat(cfg.pivot_offset_y, 0) }
-      : { x: 0, y: 0 };
     return {
-      cx: svg.l + svg.w * (0.5 + off.x / GAUGE_VIEW),
-      cy: svg.t + svg.h * (0.5 + off.y / GAUGE_VIEW),
+      cx: svg.l + svg.w * 0.5,
+      cy: svg.t + svg.h * 0.5,
       rx, ry,
     };
   }
@@ -3001,14 +2991,12 @@ class ScCanvasEditor extends LitElement {
     const ring = ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale);
     const at = (/** @type {any} */ spec) => Math.abs(ringPartAt(spec, cfg, ring, scale));
     const C = GAUGE_VIEW / 2;
-    // The pointer and its hub turn about the pivot, wherever the card has put
-    // it; everything else is drawn about the gauge's centre.
-    const cen = (/** @type {any} */ spec) => spec.pivot
-      ? { x: C + SC.safeFloat(cfg.pivot_offset_x, 0), y: C + SC.safeFloat(cfg.pivot_offset_y, 0) }
-      : { x: C, y: C };
+    // Every part of a gauge is drawn about its centre, the needle and its hub
+    // included - they turn about it.
+    const cen = { x: C, y: C };
     // Both ends laid out on the line the needle is pointing along right now.
     const needleAt = (/** @type {any} */ spec) => {
-      const c = cen(spec);
+      const c = cen;
       const a2 = (this._innerRects?.angle ?? 0) * Math.PI / 180;
       const ends = needleEnds(SC.safeFloat(cfg.pointer_offset, 2),
                               SC.safeFloat(cfg.pointer_length, 10), ring, scale);
@@ -3020,7 +3008,7 @@ class ScCanvasEditor extends LitElement {
       <svg class="ring-layer" viewBox="0 0 ${GAUGE_VIEW} ${GAUGE_VIEW}"
            style="left:${svgBox.l}%; top:${svgBox.t}%; width:${svgBox.w}%; height:${svgBox.h}%;">
         ${live.filter(([, spec]) => !spec.needle).map(([part, spec]) => {
-          const c = cen(spec);
+          const c = cen;
           const r = at(spec);
           if (r < 0.5) return '';
           return svg`
@@ -3056,7 +3044,7 @@ class ScCanvasEditor extends LitElement {
         })}
       </svg>
       ${live.map(([part, spec]) => {
-        const c = cen(spec);
+        const c = cen;
         const clampPc = (/** @type {number} */ v) => Math.max(2, Math.min(98, v));
         // The needle's chip cannot stand on a ring, so it stands beside the
         // line instead - at its middle, a little way off to one side, clear of

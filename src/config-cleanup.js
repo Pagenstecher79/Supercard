@@ -50,6 +50,12 @@ export const DEAD_SLOT_KEYS = Object.freeze(['hide_tips']);
 
 export const DEAD_ENTRY_KEYS = Object.freeze({
   progressbars: Object.freeze(['position_mode', 'offset_x', 'offset_y']),
+  // A gauge's needle could be made to turn about a point other than the
+  // gauge's centre. Nothing drew a better dial for it and everything that
+  // measures a part against the middle had to carry the offset - the editor's
+  // ring geometry in three places, the frames, the live needle - so the pivot
+  // is the centre again and the two keys are left over.
+  gauges: Object.freeze(['pivot_offset_x', 'pivot_offset_y']),
   fx_glass_patterns: Object.freeze(['debug_mask']),
 });
 

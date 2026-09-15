@@ -199,8 +199,6 @@ const STYLE_FIELDS = [
   { id: 'pointer_length',         label: 'Pointer length',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10', framedBy: 'pointer'  },
   { id: 'pointer_offset',         label: 'Pointer offset from ring',     type: 'range',    min: -10, max: 10, step: 0.1,  placeholder: '2', framedBy: 'pointer'   },
   { id: 'pointer_center_radius',  label: 'Centre point size',          type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '2', framedBy: 'pointer_center'   },
-  { id: 'pivot_offset_x',         label: 'Pivot offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'   },
-  { id: 'pivot_offset_y',         label: 'Pivot offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'  },
   { id: 'pointer_color_type',     label: 'Pointer colour mode',          type: 'select',  options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
   { id: 'pointer_color',          label: 'Pointer colour (fixed)',         type: 'color',   condition: cfg => cfg.pointer_color_type !== 'adaptive' },
   { id: 'pointer_3d_effect',      label: '3D effect (plastic)',      type: 'checkbox' },
