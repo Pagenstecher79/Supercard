@@ -789,6 +789,16 @@ class ScCanvasEditor extends LitElement {
     // The first canvas to arrive brings back the zoom this shape was last
     // looked at. Only the first: afterwards the zoom is whatever the person
     // at the keyboard has made it.
+    // A canvas nobody sees is the one broken state this editor can be opened
+    // in: `layout_active` gates the renderer, so a card carrying a canvas with
+    // the switch off draws its plain content row while this editor happily
+    // arranges elements onto a picture the card never shows. Nothing here can
+    // tell the person that by drawing it, so the switch goes on instead - and
+    // only ever from off to on, for a card that already has a canvas.
+    if (this.slot?.canvas && !this.slot.layout_active && !this._activated) {
+      this._activated = true;
+      this.commitFn?.('__merge__', { layout_active: true });
+    }
     if (changed.has('slot') && !this._zoomRestored && this._zoomKey) {
       this._zoomRestored = true;
       const was = zoomMemory.get(this._zoomKey);
@@ -3352,7 +3362,13 @@ class ScCanvasAdopt extends LitElement {
     const shape = canvasFromGrid(this.cardConfig, slot, 400,
                                  sectionColumns(this), sectionWidthPx(this));
     const migrated = rowsAsCanvas(slot, shape.w, shape.h);
-    if (migrated) this.commitFn('__merge__', migrated);
+    // `layout_active` travels with it. The canvas is what the card draws from
+    // now, and a canvas without that switch is one nobody sees - which is how
+    // the last rows cards ended up carrying a picture and showing their plain
+    // content row instead. A layout that was switched off comes on, because
+    // the alternative is a card that cannot be laid out at all. It travels in
+    // this commit: a second one in the same tick would be lost.
+    if (migrated) this.commitFn('__merge__', { ...migrated, layout_active: true });
   }
 
   render() { return html``; }

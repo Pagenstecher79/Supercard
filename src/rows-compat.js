@@ -41,9 +41,11 @@ export function needsRowsCompat(slot) {
  * Returns null when there is nothing to migrate, or when the card has not been
  * measured yet - the caller renders as before and asks again once it has a box.
  *
- * `layout_active` is deliberately not set. It gates the renderer, so rows that
- * are switched off are not what the card draws, and turning them on here would
- * put a layout on screen that nobody has seen since they switched it off.
+ * `layout_active` is deliberately not set here. This answer is also the one the
+ * card renders from in memory on every load, where turning the switch on would
+ * put a layout on screen that nobody has seen since they switched it off. The
+ * one place that does set it is `ScCanvasAdopt`, which writes the migration
+ * down - a canvas without that switch is a canvas nobody sees.
  *
  * @param {any} slot
  * @param {number} boxW the card's measured width in px
