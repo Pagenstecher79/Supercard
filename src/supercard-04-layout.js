@@ -615,6 +615,11 @@ const GAUGE_RINGS = Object.freeze({
       needleEnds(SC.safeFloat(cfg.pointer_offset, 2), SC.safeFloat(cfg.pointer_length, 10),
                  ring, scale).tip,
     step: { key: 'pointer_width', by: 0.1, min: 0.1, max: 10, dflt: 2, what: 'pointer width' },
+    // Shape is the other thing a needle is, and with only two of them a button
+    // on the chip says it better than a select eight folds down the dialog.
+    shapes: { key: 'pointer_type', dflt: 'needle', order: ['needle', 'triangle'],
+              of: { needle: { glyph: '\u25AC', label: 'needle' },
+                    triangle: { glyph: '\u25B2', label: 'triangle' } } },
   },
   pointer_center: {
     label: 'Centre point', section: '_section_pointer', pivot: true,
@@ -1170,24 +1175,30 @@ class ScCanvasEditor extends LitElement {
          gauges and lost on others. Each carries a dark plate of its own: the
          shadow fills the outline's offset, so the bright dashes always stand
          against black rather than against the artwork. */
-      .inner-frame { position: absolute; outline: 1px dashed #8ce0ff;
+      /* Two colours, decided once. Blue is every part of the gauge that has a
+         frame; amber is the one part in hand, and it is warm rather than loud
+         because it lies over artwork somebody is trying to look at. */
+      :host { --sc-part: #8ce0ff; --sc-part-sel: #f2b544; --sc-part-sel-ink: #1b1200; }
+      .inner-frame { position: absolute; outline: 1px dashed var(--sc-part);
         outline-offset: 3px; box-shadow: 0 0 0 4px rgba(0,0,0,0.55);
         background: rgba(3,169,244,0.14); cursor: move;
         touch-action: none; z-index: 5; }
       .inner-frame::after { content: ''; position: absolute; inset: -8px; }
       /* Which of the two the middle-axis buttons would act on. */
-      .inner-frame.sel { outline: 2px solid #8ce0ff; background: rgba(3,169,244,0.28); }
-      .inner-tag { position: absolute; left: 0; bottom: 100%; margin-bottom: 6px;
-        font-size: 9px; line-height: 1; padding: 2px 4px; border-radius: 3px;
+      .inner-frame.sel { outline: 2px solid var(--sc-part-sel);
+        background: rgba(242,181,68,0.22); }
+      .inner-tag { position: absolute; left: 0; bottom: 100%; margin-bottom: 7px;
+        font-size: 11.5px; line-height: 1; padding: 2px 5px; border-radius: 3px;
         background: var(--primary-color, #03a9f4); color: #fff; white-space: nowrap;
         pointer-events: none; opacity: 0.8; box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
-      .inner-frame.sel .inner-tag { opacity: 1; }
+      .inner-frame.sel .inner-tag { opacity: 1;
+        background: var(--sc-part-sel); color: var(--sc-part-sel-ink); }
       /* The way back out, across the frame's head from its tag: the same key
          the + chip writes, so a part can be taken off where it was put on. */
-      .inner-drop { position: absolute; right: 0; bottom: 100%; margin-bottom: 6px;
-        width: 13px; height: 13px; padding: 0; font-size: 11px; line-height: 1;
+      .inner-drop { position: absolute; right: 0; bottom: 100%; margin-bottom: 7px;
+        width: 16px; height: 16px; padding: 0; font-size: 14px; line-height: 1;
         border-radius: 3px; cursor: pointer; touch-action: none;
-        border: 1px solid #8ce0ff; background: rgba(0,0,0,0.65); color: #fff;
+        border: 1px solid var(--sc-part); background: rgba(0,0,0,0.65); color: #fff;
         box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
       .inner-drop:hover { background: var(--error-color,#db4437); border-color: var(--error-color,#db4437);
         color: #fff; }
@@ -1195,9 +1206,9 @@ class ScCanvasEditor extends LitElement {
          drawn. It writes the key the form's own switch writes, so there is one
          setting and not two. Dashed, because nothing is there yet. */
       .inner-add { position: absolute; transform: translate(-50%, -50%);
-        padding: 1px 5px; font-size: 9px; line-height: 1.5; white-space: nowrap;
+        padding: 1px 6px; font-size: 11.5px; line-height: 1.5; white-space: nowrap;
         border-radius: 4px; cursor: pointer; touch-action: none; z-index: 6;
-        border: 1px dashed #8ce0ff; background: rgba(0,0,0,0.65); color: #fff;
+        border: 1px dashed var(--sc-part); background: rgba(0,0,0,0.65); color: #fff;
         box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
       .inner-add:hover { background: var(--primary-color,#03a9f4); border-style: solid; }
       /* A ring is a distance from the centre, so its frame is a ring too and
@@ -1212,32 +1223,41 @@ class ScCanvasEditor extends LitElement {
          is there to place, and at full strength the selected one hid the ticks
          and sub-ticks under it. Which ring is in hand is said by its width and
          by its unbroken line instead, neither of which costs any legibility. */
-      .ring-band { fill: none; stroke: #8ce0ff; stroke-width: 0.35;
+      .ring-band { fill: none; stroke: var(--sc-part); stroke-width: 0.35;
         stroke-dasharray: 1.2 1.2; opacity: 0.5;
         filter: drop-shadow(0 0 0.5px rgba(0,0,0,0.9)); }
-      .ring-band.sel { stroke-width: 0.6; stroke-dasharray: none; opacity: 0.5;
+      .ring-band.sel { stroke: var(--sc-part-sel); stroke-width: 0.6;
+        stroke-dasharray: none; opacity: 0.5;
         filter: drop-shadow(0 0 0.5px rgba(0,0,0,0.9)); }
       .ring-hit { fill: none; stroke: transparent; stroke-width: 2.4;
         pointer-events: stroke; cursor: ns-resize; touch-action: none; }
       /* The needle's two ends. Filled, unlike the bands: a grip is small
          enough that taking every press inside it is what it is for, and the
          needle has nothing underneath it worth reading through. */
-      .ring-grip { fill: #8ce0ff; stroke: rgba(0,0,0,0.9); stroke-width: 0.2;
+      .ring-grip { fill: var(--sc-part); stroke: rgba(0,0,0,0.9); stroke-width: 0.2;
         opacity: 0.6; }
-      .ring-grip.sel { opacity: 1; }
+      .ring-grip.sel { fill: var(--sc-part-sel); opacity: 1; }
       .ring-grip-hit { fill: transparent; stroke: none; pointer-events: all;
         cursor: move; touch-action: none; }
       .ring-tag { position: absolute; transform: translate(-50%, -50%);
         display: flex; align-items: center; gap: 3px; z-index: 6;
-        font-size: 9px; line-height: 1; padding: 2px 4px; border-radius: 3px;
+        font-size: 11.5px; line-height: 1; padding: 2px 5px; border-radius: 3px;
         background: var(--primary-color, #03a9f4); color: #fff; white-space: nowrap;
         opacity: 0.85; cursor: ns-resize; touch-action: none;
         box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
-      .ring-tag.sel { opacity: 1; }
-      .ring-drop { width: 12px; height: 12px; padding: 0; font-size: 11px;
+      .ring-tag.sel { opacity: 1;
+        background: var(--sc-part-sel); color: var(--sc-part-sel-ink); }
+      .ring-drop { width: 15px; height: 15px; padding: 0; font-size: 14px;
         line-height: 1; border-radius: 3px; cursor: pointer; touch-action: none;
         border: 1px solid rgba(255,255,255,0.7); background: rgba(0,0,0,0.4);
         color: #fff; }
+      .ring-tag.sel .ring-drop { border-color: rgba(0,0,0,0.45);
+        color: var(--sc-part-sel-ink); }
+      .ring-shape { width: 15px; height: 15px; padding: 0; font-size: 10px;
+        line-height: 1; border-radius: 3px; cursor: pointer; touch-action: none;
+        border: 1px solid rgba(0,0,0,0.45); background: rgba(0,0,0,0.25);
+        color: var(--sc-part-sel-ink); }
+      .ring-shape:hover { background: rgba(0,0,0,0.45); }
       /* The corner the ring's number lives in. Above everything the gauge
          draws, and out of the lock's way on the other side. Held off the
          border rather than tucked against it: pressed into the corner the
@@ -1246,10 +1266,10 @@ class ScCanvasEditor extends LitElement {
       .ring-steps { position: absolute; top: 6px; left: 6px; z-index: 7;
         display: flex; align-items: center; gap: 3px; padding: 2px 3px;
         border-radius: 5px; background: rgba(0,0,0,0.62);
-        box-shadow: 0 0 0 1px rgba(140,224,255,0.55); }
+        box-shadow: 0 0 0 1px rgba(242,181,68,0.6); }
       .ring-step { width: 20px; height: 20px; padding: 0; font-size: 15px;
         line-height: 1; border-radius: 4px; cursor: pointer; touch-action: none;
-        border: 1px solid #8ce0ff; background: rgba(0,0,0,0.5); color: #fff; }
+        border: 1px solid var(--sc-part-sel); background: rgba(0,0,0,0.5); color: #fff; }
       .ring-step:hover:not([disabled]) { background: var(--primary-color,#03a9f4); }
       .ring-step[disabled] { opacity: 0.35; cursor: default; }
       .ring-step-val { font-size: 13px; line-height: 1; color: #fff;
@@ -1261,6 +1281,7 @@ class ScCanvasEditor extends LitElement {
         box-shadow: 0 0 0 1.5px rgba(0,0,0,0.6), 0 0 0 2.5px rgba(255,255,255,0.85);
         cursor: nwse-resize; touch-action: none; z-index: 6; }
       .inner-grip::after { content: ''; position: absolute; inset: -8px; }
+      .inner-frame.sel .inner-grip { background: var(--sc-part-sel); }
       .num { width: 68px; }
       /* The card's box controls read as one column: the mode first, always the
          same width, then the number it needs - which several of them do not,
@@ -2779,6 +2800,7 @@ class ScCanvasEditor extends LitElement {
                 style="left:${clampPc(l)}%; top:${clampPc(t)}%;"
                 @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'ring')}>
             ${spec.label}
+            ${spec.shapes && this._innerSel === part ? this._renderShapeSwap(spec) : ''}
             ${spec.turnOff ? html`
               <button class="ring-drop"
                       title=${`Take the ${spec.label.toLowerCase()} off this gauge`}
@@ -2819,6 +2841,26 @@ class ScCanvasEditor extends LitElement {
       <div class="ring-steps" title=${`${spec.label}: ${st.what}`}>
         ${btn(-1, '−')}<span class="ring-step-val">${now}</span>${btn(1, '+')}
       </div>`;
+  }
+
+  /**
+   * The button on a chip that steps the part through the shapes it can take.
+   *
+   * On the chip rather than in the corner cluster: the corner holds a number
+   * that is stepped up and down, and a shape is neither - it is the same one
+   * setting the form's select writes, offered where the part is.
+   */
+  _renderShapeSwap(spec) {
+    const target = this._innerTarget;
+    if (!target) return '';
+    const sh = spec.shapes;
+    const now = sh.order.includes(target.cfg[sh.key]) ? target.cfg[sh.key] : sh.dflt;
+    const next = sh.order[(sh.order.indexOf(now) + 1) % sh.order.length];
+    return html`
+      <button class="ring-shape" title=${`Make the ${spec.label.toLowerCase()} a ${sh.of[next].label}`}
+              @pointerdown=${(/** @type {any} */ e) => { e.stopPropagation(); e.preventDefault(); }}
+              @click=${() => this._writeGauge(target.idx, { [sh.key]: next }, false)}>
+        ${sh.of[now].glyph}</button>`;
   }
 
   /** The next step up (`dir > 0`) or down from wherever the zoom is now. */

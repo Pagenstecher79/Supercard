@@ -193,7 +193,7 @@ const STYLE_FIELDS = [
   { id: 'threshold2', label: 'Mid spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '60', condition: cfg => cfg.gradient_preset === 'linear' },
 
   { id: '_section_pointer',       label: '── 🧭 Pointer',                  type: 'section' },
-  { id: 'pointer_type',           label: 'Pointer shape',                type: 'select',  options: [ { value: 'needle', label: 'Needle' }, { value: 'triangle', label: 'Triangle' } ] },
+  { id: 'pointer_type',           label: 'Pointer shape',                type: 'select',  options: [ { value: 'needle', label: 'Needle' }, { value: 'triangle', label: 'Triangle' } ], framedBy: 'pointer' },
   { id: 'pointer_width',          label: 'Pointer width',              type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '2', framedBy: 'pointer'   },
   { id: 'pointer_length',         label: 'Pointer length',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10', framedBy: 'pointer'  },
   { id: 'pointer_offset',         label: 'Pointer offset from ring',     type: 'range',    min: -10, max: 10, step: 0.1,  placeholder: '2', framedBy: 'pointer'   },
@@ -777,9 +777,9 @@ class ScGaugeEditor extends LitElement {
     // The needle is the one framed part that is dragged by its ends rather
     // than in and out, so it is the one that has to say so.
     return html`<div class="framed-note">${framed.framedBy === 'pointer'
-      ? html`Length and offset are on the canvas while this one is selected -
-             drag either end of the needle, or use the buttons in the frame's
-             corner.`
+      ? html`Shape, length and offset are on the canvas while this one is
+             selected - drag either end of the needle, or use the buttons on
+             its chip and in the frame's corner.`
       : RING_PARTS.has(framed.framedBy)
       ? html`Distance and count are on the canvas while this one is selected -
              drag its ring, or use the buttons in the frame's corner.`
