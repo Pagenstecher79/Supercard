@@ -1256,6 +1256,11 @@ class ScCanvasEditor extends LitElement {
         filter: drop-shadow(0 0 0.5px rgba(0,0,0,0.9)); }
       .ring-hit { fill: none; stroke: transparent; stroke-width: 2.4;
         pointer-events: stroke; cursor: ns-resize; touch-action: none; }
+      /* The needle itself, which selects the pointer but drags nothing - the
+         two ends do that, and they are drawn after this so they win the press
+         where the two overlap. */
+      .needle-hit { fill: none; stroke: transparent; stroke-width: 3;
+        pointer-events: stroke; cursor: pointer; touch-action: none; }
       /* The needle's two ends. Filled, unlike the bands: a grip is small
          enough that taking every press inside it is what it is for, and the
          needle has nothing underneath it worth reading through. */
@@ -2425,7 +2430,8 @@ class ScCanvasEditor extends LitElement {
    */
   _placeNeedle() {
     const root = this.shadowRoot;
-    const line = root?.querySelector('.needle-line');
+    const lines = root?.querySelectorAll('.needle-line');
+    const line = lines && lines[0];
     const cfg = this._innerTarget?.cfg;
     const svgBox = this._innerRects?.svg;
     if (!line || !cfg || !svgBox) return null;
@@ -2441,10 +2447,12 @@ class ScCanvasEditor extends LitElement {
     const on = (/** @type {number} */ r) =>
       ({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
     const at = { tip: on(ends.tip), tail: on(ends.tail) };
-    line.setAttribute('x1', String(at.tail.x));
-    line.setAttribute('y1', String(at.tail.y));
-    line.setAttribute('x2', String(at.tip.x));
-    line.setAttribute('y2', String(at.tip.y));
+    lines.forEach((/** @type {any} */ n) => {
+      n.setAttribute('x1', String(at.tail.x));
+      n.setAttribute('y1', String(at.tail.y));
+      n.setAttribute('x2', String(at.tip.x));
+      n.setAttribute('y2', String(at.tip.y));
+    });
     root.querySelectorAll('.grip-layer [data-end]').forEach((/** @type {any} */ n) => {
       const p = at[n.dataset.end];
       if (!p) return;
@@ -2866,6 +2874,11 @@ class ScCanvasEditor extends LitElement {
           return svg`
             <line class="ring-band needle-line ${sel ? 'sel' : ''}"
                   x1=${n.tail.x} y1=${n.tail.y} x2=${n.tip.x} y2=${n.tip.y}></line>
+            <line class="needle-line needle-hit"
+                  x1=${n.tail.x} y1=${n.tail.y} x2=${n.tip.x} y2=${n.tip.y}
+                  @pointerdown=${(/** @type {any} */ ev) => this._innerDown(ev, part, 'ring')}>
+              <title>${'Select the ' + spec.label.toLowerCase()}</title>
+            </line>
             ${Object.entries(NEEDLE_ENDS).map(([end, e2]) => svg`
               <circle class="ring-grip ${sel ? 'sel' : ''}" data-end=${end}
                       cx=${n[end].x} cy=${n[end].y} r="1.1"></circle>
