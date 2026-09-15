@@ -1,5 +1,7 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { normalizeStops } from "./gradient-stops.js";
+import { autoStep, staggerRows, ROW_GAP } from "./tick-labels.js";
+import { ringRadius, ringPartRadius } from "./gauge-inner-boxes.js";
 
 const SC = window.SupercardUtils;
 
@@ -36,6 +38,10 @@ class ScGauge extends LitElement {
       // Set by the card when it renders from a canvas, where the element's
       // box is the gauge's size and the gauge's own pixel figure is not.
       onCanvas: { type: Boolean },
+      // Set by the canvas editor while the pointer or its hub is the part in
+      // hand. A needle that swings away mid-drag is a needle whose length
+      // cannot be set, and a live entity is free to move at any moment.
+      frozen: { type: Boolean },
       _isInitialized: { type: Boolean, state: true }
     };
   }
@@ -421,12 +427,22 @@ class ScGauge extends LitElement {
     const totalAngle  = isSemi ? 270 : 360;
     const scale  = safeFloat(this._get('gauge_scale', 0.9), 0.9);
     const stroke = safeFloat(this._get('stroke_width', 3), 3);
-    const radius = (this.CENTER - stroke/2 - 1) * scale;
+    const radius = ringRadius(stroke, scale);
     const range  = data.max - data.min;
     const pct    = Math.max(0, Math.min(1, (data.val - data.min) / (range || 1)));
     
     const targetAngle = startAngle + pct * totalAngle;
-    const renderAngle = this._isInitialized ? targetAngle : startAngle;
+    // Frozen holds the angle it was at when the freeze began, rather than
+    // merely switching the transition off: without it a new state would still
+    // jump the needle to wherever the entity has got to, which is the very
+    // thing being frozen out.
+    if (!this.frozen) this._frozenAngle = null;
+    else if (this._frozenAngle === null || this._frozenAngle === undefined) {
+      this._frozenAngle = this._isInitialized ? targetAngle : startAngle;
+    }
+    const renderAngle = this.frozen
+      ? this._frozenAngle
+      : (this._isInitialized ? targetAngle : startAngle);
 
     // --- NEW: CALCULATE DIFFERENCE AND DYNAMIC DURATION ---
     if (this._lastRenderAngle === null) this._lastRenderAngle = startAngle;
@@ -699,20 +715,40 @@ class ScGauge extends LitElement {
     const ticks = []; const tLabels = [];
     if (tCount > 0) {
       const tLen=safeFloat(this._get('tick_length',3),3)*scale, tWid=safeFloat(this._get('tick_width',1),1)*scale;
-      const tOff=safeFloat(this._get('tick_offset',0),0)*scale, rOut=radius+tOff, rIn=rOut-tLen;
+      const rOut=ringPartRadius(radius, safeFloat(this._get('tick_offset',0),0), scale), rIn=rOut-tLen;
       const tCol=resolveColor(this._get('tick_color_type','fixed'),this._get('tick_color',[128,128,128]));
       const tlCol=resolveColor(this._get('tick_label_color_type','adaptive'),this._get('tick_label_color',null));
       const labelTickCol=this._get('tick_label_tick_color',null)?resolveColor('fixed',this._get('tick_label_tick_color',null)):tlCol;
       const tlSize=safeFloat(this._get('tick_label_font_size',7),7)*scale, tlOff=safeFloat(this._get('tick_label_offset',10),10)*scale;
       const tlSpread=safeFloat(this._get('tick_label_spread',0),0)*scale;
 
+      // What each tick would say, needed before any of them is drawn: how
+      // wide a label is decides how many of them fit.
+      const tickText = (/** @type {number} */ i) => {
+        let v = data.min + (i/div)*range;
+        if (this._get('show_multiplier_label',false) && this._get('multiplier_divide_ticks',false)) v /= smartMVal;
+        const dec = parseInt(this._get('tick_label_decimals',0));
+        return dec > 0 ? parseFloat(v.toFixed(dec)).toString() : v.toFixed(0);
+      };
+      const plan = { count: tCount, startAngle, totalAngle, radius: radius + tlOff,
+                     fontSize: tlSize, outward: tlOff >= 0,
+                     texts: Array.from({length: tCount}, (_, i) => tickText(i)) };
+      // A step nobody set is the card's to choose: it labels as many ticks as
+      // stand clear of each other, which is the thing the old hand-tuned
+      // spread was reaching for and could not hold on to, because the answer
+      // moves with the tick count, the type, the digits and the card's size.
+      const setStep = parseInt(this._get('tick_label_step', 0));
+      const labelStep = setStep > 0 ? setStep : autoStep(plan);
+      // Or it keeps every label and sends the crowded ones out a row, which is
+      // the one way of separating them that leaves each over its own tick.
+      const labelRows = this._get('tick_label_stagger', false) ? staggerRows(plan, labelStep) : [];
+
       const subTickCount = parseInt(this._get('sub_tick_count',0));
       if (subTickCount > 0 && tCount > 1) {
         const stLen = safeFloat(this._get('sub_tick_length',1.5),1.5)*scale;
         const stWid = safeFloat(this._get('sub_tick_width',0.5),0.5)*scale;
-        const stOff = safeFloat(this._get('sub_tick_offset',0),0)*scale;
         const stCol = resolveColor(this._get('sub_tick_color_type','fixed'), this._get('sub_tick_color',[100,100,100]));
-        const stROut = radius + stOff, stRIn = stROut - stLen;
+        const stROut = ringPartRadius(radius, safeFloat(this._get('sub_tick_offset',0),0), scale), stRIn = stROut - stLen;
 
         for (let i = 0; i < tCount - 1; i++) {
           const angStart = startAngle + (i/div)*totalAngle;
@@ -729,16 +765,14 @@ class ScGauge extends LitElement {
 
       for (let i=0; i<tCount; i++) {
         const ang=startAngle+(i/div)*totalAngle;
-        const isLabel=this._get('show_tick_labels',false) && (i%Math.max(1,parseInt(this._get('tick_label_step',1)))===0);
+        const isLabel=this._get('show_tick_labels',false) && (i%labelStep===0);
         const curRIn=isLabel ? rOut-tLen-safeFloat(this._get('tick_label_extra_length',0),0)*scale : rIn;
         const p1=polarToCart(this.CENTER,this.CENTER,curRIn,ang), p2=polarToCart(this.CENTER,this.CENTER,rOut,ang);
         const curCol=isLabel?(this._get('tick_label_inherit_color',false)?tlCol:labelTickCol):tCol;
         ticks.push(svg`<line class="layer-elm-static" x1="${p1.x.toFixed(3)}" y1="${p1.y.toFixed(3)}" x2="${p2.x.toFixed(3)}" y2="${p2.y.toFixed(3)}" stroke="${curCol}" stroke-width="${tWid}" stroke-linecap="round"/>`);
         
         if (isLabel) {
-          let tVal = data.min+(i/div)*range;
-          if (this._get('show_multiplier_label',false) && this._get('multiplier_divide_ticks',false)) tVal /= smartMVal;
-          const tStr = parseInt(this._get('tick_label_decimals',0))>0 ? parseFloat(tVal.toFixed(parseInt(this._get('tick_label_decimals',0)))).toString() : tVal.toFixed(0);
+          const tStr = tickText(i);
           
           const rad = ang * Math.PI / 180;
           const cosA = Math.cos(rad), sinA = Math.sin(rad);
@@ -753,7 +787,8 @@ class ScGauge extends LitElement {
           else if (sinA < -0.5) dBase = isOut ? "baseline" : "hanging";
 
           const curveAdjust = isOut ? (Math.abs(sinA) * (tlSize * 0.25)) : 0;
-          const pL = polarToCart(this.CENTER, this.CENTER, radius + tlOff + curveAdjust, ang);
+          const rowShift = (labelRows[i] || 0) * (isOut ? 1 : -1) * ROW_GAP * tlSize;
+          const pL = polarToCart(this.CENTER, this.CENTER, radius + tlOff + curveAdjust + rowShift, ang);
           
           if (sinA < -0.75 && Math.abs(cosA) > 0.02) {
              const intensity = (sinA + 0.75) / -0.25; 
@@ -775,9 +810,8 @@ class ScGauge extends LitElement {
 
       const ctLen = safeFloat(ct.length, 4)*scale;
       const ctWid = safeFloat(ct.width, 1)*scale;
-      const ctOff = safeFloat(ct.offset, 0)*scale;
       const ctCol = resolveColor('fixed', ct.color || '#ff0000');
-      const ctROut = radius + ctOff, ctRIn  = ctROut - ctLen;
+      const ctROut = ringPartRadius(radius, safeFloat(ct.offset, 0), scale), ctRIn  = ctROut - ctLen;
       const p1 = polarToCart(this.CENTER, this.CENTER, ctRIn, ang);
       const p2 = polarToCart(this.CENTER, this.CENTER, ctROut, ang);
 
@@ -886,10 +920,12 @@ class ScGauge extends LitElement {
     // draws lands where it always did, and the stylesheet sizes it to the
     // square that viewBox fills - which is what makes a percentage origin
     // land exactly on the pivot.
-    const layer = (originX, originY, rotate, content) => html`
-      <div class="sc-gauge-layer"
+    // `needle` marks the one layer whose live angle the canvas editor reads off
+    // the DOM, so the handles on its two ends can ride along with it.
+    const layer = (originX, originY, rotate, content, needle = false) => html`
+      <div class="sc-gauge-layer" ?data-sc-needle=${needle}
            style="transform-origin: ${(originX / this.SIZE * 100).toFixed(4)}% ${(originY / this.SIZE * 100).toFixed(4)}%;${
-             rotate ? ` transform: rotate(${renderAngle}deg); transition: transform ${this._isInitialized ? dur : 0}s ${easingCurve};` : ''}">
+             rotate ? ` transform: rotate(${renderAngle}deg); transition: transform ${this.frozen || !this._isInitialized ? 0 : dur}s ${easingCurve};` : ''}">
         <svg viewBox="0 0 ${this.SIZE} ${this.SIZE}" style="width:100%;height:100%;overflow:visible;display:block;">
           ${content}
         </svg>
@@ -926,7 +962,7 @@ class ScGauge extends LitElement {
               <stop offset="100%" stop-color="black" stop-opacity="0.6"/>
             </linearGradient>
           </defs>` : ''}
-          <g transform="translate(${pivotX.toFixed(2)}, ${pivotY.toFixed(2)})">${shape(pCol, is3d ? 'sc-3d-pointer-grad' : null)}</g>`)}`;
+          <g transform="translate(${pivotX.toFixed(2)}, ${pivotY.toFixed(2)})">${shape(pCol, is3d ? 'sc-3d-pointer-grad' : null)}</g>`, true)}`;
 
     return html`
       <div class="sc-gauge-wrap" @touchstart=${this._handleTouch} style="${wrapStyle}">
@@ -1022,7 +1058,7 @@ class ScGauge extends LitElement {
                   y="${this.CENTER + safeFloat(this._get('value_offset_y',15),15)*scale}"
                   fill="${resolveColor(this._get('value_color_type','adaptive'),this._get('value_color',null))}"
                   font-size="${safeFloat(this._get('value_font_size',12),12)*scale}px"
-                  text-anchor="middle" font-weight="700">
+                  text-anchor="middle" font-weight="${this._get('value_font_weight',700)}">
               ${data.val.toFixed(parseInt(this._get('value_decimals',0)))}${data.unitPrefix}${this._get('value_show_raw_unit',false)
                 ? (this._get('value_replace_unit',false)
                     ? this._get('value_custom_unit', stateObj?.attributes?.unit_of_measurement||'')

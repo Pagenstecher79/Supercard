@@ -167,7 +167,7 @@ class ScLabelsEditor extends LitElement {
       { type: 'custom', render: ctx => this._manualSource(ctx),
         condition: item => item.use_entity && (!item.global_id || item.global_id === 'manual') },
 
-      { id: 'decimals', label: 'Decimal places', type: 'number', width: '60px',
+      { id: 'decimals', label: 'Decimals', type: 'number', width: '60px',
         min: 0, max: 5, placeholder: 'Auto', int: true, condition: withEntity },
       { id: 'show_name', label: 'Show label / entity name', type: 'checkbox',
         value: item => item.show_name !== false, condition: withEntity },

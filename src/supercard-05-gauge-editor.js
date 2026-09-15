@@ -29,6 +29,52 @@ function newEntry() { return { entity: '', gauge_attribute: '' }; }
  */
 const hasOwnBox = (cfg, slot) => !SC.gaugeIsResponsive(cfg, !!slot?.canvas);
 
+/**
+ * A whole scale in one choice.
+ *
+ * Setting a dial up used to mean finding good numbers for a dozen fields that
+ * only make sense together - a tick count that suits the range, a length that
+ * suits the ring, a font that suits both. These are those numbers, worked out
+ * once. A preset writes only the keys it names: colours, offsets and the
+ * distance from the ring are taste, and stay whatever the card already had.
+ *
+ * Nothing records which preset was picked. It is a starting point, not a mode
+ * - every field it wrote stays as editable as before, and the next preset
+ * starts from its own numbers rather than from the last one's.
+ */
+/**
+ * The `framedBy` names that belong to a ring rather than to a piece of text.
+ * The two are framed on the canvas in different ways, so the line that says so
+ * has to say which.
+ */
+const RING_PARTS = new Set(['gauge_ring', 'ticks', 'sub_ticks', 'tick_labels',
+                            'pointer', 'pointer_center']);
+
+const TICK_PRESETS = Object.freeze({
+  fine: { label: 'Fine', patch: {
+    tick_count: 21, tick_length: 2.5, tick_width: 0.8,
+    sub_tick_count: 4, sub_tick_length: 1.2, sub_tick_width: 0.5,
+    show_tick_labels: true, tick_label_step: 0, tick_label_stagger: false,
+    tick_label_font_size: 5 } },
+  coarse: { label: 'Coarse', patch: {
+    tick_count: 11, tick_length: 3.5, tick_width: 1.2,
+    sub_tick_count: 0,
+    show_tick_labels: true, tick_label_step: 0, tick_label_stagger: false,
+    tick_label_font_size: 6 } },
+  classic: { label: 'Classic dial', patch: {
+    tick_count: 11, tick_length: 4, tick_width: 1.4,
+    sub_tick_count: 4, sub_tick_length: 2, sub_tick_width: 0.7,
+    show_tick_labels: true, tick_label_step: 0, tick_label_stagger: false,
+    tick_label_font_size: 6 } },
+  labels: { label: 'Labels only', patch: {
+    tick_count: 11, tick_length: 0, tick_width: 0,
+    sub_tick_count: 0,
+    show_tick_labels: true, tick_label_step: 0, tick_label_stagger: false,
+    tick_label_font_size: 6 } },
+  none: { label: 'No scale', patch: {
+    tick_count: 0, sub_tick_count: 0, show_tick_labels: false } },
+});
+
 const STYLE_FIELDS = [
   { id: '_section_shape',      label: '── 📐 Shape & Position',    type: 'section' },
   { id: 'gauge_type',          label: 'Gauge type',             type: 'select', options: [ { value: 'full', label: 'Full 360°' }, { value: 'semi', label: 'Semi 270°' } ] },
@@ -120,7 +166,7 @@ const STYLE_FIELDS = [
   { id: 'autoscale_hysteresis', label: 'Hysteresis (%)',          type: 'number', placeholder: '10'  },
 
   { id: '_section_color',    label: '── 🎨 Colour & Gradient',   type: 'section' },
-  { id: 'stroke_width',        label: 'Ring thickness',            type: 'range',    min: 0, max: 5, step: 0.01,  placeholder: '3'    },
+  { id: 'stroke_width',        label: 'Ring thickness',            type: 'range',    min: 0, max: 5, step: 0.01,  placeholder: '3', framedBy: 'gauge_ring'   },
   { id: 'gradient_preset',   label: 'Colour mode',             type: 'select', options: [ { value: 'manual', label: 'Manual (list)' }, { value: 'symmetriccustom', label: 'Symmetric (custom)' }, { value: 'symmetric', label: 'Symmetric (default)' }, { value: 'linear', label: 'Linear traffic light' } ] },
 
   { id: 'gradient_mode',     label: 'Gradient type',           type: 'select', options: [ { value: 'smooth', label: 'Smooth' }, { value: 'stepped', label: 'Stepped' } ], condition: cfg => ['manual', undefined].includes(cfg.gradient_preset) },
@@ -148,11 +194,11 @@ const STYLE_FIELDS = [
   { id: 'threshold2', label: 'Mid spread (%)', type: 'range', min: 0, max: 100, step: 1, placeholder: '60', condition: cfg => cfg.gradient_preset === 'linear' },
 
   { id: '_section_pointer',       label: '── 🧭 Pointer',                  type: 'section' },
-  { id: 'pointer_type',           label: 'Pointer shape',                type: 'select',  options: [ { value: 'needle', label: 'Needle' }, { value: 'triangle', label: 'Triangle' } ] },
-  { id: 'pointer_width',          label: 'Pointer width',              type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '2'   },
-  { id: 'pointer_length',         label: 'Pointer length',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10'  },
-  { id: 'pointer_offset',         label: 'Pointer offset from ring',     type: 'range',    min: -10, max: 10, step: 0.1,  placeholder: '2'   },
-  { id: 'pointer_center_radius',  label: 'Centre point size',          type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '2'   },
+  { id: 'pointer_type',           label: 'Pointer shape',                type: 'select',  options: [ { value: 'needle', label: 'Needle' }, { value: 'triangle', label: 'Triangle' } ], framedBy: 'pointer' },
+  { id: 'pointer_width',          label: 'Pointer width',              type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '2', framedBy: 'pointer'   },
+  { id: 'pointer_length',         label: 'Pointer length',               type: 'range',    min: 0, max: 50, step: 0.1,  placeholder: '10', framedBy: 'pointer'  },
+  { id: 'pointer_offset',         label: 'Pointer offset from ring',     type: 'range',    min: -10, max: 10, step: 0.1,  placeholder: '2', framedBy: 'pointer'   },
+  { id: 'pointer_center_radius',  label: 'Centre point size',          type: 'range',    min: 0, max: 10, step: 0.1, placeholder: '2', framedBy: 'pointer_center'   },
   { id: 'pivot_offset_x',         label: 'Pivot offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'   },
   { id: 'pivot_offset_y',         label: 'Pivot offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0'  },
   { id: 'pointer_color_type',     label: 'Pointer colour mode',          type: 'select',  options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
@@ -185,34 +231,42 @@ const STYLE_FIELDS = [
   { id: 'animation_spring_amplitude', label: 'Spring amplitude (intensity %)', type: 'range', min: 0, max: 100, step: 1, placeholder: '50', condition: cfg => cfg.animation_easing === 'spring' },
 
   { id: '_section_ticks',           label: '── 📏 Ticks',                    type: 'section' },
-  { id: 'tick_count',               label: 'Tick count',                 type: 'range',    min: 0, max: 50, step: 1,   placeholder: '0'   },
+  { id: 'tick_preset',              type: 'tick_preset' },
+  { id: 'tick_count',               label: 'Tick count',                 type: 'range',    min: 0, max: 50, step: 1,   placeholder: '0', framedBy: 'ticks'   },
   { id: 'tick_length',              label: 'Tick length',                  type: 'range',    min: 0, max: 6, step: 0.1,   placeholder: '3'   },
   { id: 'tick_width',               label: 'Tick width',                 type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '1'   },
-  { id: 'tick_offset',              label: 'Tick offset from ring',        type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
+  { id: 'tick_offset',              label: 'Tick offset from ring',        type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0', framedBy: 'ticks'   },
   { id: 'tick_color_type',          label: 'Tick colour mode',             type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
   { id: 'tick_color',               label: 'Tick colour (fixed)',            type: 'color',   condition: cfg => cfg.tick_color_type !== 'adaptive' },
 
   { id: '_section_sub_ticks',       label: '── SubTicks',                 type: 'subsection' },
-  { id: 'sub_tick_count',           label: 'Sub-tick count (between)',type: 'range',    min: 0, max: 10, step: 1,   placeholder: '0'   },
+  { id: 'sub_tick_count',           label: 'Sub-tick count (between)',type: 'range',    min: 0, max: 10, step: 1,   placeholder: '0', framedBy: 'sub_ticks'   },
   { id: 'sub_tick_length',          label: 'Sub-tick length',              type: 'range',    min: 0, max: 3, step: 0.1,   placeholder: '1.5' },
   { id: 'sub_tick_width',           label: 'Sub-tick width',             type: 'range',    min: 0, max: 3, step: 0.1,   placeholder: '0.5' },
-  { id: 'sub_tick_offset',          label: 'Sub-tick offset from ring',    type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
+  { id: 'sub_tick_offset',          label: 'Sub-tick offset from ring',    type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0', framedBy: 'sub_ticks'   },
   { id: 'sub_tick_color_type',      label: 'Sub-tick colour mode',         type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
   { id: 'sub_tick_color',           label: 'Sub-tick colour (fixed)',        type: 'color',    condition: cfg => cfg.sub_tick_color_type !== 'adaptive' },
 
   { id: '_section_ticks_label',     label: '── Tick Label',               type: 'subsection'},
   { id: 'show_tick_labels',         label: 'Show tick labels',        type: 'checkbox' },
-  { id: 'tick_label_step',          label: 'Label interval',             type: 'range',    min: 0, max: 10, step: 1,   placeholder: '1',  condition: cfg => !!cfg.show_tick_labels },
-  { id: 'multiplier_divide_ticks',  label: 'Divide tick labels by multiplier', type: 'checkbox', condition: cfg => !!cfg.show_tick_labels },
-  { id: 'tick_label_decimals',      label: 'Label decimal places',        type: 'range',    min: 0, max: 6, step: 1,   placeholder: '0',  condition: cfg => !!cfg.show_tick_labels },
-  { id: 'tick_label_font_size',     label: 'Label font size',          type: 'range',    min: 0, max: 20, step: 0.5, placeholder: '7',  condition: cfg => !!cfg.show_tick_labels },
-  { id: 'tick_label_offset',        label: 'Label distance from ring',      type: 'range',    min: -15, max: 15, step: 0.1,  placeholder: '-8', condition: cfg => !!cfg.show_tick_labels },
-  { id: 'tick_label_spread',        label: 'Spread (collision protection)', type: 'range',    min: 0, max: 10, step: 0.1,  placeholder: '0'   },
-  { id: 'tick_label_extra_length',  label: 'Label tick extra length',      type: 'range',    min: 0, max: 4, step: 0.1,   placeholder: '0',  condition: cfg => !!cfg.show_tick_labels },
+  { id: 'tick_label_step',        label: 'Label interval',             type: 'range',    min: 0, max: 10, step: 1, placeholder: 'Auto', condition: cfg => !!cfg.show_tick_labels,
+    hint: 'Left at nought the card labels as many ticks as stand clear of each other, and works that out again whenever the tick count, the type or the size of the card changes. A number of your own overrides it.' },
+  { id: 'tick_label_stagger',     label: 'Keep every label, on two rows', type: 'checkbox', condition: cfg => !!cfg.show_tick_labels && !parseInt(cfg.tick_label_step || 0),
+    hint: 'Rather than labelling fewer ticks, send the crowded ones out by a row. Each label stays over its own tick.' },
+  { id: 'tick_label_font_size',     label: 'Label font size',          type: 'range',    min: 0, max: 20, step: 0.5, placeholder: '7',  condition: cfg => !!cfg.show_tick_labels, framedBy: 'tick_labels' },
+  { id: 'tick_label_offset',        label: 'Label distance from ring',      type: 'range',    min: -15, max: 15, step: 0.1,  placeholder: '-8', condition: cfg => !!cfg.show_tick_labels, framedBy: 'tick_labels' },
+  { id: 'tick_label_decimals',      label: 'Label decimals',        type: 'range',    min: 0, max: 6, step: 1,   placeholder: '0',  condition: cfg => !!cfg.show_tick_labels },
   { id: 'tick_label_color_type',    label: 'Label colour mode',            type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_tick_labels },
   { id: 'tick_label_color',         label: 'Label colour (fixed)',           type: 'color',    condition: cfg => !!cfg.show_tick_labels && cfg.tick_label_color_type !== 'adaptive' },
+
+  // The four below decide nothing about how a scale reads and are set once in a
+  // card's life if ever, so they sit behind a fold rather than between the
+  // settings someone reaches for every time.
+  { id: '_section_ticks_fine',      label: '── Fine tuning',              type: 'subsection' },
+  { id: 'tick_label_extra_length',  label: 'Label tick extra length',      type: 'range',    min: 0, max: 4, step: 0.1,   placeholder: '0',  condition: cfg => !!cfg.show_tick_labels },
   { id: 'tick_label_inherit_color', label: 'Inherit colour from tick',        type: 'checkbox', condition: cfg => !!cfg.show_tick_labels },
   { id: 'tick_label_crossfade_dur', label: 'Crossfade duration (s)',     type: 'range',    min: 0, max: 3, step: 0.1, placeholder: '0.4', condition: cfg => !!cfg.show_tick_labels },
+  { id: 'multiplier_divide_ticks',  label: 'Divide tick labels by multiplier', type: 'checkbox', condition: cfg => !!cfg.show_tick_labels },
 
   { id: '_section_custom_ticks',    label: '── Custom Ticks (Fixed Points)', type: 'subsection' },
   { id: 'custom_ticks',             type: 'custom_ticks' },
@@ -223,11 +277,12 @@ const STYLE_FIELDS = [
   { id: '_section_labels',        label: '── 🔢 Value & Labels',           type: 'section' },
   { id: 'show_value',             label: 'Show value',              type: 'checkbox' },
   { id: 'value_font_size',        label: 'Value font size',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  condition: cfg => !!cfg.show_value, framedBy: 'value' },
+  { id: 'value_font_weight',      label: 'Value weight',             type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => !!cfg.show_value, framedBy: 'value' },
   { id: 'value_offset_x',         label: 'Value offset X',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value, framedBy: 'value' },
   { id: 'value_offset_y',         label: 'Value offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value, framedBy: 'value' },
   { id: 'value_color_type',       label: 'Value colour mode',            type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_value },
   { id: 'value_color',            label: 'Value colour (fixed)',           type: 'color',   condition: cfg => !!cfg.show_value && cfg.value_color_type !== 'adaptive' },
-  { id: 'value_decimals',         label: 'Decimal places',             type: 'range',    min: 0, max: 6, step: 1, placeholder: '0',   condition: cfg => !!cfg.show_value },
+  { id: 'value_decimals',         label: 'Decimals',             type: 'range',    min: 0, max: 6, step: 1, placeholder: '0',   condition: cfg => !!cfg.show_value },
   { id: 'value_show_raw_unit',    label: 'Show unit',           type: 'checkbox', condition: cfg => !!cfg.show_value },
   { id: 'value_replace_unit',     label: 'Replace original unit',  type: 'checkbox', condition: cfg => !!cfg.show_value && !!cfg.value_show_raw_unit },
   { id: 'value_custom_unit',      label: 'Custom unit (suffix)',    type: 'text',     placeholder: 'e.g. W', condition: cfg => !!cfg.show_value && !!cfg.value_show_raw_unit && !!cfg.value_replace_unit },
@@ -241,7 +296,7 @@ const STYLE_FIELDS = [
   { id: 'multiplier_divide_ticks',  label: 'Divide tick labels by multiplier', type: 'checkbox', condition: cfg => !!cfg.show_tick_labels },
 
   { id: 'multiplier_prepend',     label: 'Prefix (e.g. x)',            type: 'text',    placeholder: 'x',   condition: cfg => !!cfg.show_multiplier_label },
-  { id: 'multiplier_decimals',    label: 'Decimal places',             type: 'number',  placeholder: '0',   condition: cfg => !!cfg.show_multiplier_label },
+  { id: 'multiplier_decimals',    label: 'Decimals',             type: 'number',  placeholder: '0',   condition: cfg => !!cfg.show_multiplier_label },
   { id: 'multiplier_font_size',   label: 'Font size',               type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '10',  condition: cfg => !!cfg.show_multiplier_label },
   { id: 'multiplier_offset_x',    label: 'Offset X',                   type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',   condition: cfg => !!cfg.show_multiplier_label },
   { id: 'multiplier_offset_y',    label: 'Offset Y',                   type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0', condition: cfg => !!cfg.show_multiplier_label },
@@ -255,7 +310,7 @@ const STYLE_FIELDS = [
   { id: 'gauge_label_active',      label: 'Label active',          type: 'checkbox', on: true },
   { id: 'gauge_label_text',        label: 'Label text',           type: 'text',     placeholder: 'Gauge',  condition: cfg => cfg.gauge_label_active !== false },
   { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
-  { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => cfg.gauge_label_active !== false },
+  { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
   { id: 'gauge_label_offset_x',    label: 'Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
   { id: 'gauge_label_offset_y',    label: 'Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false, framedBy: 'gauge_label' },
   { id: 'gauge_label_color_type',  label: 'Colour mode',           type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => cfg.gauge_label_active !== false },
@@ -681,9 +736,7 @@ class ScGaugeEditor extends LitElement {
             </summary>
             
             <div class="inner-content">
-              ${sec.items.some(f => f.framedBy && this._framed.has(f.framedBy)) ? html`
-                <div class="framed-note">Size and position are on the canvas while this
-                     one is selected - drag its frame, or the corner of it.</div>` : ''}
+              ${this._framedNote(sec.items)}
               ${renderItems(sec.items)}
               
               ${sec.subsections.map(subsec => {
@@ -696,6 +749,7 @@ class ScGaugeEditor extends LitElement {
                       <span style="font-size:10px;">▼</span>
                     </summary>
                     <div class="inner-content">
+                      ${this._framedNote(subsec.items)}
                       ${renderItems(subsec.items)}
                     </div>
                   </details>
@@ -710,6 +764,36 @@ class ScGaugeEditor extends LitElement {
 
   /** The gauge parts in hand on the canvas - the frame that is selected. */
   get _framed() { return new Set(Array.isArray(this.framed) ? this.framed : []); }
+
+  /**
+   * The line that stands in for the controls the canvas has taken over.
+   *
+   * Without it a fold that has lost three of its five rows reads as a fold
+   * that is missing something. It is drawn wherever those rows were - a
+   * section's own list or one of its subsections - because a ring's distance
+   * and a value's offsets live at different depths of the same menu.
+   */
+  _framedNote(items) {
+    const framed = items.find(f => f.framedBy && this._framed.has(f.framedBy));
+    if (!framed) return '';
+    // The needle is the one framed part that is dragged by its ends rather
+    // than in and out, so it is the one that has to say so.
+    // The ring grows inward from an outer edge that stands still, so what is
+    // dragged is the inner edge and the note has to say which.
+    return html`<div class="framed-note">${framed.framedBy === 'gauge_ring'
+      ? html`Thickness is on the canvas while this one is selected - drag the
+             ring's inner edge, which is the edge of it that moves.`
+      : framed.framedBy === 'pointer'
+      ? html`Shape, length and offset are on the canvas while this one is
+             selected - drag either end of the needle, or use the buttons on
+             and under its chip.`
+      : RING_PARTS.has(framed.framedBy)
+      ? html`Distance and count are on the canvas while this one is selected -
+             drag its ring, or use the buttons under its chip.`
+      : html`Size, weight and position are on the canvas while this one is
+             selected - drag its frame or the corner of it, and use the button
+             on its chip.`}</div>`;
+  }
 
   _renderLitField(field, entry, idx, gauges) {
     if (!field) return html``;
@@ -765,6 +849,24 @@ class ScGaugeEditor extends LitElement {
               this.commitFn('gauges', SC.withPatch(gauges, idx, 'bg_manual_stops', newStops));
             }, entry.gradient_resolution)} </div>
         `;
+        break;
+      }
+      case 'tick_preset': {
+        content = html`
+          <div class="row">
+            <label>Start from ${SC.tipDot('A set of numbers that suit each other, written straight into the fields below. Every one of them stays yours to change afterwards, and nothing remembers which you picked.')}</label>
+            <select style="width:50%" .value=${''} @change=${e => {
+              const preset = TICK_PRESETS[e.target.value];
+              e.target.value = '';
+              if (!preset) return;
+              const n = structuredClone(gauges);
+              Object.assign(n[idx], preset.patch);
+              this.commitFn('gauges', n);
+            }}>
+              <option value="" selected>Choose a scale...</option>
+              ${Object.entries(TICK_PRESETS).map(([k, p]) => html`<option value=${k}>${p.label}</option>`)}
+            </select>
+          </div>`;
         break;
       }
       case 'custom_ticks': {

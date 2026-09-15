@@ -90,3 +90,118 @@ export function estimateRect(part, scale) {
     w, h: s,
   };
 }
+
+/**
+ * The ring the gauge is drawn on, in viewBox units.
+ *
+ * Half the stroke, because the ring is stroked about this radius rather than
+ * inside it, and one unit of air so a thick ring does not touch the edge of
+ * the box. The whole thing scales, so a gauge at 0.5 draws a ring half as far
+ * from the centre.
+ *
+ * @param {number} stroke the gauge's `stroke_width`
+ * @param {number} scale the gauge's `gauge_scale`
+ */
+export function ringRadius(stroke, scale) {
+  return (GAUGE_CENTER - (stroke || 0) / 2 - 1) * (scale || 1);
+}
+
+/**
+ * Where one of the parts that stand on that ring is drawn.
+ *
+ * Ticks, sub-ticks and tick labels are each an offset from the ring, and each
+ * offset is scaled the same way the ring is. Negative is inward, which is
+ * where a label usually goes.
+ *
+ * @param {number} ring @param {number} offset @param {number} scale
+ */
+export function ringPartRadius(ring, offset, scale) {
+  return ring + (offset || 0) * (scale || 1);
+}
+
+/**
+ * The offset that would put a part at this radius - `ringPartRadius` read
+ * backwards, which is what dragging a ring frame has to do.
+ *
+ * Clamped to what the editor's own sliders allow, so a drag cannot write a
+ * number the form would refuse, and rounded to the tenth they step in.
+ *
+ * @param {number} ring @param {number} radius @param {number} scale
+ * @param {number} [limit] the furthest the field may go, either way
+ */
+export function offsetFromRadius(ring, radius, scale, limit = OFFSET_LIMIT) {
+  return clamp(tenth((radius - ring) / (scale || 1)), -limit, limit);
+}
+
+/** What the pointer's own two sliders allow, which a drag may not step past. */
+export const POINTER_LENGTH_MAX = 50;
+export const POINTER_OFFSET_LIMIT = 10;
+
+/**
+ * Where the needle's two ends stand, as radii from the pivot.
+ *
+ * The tip is the ring less the pointer's offset; the tail is a length back
+ * along the same line, and that one is free to be negative - a needle longer
+ * than its tip's radius has a tail out the other side of the pivot, which is
+ * a dial people draw on purpose.
+ *
+ * @param {number} offset `pointer_offset` @param {number} length `pointer_length`
+ * @param {number} ring @param {number} scale
+ */
+export function needleEnds(offset, length, ring, scale) {
+  const tip = ring - (offset || 0) * (scale || 1);
+  return { tip, tail: tip - (length || 0) * (scale || 1) };
+}
+
+/**
+ * One end dragged to a radius, read back as the fields that would put it
+ * there - `needleEnds` backwards, which is what a needle handle has to do.
+ *
+ * The radius is signed along the needle's own line, so an end dragged through
+ * the pivot and out the far side keeps counting rather than folding back.
+ * Each end moves only itself: the tail is a length against a tip that stays,
+ * and the tip carries an offset while the tail stays, which is why the tip
+ * writes both fields.
+ *
+ * @param {'tip' | 'tail'} end
+ * @param {number} at the radius the end has been dragged to
+ * @param {number} offset @param {number} length @param {number} ring @param {number} scale
+ */
+export function needleFromRadius(end, at, offset, length, ring, scale) {
+  const s = scale || 1;
+  const ends = needleEnds(offset, length, ring, s);
+  if (end === 'tail') {
+    return { pointer_length: clamp(tenth((ends.tip - at) / s), 0, POINTER_LENGTH_MAX) };
+  }
+  const off = clamp(tenth((ring - at) / s), -POINTER_OFFSET_LIMIT, POINTER_OFFSET_LIMIT);
+  return {
+    pointer_offset: off,
+    pointer_length: clamp(tenth((ring - off * s - ends.tail) / s), 0, POINTER_LENGTH_MAX),
+  };
+}
+
+/** The thickest the ring's own slider allows. */
+export const STROKE_MAX = 5;
+
+/**
+ * The ring's inner edge, which is the edge of it that moves.
+ *
+ * A gauge's ring is centred on `ringRadius`, and that radius already carries
+ * half the stroke: the outer edge therefore stands still at `(25 - 1) * scale`
+ * however thick the ring is drawn, and all the thickness grows inward. So the
+ * inner edge is the one thing a thickness can be dragged by.
+ *
+ * @param {number} stroke @param {number} scale
+ */
+export function ringInnerEdge(stroke, scale) {
+  return (GAUGE_CENTER - 1 - (stroke || 0)) * (scale || 1);
+}
+
+/**
+ * The thickness that would put that edge here - `ringInnerEdge` backwards.
+ *
+ * @param {number} radius @param {number} scale
+ */
+export function strokeFromRadius(radius, scale) {
+  return clamp(tenth(GAUGE_CENTER - 1 - radius / (scale || 1)), 0, STROKE_MAX);
+}

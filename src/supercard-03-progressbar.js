@@ -1153,7 +1153,7 @@ const STYLE_FIELDS = [
   { id: 'show_tick_labels',    label: 'Show tick labels (numbers)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks },
   { id: 'tick_labeled_extralength', label: 'Extra length at labels', type: 'text', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
   { id: 'tick_label_step',     label: 'Only every Xth label (1=all)', type: 'number', placeholder: '1', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
-  { id: 'tick_labels_decimals',label: 'Decimal places',        type: 'number', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
+  { id: 'tick_labels_decimals',label: 'Decimals',        type: 'number', placeholder: '0', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
   { id: 'tick_labels_size',    label: 'Font size (CSS text)', type: 'text', placeholder: '10', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
   { id: 'tick_labels_hide_unit', label: 'Hide unit', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
   { id: 'tick_labels_hide_first', label: 'Hide first label (min)', type: 'checkbox', condition: cfg => isLin(cfg) && cfg.show_ticks && cfg.show_tick_labels },
@@ -1203,7 +1203,7 @@ const STYLE_FIELDS = [
   { id: 'value_color_adaptive_bar',   label: 'Take colour from gradient', type: 'checkbox', condition: cfg => cfg.show_value && isCirc(cfg) },
   { id: 'value_color_adaptive_theme', label: 'Adaptive: HA theme (light/dark)',   type: 'checkbox', condition: cfg => cfg.show_value },
   { id: 'value_bold',          label: 'Bold',   type: 'checkbox', condition: cfg => cfg.show_value },
-  { id: 'value_decimals',      label: 'Decimal places',      type: 'range',  min: 0, max: 3, step: 1, placeholder: '0', condition: cfg => cfg.show_value },
+  { id: 'value_decimals',      label: 'Decimals',      type: 'range',  min: 0, max: 3, step: 1, placeholder: '0', condition: cfg => cfg.show_value },
   { id: 'value_unit',          label: 'Custom unit (e.g. %)', type: 'text', placeholder: 'Optional', condition: cfg => cfg.show_value },
   { id: 'value_position',      label: 'Text position',         type: 'select', options: [
     { value: 'center',   label: 'Centred in bar' },
