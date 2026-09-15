@@ -3981,6 +3981,8 @@ class ScCanvasEditor extends LitElement {
             </button>
             ${this._menu ? this._renderAddMenu() : ''}
           </div>
+          ${this._placing ? '' : SC.tipDot('Later in the list draws on top. A gauge and a '
+                     + 'round bar stay square and fill their box.')}
           <button class="add-btn apply-btn" style="width:auto; padding:6px 12px;"
                   ?disabled=${this._applyState === 'saving'}
                   title="Put the card on the dashboard now and carry on - the dialog stays open"
@@ -3994,8 +3996,7 @@ class ScCanvasEditor extends LitElement {
             // instruction for a mode the editor is in, so it stays on screen.
             ? html`<span class="hint" style="flex:1">Click on the canvas to place the
                    ${this._placingLabel}. Escape cancels.</span>`
-            : html`${SC.tipDot('Later in the list draws on top. A gauge and a round bar stay '
-                     + 'square and fill their box.')}<span style="flex:1"></span>`}
+            : html`<span style="flex:1"></span>`}
           <div class="names history">
             <button title=${this._undoStack.length
                       ? 'Undo the last change to the canvas or its elements'
