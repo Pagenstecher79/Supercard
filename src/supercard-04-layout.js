@@ -718,6 +718,11 @@ const ringPartPatch = (/** @type {any} */ spec, /** @type {number} */ r, /** @ty
  * o'clock. Across the top and down the right, far enough apart that three
  * offers on one gauge can all be read, and clear of the top-left corner where
  * the ring steppers sit.
+ *
+ * The gaps have to clear more than the chips themselves: the numbers of
+ * whichever ring is in hand hang under its chip, three lines deep, and the
+ * tick labels' chip used to stand where the sub-ticks' numbers land. Past
+ * three o'clock it is below them with room to spare.
  */
 /**
  * The parts whose frame the needle would otherwise run away from. Both are
@@ -739,7 +744,7 @@ const NEEDLE_ENDS = Object.freeze({
 });
 
 const RING_CHIP_ANGLE = Object.freeze({ gauge_ring: 120, ticks: -90, sub_ticks: -50,
-                                       tick_labels: -20, pointer_center: 200 });
+                                       tick_labels: 10, pointer_center: 200 });
 
 /** How near the pivot a chip may stand, in viewBox units. */
 const RING_CHIP_MIN = 7;
