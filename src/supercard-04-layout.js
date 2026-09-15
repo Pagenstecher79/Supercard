@@ -525,6 +525,20 @@ const zoomMemory = new Map();
 const FIT_MARGIN = 0.85;
 
 /**
+ * The shape the window is drawn at while a gauge's own parts are being
+ * edited: a square, whatever shape the canvas is.
+ *
+ * The window otherwise carries the canvas' shape, so on a flat card - 12
+ * columns by 2 rows - the height is already the tight axis at 100%: the zoom
+ * that fits one gauge into it is *below* one, and asking to work on a gauge
+ * made the whole drawing smaller. A square gives the vertical axis the room
+ * the horizontal one already has, and it is the shape a gauge itself is. A
+ * canvas taller than it is wide is left alone: there the width is the tight
+ * axis and the fit works already.
+ */
+const INNER_RATIO = 1;
+
+/**
  * The parts of a gauge the canvas can edit directly, and the fields each of
  * them is.
  *
@@ -1052,7 +1066,8 @@ class ScCanvasEditor extends LitElement {
       .canvas-pad.hand, .canvas-pad.hand * { cursor: grab !important; }
       .canvas-pad.hand:active, .canvas-pad.hand:active * { cursor: grabbing !important; }
       /* The window the canvas is zoomed inside. It keeps the footprint the
-         canvas has at 100% - width of the strip, shape of the canvas - so
+         canvas has at 100% - width of the strip, shape of the canvas, save
+         for the stretch a gauge's own editing borrows in height - so
          zooming in makes the drawing bigger and the editor no taller: the
          part that no longer fits is reached by scrolling, not by pushing
          everything below the canvas down the page.
@@ -2030,6 +2045,20 @@ class ScCanvasEditor extends LitElement {
   /** The window the canvas is zoomed and scrolled inside. */
   get _view() { return this.shadowRoot?.querySelector('.canvas-view') ?? null; }
 
+  /**
+   * How many times its own height the window is drawn at.
+   *
+   * One everywhere except inside a gauge, where the window is squared off -
+   * so the stretch is exactly what a flat canvas is missing, and nothing on
+   * a canvas that is not flat. See INNER_RATIO.
+   */
+  get _viewStretch() {
+    if (!this._innerOn) return 1;
+    const c = this._canvas;
+    if (!c?.h) return 1;
+    return Math.max(1, c.w / c.h / INNER_RATIO);
+  }
+
   /** Whether the pointer is standing over the canvas and its strip. */
   _pointerOverCanvas() {
     const p = this._lastClient;
@@ -2229,11 +2258,12 @@ class ScCanvasEditor extends LitElement {
   /**
    * Fill the window with what is selected.
    *
-   * The window carries the canvas' own aspect ratio, so the zoom that fits a
-   * box is the ratio of the canvas to that box in whichever axis is tighter -
-   * no pixels in it, which is also why it is right before the canvas has been
-   * laid out at the new zoom. The scroll that centres it needs the new
-   * layout, so it waits for the render.
+   * The window carries the canvas' own aspect ratio, stretched in height
+   * where a gauge is being taken apart, so the zoom that fits a box is the
+   * ratio of the canvas to that box in whichever axis is tighter - no pixels
+   * in it, which is also why it is right before the canvas has been laid out
+   * at the new zoom. The scroll that centres it needs the new layout, so it
+   * waits for the render.
    */
   _zoomToSelection() {
     const c = this._canvas;
@@ -2243,7 +2273,10 @@ class ScCanvasEditor extends LitElement {
     const y0 = Math.min(...boxes.map(b => b.y));
     const x1 = Math.max(...boxes.map(b => b.x + b.w));
     const y1 = Math.max(...boxes.map(b => b.y + b.h));
-    const z = FIT_MARGIN * Math.min(c.w / Math.max(x1 - x0, 0.001), c.h / Math.max(y1 - y0, 0.001));
+    // The window's height is the canvas' own times the stretch, so the
+    // vertical fit has that much more room than the shape alone says.
+    const z = FIT_MARGIN * Math.min(c.w / Math.max(x1 - x0, 0.001),
+                                    c.h * this._viewStretch / Math.max(y1 - y0, 0.001));
     this._zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
     if (this._zoomKey) zoomMemory.set(this._zoomKey, this._zoom);
     const mid = { x: (x0 + x1) / 2 / c.w, y: (y0 + y1) / 2 / c.h };
@@ -3874,7 +3907,7 @@ class ScCanvasEditor extends LitElement {
                @pointerdown=${this._onCanvasDown}
                @auxclick=${e => { if (e.button === 1) e.preventDefault(); }}
                @wheel=${this._onWheel}>
-          <div class="canvas-view" style="aspect-ratio:${c.w} / ${c.h};">
+          <div class="canvas-view" style="aspect-ratio:${c.w} / ${c.h * this._viewStretch};">
           <div class="canvas ${this._pushed('main') ? 'pushed' : ''}" style="aspect-ratio:${c.w} / ${c.h}; width:${this._zoom * 100}%;">
             <div class="grid" style="background-size:${gridPct}% ${gridPct * c.w / c.h}%;"></div>
             ${this._placing ? html`
