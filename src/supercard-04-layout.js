@@ -2052,6 +2052,11 @@ class ScCanvasEditor extends LitElement {
       return this._startPan(e);
     }
     e.stopPropagation();
+    // A press that gets this far is on bare canvas or on an element's own box,
+    // never on a gauge's part - every one of those stops the event where it is
+    // taken hold of. So it is how a part is let go of again, which until now
+    // could only be done by taking hold of a different one.
+    this._letGoOfPart();
     const surface = e.currentTarget.closest('.canvas');
     const rect = surface.getBoundingClientRect();
     // A resize handle names its own element; only a press on the box itself
@@ -2508,6 +2513,18 @@ class ScCanvasEditor extends LitElement {
       if (still < INNER_STILL_FRAMES) this._innerFrame = requestAnimationFrame(step);
     };
     this._innerFrame = requestAnimationFrame(step);
+  }
+
+  /**
+   * Let go of whichever of a gauge's parts was in hand.
+   *
+   * A part is framed for as long as it is the one being set, and the frame is
+   * also what hides its fields in the form - so there has to be a way out of
+   * it that is not taking hold of a different part. Bare canvas is that way
+   * out, inside the gauge as well as beside it.
+   */
+  _letGoOfPart() {
+    if (this._innerSel) this._innerSel = null;
   }
 
   /**
@@ -3202,6 +3219,7 @@ class ScCanvasEditor extends LitElement {
     // past its client box, which is the scrollbar's own strip.
     if (view && e.target === view
         && (e.offsetX >= view.clientWidth || e.offsetY >= view.clientHeight)) return;
+    this._letGoOfPart();
     const canvas = e.currentTarget.querySelector('.canvas');
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
