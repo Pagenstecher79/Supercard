@@ -1,0 +1,166 @@
+/**
+ * Deciding which ticks get a label, and on which row.
+ *
+ * A gauge's tick labels used to be placed and then rescued: every tick got
+ * one, and a hand-tuned `tick_label_spread` shoved the crowded ones sideways
+ * near the top. That number is a constant for a geometry made of four things
+ * that move independently - the tick count, the font size, how many digits
+ * the range produces, and the size of the card - so it was right for exactly
+ * one of them and wrong for the rest. On the demo's largest gauge it was
+ * fighting a crowd that was not there and pushed 1300 to within a pixel of
+ * 1100 to do it.
+ *
+ * What actually reads as crowded is not the arc between two labels but the
+ * gap between the two boxes of type. Near the top of a dial two labels stand
+ * side by side, so only their horizontal distance counts and a 26 degree arc
+ * leaves a fifth of what the same arc leaves at the side, where they stand
+ * one above the other. So the rule here is about boxes, and the arc is only
+ * how the boxes are placed.
+ *
+ * Everything is in viewBox units, and a label's box is estimated rather than
+ * measured: this runs while the SVG is being written, before there is
+ * anything to measure. `EM_WIDTH` is the width of a digit in the sans-serif
+ * faces Home Assistant ships, which is what these labels are made of.
+ */
+
+/** The width of one digit, in ems. */
+export const EM_WIDTH = 0.6;
+
+/**
+ * The clear air two label boxes want between them, in ems.
+ *
+ * Calibrated against the demo's largest gauge, where a person had already
+ * thinned the labels by hand: every tick leaves its worst pair overlapping by
+ * 0.74 em, every second tick leaves 0.23 em, every third 1.29 em - and the
+ * hand-picked answer was every second. Anything between those two numbers
+ * reproduces that judgement; this sits in the middle of the range with room
+ * on both sides.
+ */
+export const MIN_GAP = 0.2;
+
+/**
+ * A line of digits is taller than its font size - measured at 1.18 on the
+ * demo's largest gauge, where a 2.375 unit font drew a 2.8 unit box.
+ */
+export const LINE_HEIGHT = 1.15;
+
+/** How far the second row sits from the first, in ems. */
+export const ROW_GAP = 1.15;
+
+/** @param {number} deg */
+const rad = (deg) => (deg * Math.PI) / 180;
+
+/**
+ * The box a label of this text would take, centred on its point.
+ *
+ * @param {string} text @param {number} fontSize
+ */
+export function labelBox(text, fontSize) {
+  return {
+    w: Math.max(String(text).length, 1) * EM_WIDTH * fontSize,
+    h: fontSize * LINE_HEIGHT,
+  };
+}
+
+/**
+ * Whether two placed labels leave each other enough air.
+ *
+ * Two boxes clear each other as soon as they are apart on either axis, which
+ * is what makes the side of a dial roomy and the top of one tight: the same
+ * arc buys a lot of vertical distance there and very little horizontal.
+ */
+function clears(a, b, gap) {
+  const dx = Math.abs(a.x - b.x) - (a.w + b.w) / 2;
+  const dy = Math.abs(a.y - b.y) - (a.h + b.h) / 2;
+  return dx >= gap || dy >= gap;
+}
+
+/**
+ * Place the labels a step would produce, as boxes in viewBox units.
+ *
+ * @param {{count: number, startAngle: number, totalAngle: number,
+ *          radius: number, fontSize: number, texts: string[],
+ *          outward?: boolean, rows?: number[]}} spec
+ */
+function place(spec, step) {
+  const { count, startAngle, totalAngle, radius, fontSize, texts } = spec;
+  const out = spec.outward;
+  const div = count > 1 ? count - 1 : 1;
+  const boxes = [];
+  for (let i = 0; i < count; i += step) {
+    const ang = rad(startAngle + (i / div) * totalAngle);
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const row = spec.rows ? spec.rows[i] || 0 : 0;
+    const r = radius + row * (out ? 1 : -1) * ROW_GAP * fontSize;
+    const box = labelBox(texts[i] ?? '', fontSize);
+    let x = r * cos, y = r * sin;
+    // The same anchor and baseline the renderer picks. They are what keeps the
+    // labels down one side of a dial off each other - a label anchored at its
+    // start hangs a whole width to one side of the point it is placed at - so
+    // a plan that ignored them would read the sides as far tighter than they
+    // are and thin a scale that has room.
+    if (cos > 0.3) x += out ? box.w / 2 : -box.w / 2;
+    else if (cos < -0.3) x += out ? -box.w / 2 : box.w / 2;
+    if (sin > 0.5) y += out ? box.h / 2 : -box.h / 2;
+    else if (sin < -0.5) y += out ? -box.h / 2 : box.h / 2;
+    boxes.push({ i, row, x, y, w: box.w, h: box.h });
+  }
+  return boxes;
+}
+
+/**
+ * The smallest interval at which no two labels crowd each other.
+ *
+ * Walks up from every tick to every tenth; a gauge whose labels will not fit
+ * at any interval keeps the last one tried rather than losing its scale
+ * altogether.
+ *
+ * @param {{count: number, startAngle: number, totalAngle: number,
+ *          radius: number, fontSize: number, texts: string[],
+ *          outward?: boolean}} spec
+ */
+export function autoStep(spec) {
+  if (!spec.count || spec.count < 2 || !spec.fontSize) return 1;
+  const gap = MIN_GAP * spec.fontSize;
+  for (let step = 1; step <= Math.max(1, Math.ceil(spec.count / 2)); step++) {
+    const placed = place(spec, step);
+    let ok = true;
+    for (let k = 1; k < placed.length && ok; k++) {
+      if (!clears(placed[k - 1], placed[k], gap)) ok = false;
+    }
+    // A dial that comes full circle has its first and last label in the same
+    // place, and they crowd each other like any other pair.
+    if (ok && placed.length > 2 && Math.abs(spec.totalAngle) >= 360
+        && !clears(placed[0], placed[placed.length - 1], gap)) ok = false;
+    if (ok) return step;
+  }
+  return Math.max(1, Math.ceil(spec.count / 2));
+}
+
+/**
+ * Which row each label stands on, when the gauge would rather keep every
+ * label than drop any.
+ *
+ * A crowded neighbour steps out one row instead of being shoved sideways,
+ * which is the one thing that keeps a label over the tick it belongs to. Only
+ * where it is needed: a dial with room stays on one row.
+ *
+ * @param {{count: number, startAngle: number, totalAngle: number,
+ *          radius: number, fontSize: number, texts: string[],
+ *          outward?: boolean}} spec
+ */
+export function staggerRows(spec, step) {
+  /** @type {number[]} */
+  const rows = [];
+  if (!spec.count) return rows;
+  const gap = MIN_GAP * spec.fontSize;
+  let placed = place({ ...spec, rows }, step || 1);
+  for (let k = 1; k < placed.length; k++) {
+    if (clears(placed[k - 1], placed[k], gap)) continue;
+    // One row out, and only one: a third row would stand further from its own
+    // tick than from the next tick along, which is worse than being close.
+    rows[placed[k].i] = placed[k - 1].row === 1 ? 0 : 1;
+    placed = place({ ...spec, rows }, step || 1);
+  }
+  return rows;
+}

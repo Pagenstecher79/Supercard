@@ -1,5 +1,6 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { normalizeStops } from "./gradient-stops.js";
+import { autoStep, staggerRows, ROW_GAP } from "./tick-labels.js";
 
 const SC = window.SupercardUtils;
 
@@ -706,6 +707,27 @@ class ScGauge extends LitElement {
       const tlSize=safeFloat(this._get('tick_label_font_size',7),7)*scale, tlOff=safeFloat(this._get('tick_label_offset',10),10)*scale;
       const tlSpread=safeFloat(this._get('tick_label_spread',0),0)*scale;
 
+      // What each tick would say, needed before any of them is drawn: how
+      // wide a label is decides how many of them fit.
+      const tickText = (/** @type {number} */ i) => {
+        let v = data.min + (i/div)*range;
+        if (this._get('show_multiplier_label',false) && this._get('multiplier_divide_ticks',false)) v /= smartMVal;
+        const dec = parseInt(this._get('tick_label_decimals',0));
+        return dec > 0 ? parseFloat(v.toFixed(dec)).toString() : v.toFixed(0);
+      };
+      const plan = { count: tCount, startAngle, totalAngle, radius: radius + tlOff,
+                     fontSize: tlSize, outward: tlOff >= 0,
+                     texts: Array.from({length: tCount}, (_, i) => tickText(i)) };
+      // A step nobody set is the card's to choose: it labels as many ticks as
+      // stand clear of each other, which is the thing the old hand-tuned
+      // spread was reaching for and could not hold on to, because the answer
+      // moves with the tick count, the type, the digits and the card's size.
+      const setStep = parseInt(this._get('tick_label_step', 0));
+      const labelStep = setStep > 0 ? setStep : autoStep(plan);
+      // Or it keeps every label and sends the crowded ones out a row, which is
+      // the one way of separating them that leaves each over its own tick.
+      const labelRows = this._get('tick_label_stagger', false) ? staggerRows(plan, labelStep) : [];
+
       const subTickCount = parseInt(this._get('sub_tick_count',0));
       if (subTickCount > 0 && tCount > 1) {
         const stLen = safeFloat(this._get('sub_tick_length',1.5),1.5)*scale;
@@ -729,16 +751,14 @@ class ScGauge extends LitElement {
 
       for (let i=0; i<tCount; i++) {
         const ang=startAngle+(i/div)*totalAngle;
-        const isLabel=this._get('show_tick_labels',false) && (i%Math.max(1,parseInt(this._get('tick_label_step',1)))===0);
+        const isLabel=this._get('show_tick_labels',false) && (i%labelStep===0);
         const curRIn=isLabel ? rOut-tLen-safeFloat(this._get('tick_label_extra_length',0),0)*scale : rIn;
         const p1=polarToCart(this.CENTER,this.CENTER,curRIn,ang), p2=polarToCart(this.CENTER,this.CENTER,rOut,ang);
         const curCol=isLabel?(this._get('tick_label_inherit_color',false)?tlCol:labelTickCol):tCol;
         ticks.push(svg`<line class="layer-elm-static" x1="${p1.x.toFixed(3)}" y1="${p1.y.toFixed(3)}" x2="${p2.x.toFixed(3)}" y2="${p2.y.toFixed(3)}" stroke="${curCol}" stroke-width="${tWid}" stroke-linecap="round"/>`);
         
         if (isLabel) {
-          let tVal = data.min+(i/div)*range;
-          if (this._get('show_multiplier_label',false) && this._get('multiplier_divide_ticks',false)) tVal /= smartMVal;
-          const tStr = parseInt(this._get('tick_label_decimals',0))>0 ? parseFloat(tVal.toFixed(parseInt(this._get('tick_label_decimals',0)))).toString() : tVal.toFixed(0);
+          const tStr = tickText(i);
           
           const rad = ang * Math.PI / 180;
           const cosA = Math.cos(rad), sinA = Math.sin(rad);
@@ -753,7 +773,8 @@ class ScGauge extends LitElement {
           else if (sinA < -0.5) dBase = isOut ? "baseline" : "hanging";
 
           const curveAdjust = isOut ? (Math.abs(sinA) * (tlSize * 0.25)) : 0;
-          const pL = polarToCart(this.CENTER, this.CENTER, radius + tlOff + curveAdjust, ang);
+          const rowShift = (labelRows[i] || 0) * (isOut ? 1 : -1) * ROW_GAP * tlSize;
+          const pL = polarToCart(this.CENTER, this.CENTER, radius + tlOff + curveAdjust + rowShift, ang);
           
           if (sinA < -0.75 && Math.abs(cosA) > 0.02) {
              const intensity = (sinA + 0.75) / -0.25; 
