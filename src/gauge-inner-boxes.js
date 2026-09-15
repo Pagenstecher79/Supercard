@@ -1,0 +1,92 @@
+/**
+ * The arithmetic behind editing a gauge's own parts on the canvas.
+ *
+ * A gauge draws into a 50 x 50 viewBox whose centre is the pivot, and its
+ * label and value sit at an offset from that centre, in viewBox units,
+ * multiplied by the gauge's own `gauge_scale`. The canvas editor lets those
+ * two be dragged and resized directly, which means turning pointer pixels
+ * back into the numbers those fields hold - and that conversion is the only
+ * part of the feature worth testing on its own, so it lives here.
+ *
+ * Pixels reach these functions already divided by the scale between the
+ * screen and the viewBox (`pxPerUnit`), which the editor reads from the SVG's
+ * own screen matrix rather than working out from the element's box: a gauge
+ * is letterboxed inside its box, and the matrix is the one thing that knows
+ * where it landed.
+ */
+
+/** The gauge's viewBox, and the centre every offset is measured from. */
+export const GAUGE_VIEW = 50;
+export const GAUGE_CENTER = GAUGE_VIEW / 2;
+
+/** What the editor's own sliders allow, so a drag cannot write past them. */
+export const OFFSET_LIMIT = 25;
+export const FONT_MIN = 0.5;
+export const FONT_MAX = 20;
+
+/** @param {number} v @param {number} lo @param {number} hi */
+export function clamp(v, lo, hi) {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+/** One decimal, which is the step every one of these fields is set in. */
+function tenth(v) {
+  return Math.round(v * 10) / 10;
+}
+
+/**
+ * Where a part sits after being dragged `dxPx, dyPx` from where it was.
+ *
+ * `scale` is the gauge's own, because an offset is multiplied by it before it
+ * is drawn: a gauge at 0.5 moves half as far for the same number, so the
+ * number has to change twice as much for the part to follow the pointer.
+ *
+ * @param {{x: number, y: number}} start the offsets the drag began at
+ * @param {number} dxPx @param {number} dyPx
+ * @param {number} pxPerUnit screen pixels per viewBox unit
+ * @param {number} scale the gauge's `gauge_scale`
+ */
+export function offsetsFromDrag(start, dxPx, dyPx, pxPerUnit, scale) {
+  const per = (pxPerUnit || 1) * (scale || 1);
+  return {
+    x: clamp(tenth(start.x + dxPx / per), -OFFSET_LIMIT, OFFSET_LIMIT),
+    y: clamp(tenth(start.y + dyPx / per), -OFFSET_LIMIT, OFFSET_LIMIT),
+  };
+}
+
+/**
+ * The font size a part has after its frame is dragged `dPx` taller.
+ *
+ * A single line of text is as tall as its font size, so the frame's height is
+ * the size - which is what makes the corner handle read as a size and not as
+ * a second, secret offset.
+ *
+ * @param {number} startSize @param {number} dPx
+ * @param {number} pxPerUnit @param {number} scale
+ */
+export function fontFromResize(startSize, dPx, pxPerUnit, scale) {
+  const per = (pxPerUnit || 1) * (scale || 1);
+  return clamp(tenth(startSize + dPx / per), FONT_MIN, FONT_MAX);
+}
+
+/**
+ * The frame for a part, in viewBox units, from where it is and how big it is.
+ *
+ * Only a fallback: the editor measures the text it can see. A gauge drawn
+ * with no live preview has no text to measure, and a frame the width of the
+ * number of characters is better than no frame at all.
+ *
+ * @param {{x: number, y: number, size: number, chars: number}} part
+ * @param {number} scale
+ */
+export function estimateRect(part, scale) {
+  const s = (part.size || 0) * (scale || 1);
+  // 0.6em is the width of a digit in the sans-serif faces Home Assistant
+  // ships; a label of letters is near enough for a box nobody measures by.
+  const w = Math.max(s * 0.6 * Math.max(part.chars || 1, 1), s * 0.6);
+  return {
+    x: GAUGE_CENTER + (part.x || 0) * (scale || 1) - w / 2,
+    y: GAUGE_CENTER + (part.y || 0) * (scale || 1) - s / 2,
+    w, h: s,
+  };
+}

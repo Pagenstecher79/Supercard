@@ -223,6 +223,7 @@ const STYLE_FIELDS = [
   { id: '_section_labels',        label: '── 🔢 Value & Labels',           type: 'section' },
   { id: 'show_value',             label: 'Show value',              type: 'checkbox' },
   { id: 'value_font_size',        label: 'Value font size',          type: 'range',    min: 0, max: 20, step: 0.1,  placeholder: '12',  condition: cfg => !!cfg.show_value },
+  { id: 'value_offset_x',         label: 'Value offset X',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value },
   { id: 'value_offset_y',         label: 'Value offset Y',              type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.show_value },
   { id: 'value_color_type',       label: 'Value colour mode',            type: 'select',  options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_value },
   { id: 'value_color',            label: 'Value colour (fixed)',           type: 'color',   condition: cfg => !!cfg.show_value && cfg.value_color_type !== 'adaptive' },
@@ -248,13 +249,16 @@ const STYLE_FIELDS = [
   { id: 'multiplier_color',       label: 'Colour (fixed)',                type: 'color',   condition: cfg => !!cfg.show_multiplier_label && cfg.multiplier_color_type !== 'adaptive' },
 
   { id: '_section_gauge_label',    label: '── 🏷️ Gauge Label',       type: 'section' },
-  { id: 'gauge_label_active',      label: 'Label active',          type: 'checkbox' },
-  { id: 'gauge_label_text',        label: 'Label text',           type: 'text',     placeholder: 'Gauge',  condition: cfg => !!cfg.gauge_label_active },
-  { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   condition: cfg => !!cfg.gauge_label_active },
-  { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => !!cfg.gauge_label_active },
-  { id: 'gauge_label_offset_x',    label: 'Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.gauge_label_active },
-  { id: 'gauge_label_offset_y',    label: 'Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => !!cfg.gauge_label_active },
-  { id: 'gauge_label_color_type',  label: 'Colour mode',           type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.gauge_label_active },
+  // On unless it says otherwise, which is how the gauge itself reads the key:
+  // a card that was given a label text by hand draws one, and the switch that
+  // said "off" hid every field belonging to the label it was drawing.
+  { id: 'gauge_label_active',      label: 'Label active',          type: 'checkbox', on: true },
+  { id: 'gauge_label_text',        label: 'Label text',           type: 'text',     placeholder: 'Gauge',  condition: cfg => cfg.gauge_label_active !== false },
+  { id: 'gauge_label_font_size',   label: 'Font size',         type: 'range',    min: 0, max: 20, step: 0.1,   placeholder: '8',   condition: cfg => cfg.gauge_label_active !== false },
+  { id: 'gauge_label_font_weight', label: 'Weight',           type: 'select',   options: [ { value: '400', label: 'Normal' }, { value: '600', label: 'Semi-Bold' }, { value: '700', label: 'Bold' } ], condition: cfg => cfg.gauge_label_active !== false },
+  { id: 'gauge_label_offset_x',    label: 'Offset X',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false },
+  { id: 'gauge_label_offset_y',    label: 'Offset Y',             type: 'range',    min: -25, max: 25, step: 0.1,  placeholder: '0',  condition: cfg => cfg.gauge_label_active !== false },
+  { id: 'gauge_label_color_type',  label: 'Colour mode',           type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => cfg.gauge_label_active !== false },
   { id: 'gauge_label_color',       label: 'Colour (fixed)',            type: 'color',    condition: cfg => cfg.gauge_label_color_type === 'fixed' }
 ];
 
@@ -264,7 +268,8 @@ class ScGaugeEditor extends LitElement {
       hass: { type: Object },
       slot: { type: Object },
       commitFn: { type: Object },
-      only: { type: Number }
+      only: { type: Number },
+      priority: { type: String }
     };
   }
 
@@ -299,6 +304,13 @@ class ScGaugeEditor extends LitElement {
       .fx-slot { margin: 8px 0; padding: 8px; border-radius: 6px;
                  background: rgba(255,255,255,0.03); border: 1px solid var(--divider-color,#555); }
       details.inner-section { background: rgba(120,120,120,0.05); border: 1px solid var(--divider-color,#444); border-radius: 6px; margin: 0 16px 16px 16px; }
+      /* One section can be asked for by whoever is drawing this editor: the
+         canvas does it while one of a gauge's own parts is being moved, so
+         those settings are at the top of the form instead of eight folds down,
+         for as long as the part is in hand. Moved with the order property, not
+         by rendering it somewhere else, so nothing here is rebuilt and no fold
+         springs shut on the way. */
+      details.inner-section.wanted { order: -1; border-color: var(--primary-color,#03a9f4); }
       .inner-content { padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--divider-color,#444); margin-top: 4px; padding-top: 12px; }
       ha-entity-picker, ha-selector { display: block; width: 100%; }
       .entity-row { display: flex; flex-direction: column; gap: 4px; }
@@ -652,7 +664,9 @@ class ScGaugeEditor extends LitElement {
         if (this._expanded[detailKey] === undefined) this._expanded[detailKey] = false;
         
         return html`
-          <details class="inner-section" ?open=${this._expanded[detailKey]} @toggle=${e => this._expanded[detailKey] = e.target.open}>
+          <details class="inner-section ${this.priority === sec.id ? 'wanted' : ''}" data-section=${sec.id}
+                   ?open=${this._expanded[detailKey] || this.priority === sec.id}
+                   @toggle=${e => this._expanded[detailKey] = e.target.open}>
             <summary style="display:flex; justify-content:space-between; align-items:center;">
               <span style="flex: 1;">${sec.title}</span>
               ${cloneableSections.includes(sec.id) && gauges.length > 1 ? html`
@@ -974,7 +988,8 @@ class ScGaugeEditor extends LitElement {
           <div class="row">
             <label>${label}</label>
             <label class="toggle">
-              <input type="checkbox" .checked=${!!val} @change=${e => updateDirect(e.target.checked)}>
+              <input type="checkbox" .checked=${val === undefined ? !!field.on : !!val}
+                     @change=${e => updateDirect(e.target.checked)}>
               <span class="toggle-slider"></span>
             </label>
           </div>
