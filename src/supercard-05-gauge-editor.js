@@ -42,6 +42,13 @@ const hasOwnBox = (cfg, slot) => !SC.gaugeIsResponsive(cfg, !!slot?.canvas);
  * - every field it wrote stays as editable as before, and the next preset
  * starts from its own numbers rather than from the last one's.
  */
+/**
+ * The `framedBy` names that belong to a ring rather than to a piece of text.
+ * The two are framed on the canvas in different ways, so the line that says so
+ * has to say which.
+ */
+const RING_PARTS = new Set(['ticks', 'sub_ticks', 'tick_labels']);
+
 const TICK_PRESETS = Object.freeze({
   fine: { label: 'Fine', patch: {
     tick_count: 21, tick_length: 2.5, tick_width: 0.8,
@@ -224,18 +231,18 @@ const STYLE_FIELDS = [
 
   { id: '_section_ticks',           label: '── 📏 Ticks',                    type: 'section' },
   { id: 'tick_preset',              type: 'tick_preset' },
-  { id: 'tick_count',               label: 'Tick count',                 type: 'range',    min: 0, max: 50, step: 1,   placeholder: '0'   },
+  { id: 'tick_count',               label: 'Tick count',                 type: 'range',    min: 0, max: 50, step: 1,   placeholder: '0', framedBy: 'ticks'   },
   { id: 'tick_length',              label: 'Tick length',                  type: 'range',    min: 0, max: 6, step: 0.1,   placeholder: '3'   },
   { id: 'tick_width',               label: 'Tick width',                 type: 'range',    min: 0, max: 5, step: 0.1,   placeholder: '1'   },
-  { id: 'tick_offset',              label: 'Tick offset from ring',        type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
+  { id: 'tick_offset',              label: 'Tick offset from ring',        type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0', framedBy: 'ticks'   },
   { id: 'tick_color_type',          label: 'Tick colour mode',             type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
   { id: 'tick_color',               label: 'Tick colour (fixed)',            type: 'color',   condition: cfg => cfg.tick_color_type !== 'adaptive' },
 
   { id: '_section_sub_ticks',       label: '── SubTicks',                 type: 'subsection' },
-  { id: 'sub_tick_count',           label: 'Sub-tick count (between)',type: 'range',    min: 0, max: 10, step: 1,   placeholder: '0'   },
+  { id: 'sub_tick_count',           label: 'Sub-tick count (between)',type: 'range',    min: 0, max: 10, step: 1,   placeholder: '0', framedBy: 'sub_ticks'   },
   { id: 'sub_tick_length',          label: 'Sub-tick length',              type: 'range',    min: 0, max: 3, step: 0.1,   placeholder: '1.5' },
   { id: 'sub_tick_width',           label: 'Sub-tick width',             type: 'range',    min: 0, max: 3, step: 0.1,   placeholder: '0.5' },
-  { id: 'sub_tick_offset',          label: 'Sub-tick offset from ring',    type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0'   },
+  { id: 'sub_tick_offset',          label: 'Sub-tick offset from ring',    type: 'range',    min: -10, max: 10, step: 0.1,   placeholder: '0', framedBy: 'sub_ticks'   },
   { id: 'sub_tick_color_type',      label: 'Sub-tick colour mode',         type: 'select',   options: [ { value: 'fixed', label: 'Fixed' }, { value: 'adaptive', label: 'Adaptive' } ] },
   { id: 'sub_tick_color',           label: 'Sub-tick colour (fixed)',        type: 'color',    condition: cfg => cfg.sub_tick_color_type !== 'adaptive' },
 
@@ -245,8 +252,8 @@ const STYLE_FIELDS = [
     hint: 'Left at nought the card labels as many ticks as stand clear of each other, and works that out again whenever the tick count, the type or the size of the card changes. A number of your own overrides it.' },
   { id: 'tick_label_stagger',     label: 'Keep every label, on two rows', type: 'checkbox', condition: cfg => !!cfg.show_tick_labels && !parseInt(cfg.tick_label_step || 0),
     hint: 'Rather than labelling fewer ticks, send the crowded ones out by a row. Each label stays over its own tick.' },
-  { id: 'tick_label_font_size',     label: 'Label font size',          type: 'range',    min: 0, max: 20, step: 0.5, placeholder: '7',  condition: cfg => !!cfg.show_tick_labels },
-  { id: 'tick_label_offset',        label: 'Label distance from ring',      type: 'range',    min: -15, max: 15, step: 0.1,  placeholder: '-8', condition: cfg => !!cfg.show_tick_labels },
+  { id: 'tick_label_font_size',     label: 'Label font size',          type: 'range',    min: 0, max: 20, step: 0.5, placeholder: '7',  condition: cfg => !!cfg.show_tick_labels, framedBy: 'tick_labels' },
+  { id: 'tick_label_offset',        label: 'Label distance from ring',      type: 'range',    min: -15, max: 15, step: 0.1,  placeholder: '-8', condition: cfg => !!cfg.show_tick_labels, framedBy: 'tick_labels' },
   { id: 'tick_label_decimals',      label: 'Label decimals',        type: 'range',    min: 0, max: 6, step: 1,   placeholder: '0',  condition: cfg => !!cfg.show_tick_labels },
   { id: 'tick_label_color_type',    label: 'Label colour mode',            type: 'select',   options: [ { value: 'adaptive', label: 'Adaptive' }, { value: 'fixed', label: 'Fixed' } ], condition: cfg => !!cfg.show_tick_labels },
   { id: 'tick_label_color',         label: 'Label colour (fixed)',           type: 'color',    condition: cfg => !!cfg.show_tick_labels && cfg.tick_label_color_type !== 'adaptive' },
@@ -727,9 +734,7 @@ class ScGaugeEditor extends LitElement {
             </summary>
             
             <div class="inner-content">
-              ${sec.items.some(f => f.framedBy && this._framed.has(f.framedBy)) ? html`
-                <div class="framed-note">Size and position are on the canvas while this
-                     one is selected - drag its frame, or the corner of it.</div>` : ''}
+              ${this._framedNote(sec.items)}
               ${renderItems(sec.items)}
               
               ${sec.subsections.map(subsec => {
@@ -742,6 +747,7 @@ class ScGaugeEditor extends LitElement {
                       <span style="font-size:10px;">▼</span>
                     </summary>
                     <div class="inner-content">
+                      ${this._framedNote(subsec.items)}
                       ${renderItems(subsec.items)}
                     </div>
                   </details>
@@ -756,6 +762,24 @@ class ScGaugeEditor extends LitElement {
 
   /** The gauge parts in hand on the canvas - the frame that is selected. */
   get _framed() { return new Set(Array.isArray(this.framed) ? this.framed : []); }
+
+  /**
+   * The line that stands in for the controls the canvas has taken over.
+   *
+   * Without it a fold that has lost three of its five rows reads as a fold
+   * that is missing something. It is drawn wherever those rows were - a
+   * section's own list or one of its subsections - because a ring's distance
+   * and a value's offsets live at different depths of the same menu.
+   */
+  _framedNote(items) {
+    const framed = items.find(f => f.framedBy && this._framed.has(f.framedBy));
+    if (!framed) return '';
+    return html`<div class="framed-note">${RING_PARTS.has(framed.framedBy)
+      ? html`Distance and count are on the canvas while this one is selected -
+             drag its ring, or use the buttons in the frame's corner.`
+      : html`Size and position are on the canvas while this one is selected -
+             drag its frame, or the corner of it.`}</div>`;
+  }
 
   _renderLitField(field, entry, idx, gauges) {
     if (!field) return html``;

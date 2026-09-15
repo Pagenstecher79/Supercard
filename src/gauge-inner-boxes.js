@@ -90,3 +90,45 @@ export function estimateRect(part, scale) {
     w, h: s,
   };
 }
+
+/**
+ * The ring the gauge is drawn on, in viewBox units.
+ *
+ * Half the stroke, because the ring is stroked about this radius rather than
+ * inside it, and one unit of air so a thick ring does not touch the edge of
+ * the box. The whole thing scales, so a gauge at 0.5 draws a ring half as far
+ * from the centre.
+ *
+ * @param {number} stroke the gauge's `stroke_width`
+ * @param {number} scale the gauge's `gauge_scale`
+ */
+export function ringRadius(stroke, scale) {
+  return (GAUGE_CENTER - (stroke || 0) / 2 - 1) * (scale || 1);
+}
+
+/**
+ * Where one of the parts that stand on that ring is drawn.
+ *
+ * Ticks, sub-ticks and tick labels are each an offset from the ring, and each
+ * offset is scaled the same way the ring is. Negative is inward, which is
+ * where a label usually goes.
+ *
+ * @param {number} ring @param {number} offset @param {number} scale
+ */
+export function ringPartRadius(ring, offset, scale) {
+  return ring + (offset || 0) * (scale || 1);
+}
+
+/**
+ * The offset that would put a part at this radius - `ringPartRadius` read
+ * backwards, which is what dragging a ring frame has to do.
+ *
+ * Clamped to what the editor's own sliders allow, so a drag cannot write a
+ * number the form would refuse, and rounded to the tenth they step in.
+ *
+ * @param {number} ring @param {number} radius @param {number} scale
+ * @param {number} [limit] the furthest the field may go, either way
+ */
+export function offsetFromRadius(ring, radius, scale, limit = OFFSET_LIMIT) {
+  return clamp(tenth((radius - ring) / (scale || 1)), -limit, limit);
+}

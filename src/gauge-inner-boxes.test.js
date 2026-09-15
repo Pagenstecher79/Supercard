@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { offsetsFromDrag, fontFromResize, estimateRect, clamp,
+         ringRadius, ringPartRadius, offsetFromRadius,
          OFFSET_LIMIT, FONT_MAX, FONT_MIN, GAUGE_CENTER } from './gauge-inner-boxes.js';
 
 describe('offsetsFromDrag', () => {
@@ -71,5 +72,54 @@ describe('clamp', () => {
     expect(clamp(5, 0, 10)).toBe(5);
     expect(clamp(-5, 0, 10)).toBe(0);
     expect(clamp(50, 0, 10)).toBe(10);
+  });
+});
+
+describe('the ring', () => {
+  it('is the radius the gauge renderer draws on', () => {
+    // The renderer's own expression, kept here so the two cannot drift: a
+    // frame that is not on the ring is a frame that lies about where a part is.
+    const stroke = 4, scale = 0.9;
+    expect(ringRadius(stroke, scale)).toBeCloseTo((25 - stroke / 2 - 1) * scale);
+  });
+
+  it('shrinks with the gauge', () => {
+    expect(ringRadius(4, 0.5)).toBeCloseTo(ringRadius(4, 1) / 2);
+  });
+
+  it('holds its ground when a gauge says nothing about itself', () => {
+    expect(ringRadius(0, 1)).toBeCloseTo(24);
+    expect(ringRadius(undefined, undefined)).toBeCloseTo(24);
+  });
+
+  it('puts a part inward for a negative offset and outward for a positive one', () => {
+    const ring = ringRadius(4, 1);
+    expect(ringPartRadius(ring, -5, 1)).toBeCloseTo(ring - 5);
+    expect(ringPartRadius(ring, 5, 1)).toBeCloseTo(ring + 5);
+    expect(ringPartRadius(ring, 0, 1)).toBeCloseTo(ring);
+  });
+
+  it('scales an offset the way the ring is scaled', () => {
+    const ring = ringRadius(4, 0.5);
+    expect(ringPartRadius(ring, -6, 0.5)).toBeCloseTo(ring - 3);
+  });
+
+  it('reads back the offset a radius was made from', () => {
+    const ring = ringRadius(4, 0.9);
+    for (const off of [-8, -2.5, 0, 3.4, 11]) {
+      expect(offsetFromRadius(ring, ringPartRadius(ring, off, 0.9), 0.9)).toBeCloseTo(off);
+    }
+  });
+
+  it('rounds to the tenth the fields step in', () => {
+    const ring = ringRadius(4, 1);
+    expect(offsetFromRadius(ring, ring + 2.04, 1)).toBe(2);
+    expect(offsetFromRadius(ring, ring + 2.06, 1)).toBe(2.1);
+  });
+
+  it('will not write a number past what the sliders allow', () => {
+    const ring = ringRadius(4, 1);
+    expect(offsetFromRadius(ring, ring + 500, 1, 15)).toBe(15);
+    expect(offsetFromRadius(ring, ring - 500, 1, 15)).toBe(-15);
   });
 });

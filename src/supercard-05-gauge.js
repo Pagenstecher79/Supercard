@@ -1,6 +1,7 @@
 import { LitElement, html, svg, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js";
 import { normalizeStops } from "./gradient-stops.js";
 import { autoStep, staggerRows, ROW_GAP } from "./tick-labels.js";
+import { ringRadius, ringPartRadius } from "./gauge-inner-boxes.js";
 
 const SC = window.SupercardUtils;
 
@@ -422,7 +423,7 @@ class ScGauge extends LitElement {
     const totalAngle  = isSemi ? 270 : 360;
     const scale  = safeFloat(this._get('gauge_scale', 0.9), 0.9);
     const stroke = safeFloat(this._get('stroke_width', 3), 3);
-    const radius = (this.CENTER - stroke/2 - 1) * scale;
+    const radius = ringRadius(stroke, scale);
     const range  = data.max - data.min;
     const pct    = Math.max(0, Math.min(1, (data.val - data.min) / (range || 1)));
     
@@ -700,7 +701,7 @@ class ScGauge extends LitElement {
     const ticks = []; const tLabels = [];
     if (tCount > 0) {
       const tLen=safeFloat(this._get('tick_length',3),3)*scale, tWid=safeFloat(this._get('tick_width',1),1)*scale;
-      const tOff=safeFloat(this._get('tick_offset',0),0)*scale, rOut=radius+tOff, rIn=rOut-tLen;
+      const rOut=ringPartRadius(radius, safeFloat(this._get('tick_offset',0),0), scale), rIn=rOut-tLen;
       const tCol=resolveColor(this._get('tick_color_type','fixed'),this._get('tick_color',[128,128,128]));
       const tlCol=resolveColor(this._get('tick_label_color_type','adaptive'),this._get('tick_label_color',null));
       const labelTickCol=this._get('tick_label_tick_color',null)?resolveColor('fixed',this._get('tick_label_tick_color',null)):tlCol;
@@ -732,9 +733,8 @@ class ScGauge extends LitElement {
       if (subTickCount > 0 && tCount > 1) {
         const stLen = safeFloat(this._get('sub_tick_length',1.5),1.5)*scale;
         const stWid = safeFloat(this._get('sub_tick_width',0.5),0.5)*scale;
-        const stOff = safeFloat(this._get('sub_tick_offset',0),0)*scale;
         const stCol = resolveColor(this._get('sub_tick_color_type','fixed'), this._get('sub_tick_color',[100,100,100]));
-        const stROut = radius + stOff, stRIn = stROut - stLen;
+        const stROut = ringPartRadius(radius, safeFloat(this._get('sub_tick_offset',0),0), scale), stRIn = stROut - stLen;
 
         for (let i = 0; i < tCount - 1; i++) {
           const angStart = startAngle + (i/div)*totalAngle;
@@ -796,9 +796,8 @@ class ScGauge extends LitElement {
 
       const ctLen = safeFloat(ct.length, 4)*scale;
       const ctWid = safeFloat(ct.width, 1)*scale;
-      const ctOff = safeFloat(ct.offset, 0)*scale;
       const ctCol = resolveColor('fixed', ct.color || '#ff0000');
-      const ctROut = radius + ctOff, ctRIn  = ctROut - ctLen;
+      const ctROut = ringPartRadius(radius, safeFloat(ct.offset, 0), scale), ctRIn  = ctROut - ctLen;
       const p1 = polarToCart(this.CENTER, this.CENTER, ctRIn, ang);
       const p2 = polarToCart(this.CENTER, this.CENTER, ctROut, ang);
 

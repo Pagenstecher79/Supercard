@@ -9,7 +9,8 @@ import { resolveSnap, gridToUnits, unitsToGrid, applyDrag, applyGroupDrag, distr
          alignElements, restorePatch,
          NEW_ELEMENT_KINDS, canAddKind, addElement, newElementPreview } from "./canvas-model.js";
 import { needsRowsCompat, rowsAsCanvas } from "./rows-compat.js";
-import { offsetsFromDrag, fontFromResize, GAUGE_VIEW } from "./gauge-inner-boxes.js";
+import { offsetsFromDrag, fontFromResize, GAUGE_VIEW,
+         ringRadius, ringPartRadius, offsetFromRadius } from "./gauge-inner-boxes.js";
 import { templatesFor, templateEntry, previewFor } from "./element-templates.js";
 import { labelFontSize, labelIconSize, DENSITY, FIT_DENSITY } from "./label-typography.js";
 
@@ -551,6 +552,69 @@ const GAUGE_PARTS = Object.freeze({
 });
 
 /**
+ * The parts of a gauge that stand on a ring rather than at a point.
+ *
+ * Ticks, sub-ticks and tick labels are each a distance from the ring the gauge
+ * is drawn on, which makes their frame a ring too: dragging it in or out is
+ * the one gesture that says what that distance is, and it says it in the place
+ * where the answer can be seen.
+ *
+ * `on` is a predicate rather than a key, because none of the three has a
+ * switch of its own - a ring of ticks is on when there are ticks to draw, and
+ * tick labels need ticks to sit on. `turnOn` is written whatever the card
+ * says; `seed` only where the card says nothing, and it carries whatever else
+ * has to be true for the ring to be seen at all.
+ *
+ * `step` is what the two corner buttons add to and take from while this ring
+ * is the one in hand: the count for the two rings made of marks, and the type
+ * size for the one made of numbers, because that is the number a person
+ * reaches for next once the distance is right.
+ */
+const GAUGE_RINGS = Object.freeze({
+  ticks: {
+    label: 'Ticks', offset: 'tick_offset', doffset: 0, limit: 10,
+    section: '_section_ticks',
+    on: (/** @type {any} */ cfg) => SC.safeFloat(cfg.tick_count, 0) > 0,
+    turnOn: { tick_count: 11 }, turnOff: { tick_count: 0 }, seed: {},
+    step: { key: 'tick_count', by: 1, min: 2, max: 50, dflt: 11, what: 'ticks' },
+  },
+  sub_ticks: {
+    label: 'Subticks', offset: 'sub_tick_offset', doffset: 0, limit: 10,
+    section: '_section_ticks',
+    on: (/** @type {any} */ cfg) => SC.safeFloat(cfg.sub_tick_count, 0) > 0
+                                 && SC.safeFloat(cfg.tick_count, 0) > 1,
+    turnOn: { sub_tick_count: 4 }, turnOff: { sub_tick_count: 0 },
+    // Sub-ticks are drawn between ticks, so a gauge with none gets ticks too.
+    seed: { tick_count: 11 },
+    step: { key: 'sub_tick_count', by: 1, min: 1, max: 10, dflt: 4, what: 'sub-ticks' },
+  },
+  tick_labels: {
+    label: 'Tick labels', offset: 'tick_label_offset', doffset: -8, limit: 15,
+    section: '_section_ticks',
+    on: (/** @type {any} */ cfg) => !!cfg.show_tick_labels
+                                 && SC.safeFloat(cfg.tick_count, 0) > 0,
+    turnOn: { show_tick_labels: true }, turnOff: { show_tick_labels: false },
+    // The renderer's own default distance is +10, which is outside the 50-unit
+    // box the gauge is clipped to - labels switched on and left at it are
+    // labels nobody sees. The form's placeholder has always said -8.
+    seed: { tick_count: 11, tick_label_offset: -8 },
+    step: { key: 'tick_label_font_size', by: 0.5, min: 1, max: 20, dflt: 7,
+            what: 'label type' },
+  },
+});
+
+/**
+ * Where each ring's offer stands on its ring, in degrees clockwise from three
+ * o'clock. Across the top and down the right, far enough apart that three
+ * offers on one gauge can all be read, and clear of the top-left corner where
+ * the ring steppers sit.
+ */
+const RING_CHIP_ANGLE = Object.freeze({ ticks: -90, sub_ticks: -50, tick_labels: -20 });
+
+/** Either kind of inner part, looked up by the one name the editor holds. */
+const innerSpec = (/** @type {string} */ part) => GAUGE_PARTS[part] || GAUGE_RINGS[part];
+
+/**
  * The two align buttons that keep a meaning for a gauge's own label and value.
  * A text has no left edge to line up against here - it has a middle, and the
  * gauge has one too.
@@ -946,20 +1010,25 @@ class ScCanvasEditor extends LitElement {
          press, and the badge, which answers from across the canvas. The border
          goes solid-grey so a locked surface stops reading as a dashed one. */
       .el.pinned { cursor: default; border-color: #9e9e9e; border-style: solid; }
-      .el.pinned::before { content: '🔒'; position: absolute; top: 1px; left: 2px;
-                           font-size: 9px; line-height: 1; text-shadow: 0 1px 2px #000; }
+      /* Top right, and twice the size it was: whether a lock is open or shut
+         is the one thing about it worth reading from across the canvas, and at
+         9px the two glyphs were the same small smudge. The top left is the
+         ring steppers' corner now. */
+      .el.pinned::before { content: '🔒'; position: absolute; top: 1px; right: 3px;
+                           font-size: 18px; line-height: 1; z-index: 6;
+                           text-shadow: 0 1px 3px #000, 0 0 4px #000; }
       /* Which boxes answer a push, and so take that click away from the card
-         underneath them. Top right, opposite the lock, and out of the way of
-         the resize handle. The card's own badge sits on the canvas frame. */
+         underneath them. Bottom left, clear of the lock above it and of the
+         resize handle opposite. The card's own badge sits on the canvas frame. */
       .el.pushed::after, .canvas.pushed::after {
-        content: '👆'; position: absolute; top: 2px; right: 3px; z-index: 5;
+        content: '👆'; position: absolute; bottom: 2px; left: 3px; z-index: 5;
         font-size: 15px; line-height: 1; pointer-events: none;
         text-shadow: 0 1px 3px #000, 0 0 4px #000;
         /* Read right to left: the glyph is mirrored first, then turned a
            quarter and an eighth to the left, so the finger points down into
            the box it belongs to instead of away from it. */
         transform: rotate(-135deg) scaleX(-1); transform-origin: center; }
-      .canvas.pushed::after { top: 4px; right: 5px; font-size: 20px; }
+      .canvas.pushed::after { bottom: 4px; left: 5px; font-size: 20px; }
       /* Live, the box is a frame around someone else's drawing rather than a
          block of colour: the fill would hide the very thing being previewed,
          so selection is an inset ring instead. Size containment mirrors
@@ -1049,6 +1118,47 @@ class ScCanvasEditor extends LitElement {
         border: 1px dashed #8ce0ff; background: rgba(0,0,0,0.65); color: #fff;
         box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
       .inner-add:hover { background: var(--primary-color,#03a9f4); border-style: solid; }
+      /* A ring is a distance from the centre, so its frame is a ring too and
+         the only gesture on it is in and out. Drawn in the gauge's own viewBox
+         over the gauge's own square, which is what keeps it a circle whatever
+         shape the element's box is. The layer itself takes no presses: only
+         the fat transparent band does, or the hollow middle would swallow
+         every press on the gauge inside it. */
+      .ring-layer { position: absolute; overflow: visible; z-index: 4;
+        pointer-events: none; }
+      .ring-band { fill: none; stroke: #8ce0ff; stroke-width: 0.35;
+        stroke-dasharray: 1.2 1.2; opacity: 0.85;
+        filter: drop-shadow(0 0 0.6px #000) drop-shadow(0 0 0.6px #000); }
+      .ring-band.sel { stroke-width: 0.7; stroke-dasharray: none; opacity: 1;
+        filter: drop-shadow(0 0 1.6px rgba(3,169,244,0.9)) drop-shadow(0 0 0.6px #000); }
+      .ring-hit { fill: none; stroke: transparent; stroke-width: 2.4;
+        pointer-events: stroke; cursor: ns-resize; touch-action: none; }
+      .ring-tag { position: absolute; transform: translate(-50%, -50%);
+        display: flex; align-items: center; gap: 3px; z-index: 6;
+        font-size: 9px; line-height: 1; padding: 2px 4px; border-radius: 3px;
+        background: var(--primary-color, #03a9f4); color: #fff; white-space: nowrap;
+        opacity: 0.85; cursor: ns-resize; touch-action: none;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.55); }
+      .ring-tag.sel { opacity: 1; }
+      .ring-drop { width: 12px; height: 12px; padding: 0; font-size: 11px;
+        line-height: 1; border-radius: 3px; cursor: pointer; touch-action: none;
+        border: 1px solid rgba(255,255,255,0.7); background: rgba(0,0,0,0.4);
+        color: #fff; }
+      /* The corner the ring's number lives in. Above everything the gauge
+         draws, and out of the lock's way on the other side. */
+      .ring-steps { position: absolute; top: 2px; left: 2px; z-index: 7;
+        display: flex; align-items: center; gap: 2px; padding: 1px 2px;
+        border-radius: 4px; background: rgba(0,0,0,0.62);
+        box-shadow: 0 0 0 1px rgba(140,224,255,0.55); }
+      .ring-step { width: 15px; height: 15px; padding: 0; font-size: 12px;
+        line-height: 1; border-radius: 3px; cursor: pointer; touch-action: none;
+        border: 1px solid #8ce0ff; background: rgba(0,0,0,0.5); color: #fff; }
+      .ring-step:hover:not([disabled]) { background: var(--primary-color,#03a9f4); }
+      .ring-step[disabled] { opacity: 0.35; cursor: default; }
+      .ring-step-val { font-size: 10px; line-height: 1; color: #fff;
+        min-width: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+      .ring-drop:hover { background: var(--error-color,#db4437);
+        border-color: var(--error-color,#db4437); }
       .inner-grip { position: absolute; right: -8px; bottom: -8px; width: 10px; height: 10px;
         border-radius: 50%; background: var(--primary-color, #03a9f4);
         box-shadow: 0 0 0 1.5px rgba(0,0,0,0.6), 0 0 0 2.5px rgba(255,255,255,0.85);
@@ -2099,6 +2209,16 @@ class ScCanvasEditor extends LitElement {
     // After the assignment, never before: what the reveal has to scroll to is
     // the section the new selection has just pulled to the top of the editor.
     if (fresh) this._revealPart(part);
+    // A ring is dragged in and out rather than about, so what the gesture
+    // carries is the geometry it is measured against, not a pair of offsets.
+    if (mode === 'ring') {
+      const geo = this._ringGeometry();
+      if (!geo) return;
+      this._innerDrag = { idx: target.idx, part, mode, ...geo, started: false };
+      this._ptr = { x: e.clientX, y: e.clientY };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no live pointer */ }
+      return;
+    }
     const spec = GAUGE_PARTS[part];
     const cfg = target.cfg;
     this._innerDrag = {
@@ -2122,6 +2242,15 @@ class ScCanvasEditor extends LitElement {
     const d = this._innerDrag;
     const p = this._ptr;
     if (!d || !p) return;
+    if (d.mode === 'ring') {
+      const spec = GAUGE_RINGS[d.part];
+      if (!spec) return;
+      const dist = Math.hypot(p.x - d.cx, p.y - d.cy) / d.pxPerUnit;
+      this._writeGauge(d.idx,
+        { [spec.offset]: offsetFromRadius(d.ring, dist, d.scale, spec.limit) }, d.started);
+      d.started = true;
+      return;
+    }
     const spec = GAUGE_PARTS[d.part];
     const patch = d.mode === 'size'
       ? { [spec.size]: fontFromResize(d.from.size, p.y - d.startY, d.pxPerUnit, d.scale) }
@@ -2159,6 +2288,72 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
+   * Switch a ring of ticks, sub-ticks or tick labels on or off.
+   *
+   * None of the three has a switch of its own, so this writes whatever makes
+   * the ring exist - and whatever it stands on. Switching sub-ticks or labels
+   * on a gauge that has no ticks yet brings ticks with them, because both are
+   * drawn between or beside ticks and neither would appear on its own.
+   */
+  _setInnerRing(part, on) {
+    const target = this._innerTarget;
+    const spec = GAUGE_RINGS[part];
+    if (!target || !spec) return;
+    if (on) {
+      this._innerSel = part;
+      this._revealPart(part);
+    } else if (this._innerSel === part) {
+      this._innerSel = null;
+    }
+    const patch = { ...(on ? spec.turnOn : spec.turnOff) };
+    // The seed only where the card says nothing: a gauge that already has 21
+    // ticks keeps them when its labels are switched on.
+    if (on) for (const [k, v] of Object.entries(spec.seed || {})) {
+      if (target.cfg[k] === undefined) patch[k] = v;
+    }
+    this._writeGauge(target.idx, patch, false);
+  }
+
+  /**
+   * Add to or take from the number the two corner buttons hold for whichever
+   * ring is in hand - a tick count, a sub-tick count, a label's type size.
+   *
+   * One press is one step and one undo step, which is what separates it from
+   * the ring drag beside it.
+   */
+  _stepRing(dir) {
+    const target = this._innerTarget;
+    const spec = GAUGE_RINGS[this._innerSel || ''];
+    if (!target || !spec) return;
+    const st = spec.step;
+    const was = SC.safeFloat(target.cfg[st.key], st.dflt);
+    const next = Math.min(st.max, Math.max(st.min, Math.round((was + dir * st.by) * 10) / 10));
+    if (next === was) return;
+    this._writeGauge(target.idx, { [st.key]: next }, false);
+  }
+
+  /**
+   * The ring a part stands on, and where the gauge's centre is on the screen.
+   *
+   * Measured rather than worked out from the element's box: the 50x50 viewBox
+   * letterboxes inside a box of any shape, and the SVG's own rect is the one
+   * thing that knows where it landed and how big a viewBox unit came out.
+   */
+  _ringGeometry() {
+    const box = this.shadowRoot?.querySelector(`.el[data-item-id="${this._inner}"]`);
+    const svg = box?.querySelector('sc-gauge')?.shadowRoot?.querySelector('svg');
+    const r = svg?.getBoundingClientRect();
+    if (!r?.width) return null;
+    const cfg = this._innerTarget?.cfg || {};
+    const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
+    return {
+      cx: r.left + r.width / 2, cy: r.top + r.height / 2,
+      pxPerUnit: r.width / GAUGE_VIEW, scale,
+      ring: ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale),
+    };
+  }
+
+  /**
    * Where a part would be drawn if it were switched on, in per cent of the
    * element's box.
    *
@@ -2186,6 +2381,43 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
+   * The ring a part is drawn on, as a box in per cent of the element's box.
+   *
+   * Two radii rather than one: the gauge's square letterboxes inside a box of
+   * any shape, so the same number of viewBox units is a different per cent
+   * across than it is down. The box that comes out is an ellipse in per cent
+   * and a circle on the screen.
+   */
+  _ringBox(part) {
+    const spec = GAUGE_RINGS[part];
+    const svg = this._innerRects?.svg;
+    if (!spec || !svg) return null;
+    const cfg = this._innerTarget?.cfg || {};
+    const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
+    const ring = ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale);
+    const r = ringPartRadius(ring, SC.safeFloat(cfg[spec.offset], spec.doffset), scale);
+    const rx = Math.abs(r) / GAUGE_VIEW * svg.w;
+    const ry = Math.abs(r) / GAUGE_VIEW * svg.h;
+    return { cx: svg.l + svg.w / 2, cy: svg.t + svg.h / 2, rx, ry };
+  }
+
+  /**
+   * Where a ring's offer stands: on the ring it would be drawn on, near the
+   * top of the dial, each of the three a little way round from the next so
+   * three offers on one gauge do not land on top of each other.
+   */
+  _ringHome(part) {
+    const box = this._ringBox(part);
+    if (!box) return null;
+    const ang = (RING_CHIP_ANGLE[part] ?? -90) * Math.PI / 180;
+    const clamp = (/** @type {number} */ v) => Math.max(2, Math.min(98, v));
+    return {
+      l: clamp(box.cx + box.rx * Math.cos(ang)),
+      t: clamp(box.cy + box.ry * Math.sin(ang)),
+    };
+  }
+
+  /**
    * Bring the settings that belong to the part just taken hold of up to where
    * they can be read.
    *
@@ -2199,7 +2431,7 @@ class ScCanvasEditor extends LitElement {
    * dialog happens to be scrolled past them.
    */
   async _revealPart(part) {
-    const section = GAUGE_PARTS[part]?.section;
+    const section = innerSpec(part)?.section;
     if (!section) return;
     this._configOpen = true;
     await this.updateComplete;
@@ -2297,7 +2529,106 @@ class ScCanvasEditor extends LitElement {
                 title=${`Show the ${spec.label.toLowerCase()} on this gauge`}
                 @pointerdown=${swallow}
                 @click=${() => this._setInnerPart(part, true)}>+ ${spec.label}</button>`;
+    })}
+    ${this._renderRings(swallow)}
+    ${Object.entries(GAUGE_RINGS).map(([part, spec]) => {
+      const cfg = this._innerTarget?.cfg || {};
+      if (spec.on(cfg)) return '';
+      const home = this._ringHome(part);
+      if (!home) return '';
+      return html`
+        <button class="inner-add ring-add" style="left:${home.l}%; top:${home.t}%;"
+                title=${`Show ${spec.label.toLowerCase()} on this gauge`}
+                @pointerdown=${swallow}
+                @click=${() => this._setInnerRing(part, true)}>+ ${spec.label}</button>`;
     })}`;
+  }
+
+  /**
+   * The ring frames, and the chip on each that names it and takes it off.
+   *
+   * One SVG over the gauge's own square, in the gauge's own viewBox, so a ring
+   * is a circle and not an ellipse however the element's box is shaped. The
+   * band is where the press lands - `pointer-events: stroke` on a fat
+   * transparent circle - because a filled one would swallow every press on the
+   * gauge inside it, the text frames and the drag of the element itself
+   * included.
+   *
+   * @param {(e: any) => void} swallow
+   */
+  _renderRings(swallow) {
+    const svgBox = this._innerRects?.svg;
+    const cfg = this._innerTarget?.cfg;
+    if (!svgBox || !cfg) return '';
+    const live = Object.entries(GAUGE_RINGS).filter(([, spec]) => spec.on(cfg));
+    if (!live.length) return '';
+    const scale = SC.safeFloat(cfg.gauge_scale, 0.9) || 1;
+    const ring = ringRadius(SC.safeFloat(cfg.stroke_width, 3), scale);
+    const at = (/** @type {any} */ spec) =>
+      Math.abs(ringPartRadius(ring, SC.safeFloat(cfg[spec.offset], spec.doffset), scale));
+    const C = GAUGE_VIEW / 2;
+    return html`
+      <svg class="ring-layer" viewBox="0 0 ${GAUGE_VIEW} ${GAUGE_VIEW}"
+           style="left:${svgBox.l}%; top:${svgBox.t}%; width:${svgBox.w}%; height:${svgBox.h}%;">
+        ${live.map(([part, spec]) => {
+          const r = at(spec);
+          if (r < 0.5) return '';
+          const sel = this._innerSel === part;
+          return svg`
+            <circle class="ring-band ${sel ? 'sel' : ''}" cx=${C} cy=${C} r=${r}></circle>
+            <circle class="ring-hit" cx=${C} cy=${C} r=${r}
+                    @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'ring')}>
+              <title>${'Drag the ' + spec.label.toLowerCase() + ' in or out'}</title>
+            </circle>`;
+        })}
+      </svg>
+      ${live.map(([part, spec]) => {
+        const r = at(spec);
+        const ang = (RING_CHIP_ANGLE[part] ?? -90) * Math.PI / 180;
+        const l = svgBox.l + svgBox.w * (0.5 + (r / GAUGE_VIEW) * Math.cos(ang));
+        const t = svgBox.t + svgBox.h * (0.5 + (r / GAUGE_VIEW) * Math.sin(ang));
+        if (l < 0 || l > 100 || t < 0 || t > 100) return '';
+        return html`
+          <span class="ring-tag ${this._innerSel === part ? 'sel' : ''}"
+                style="left:${l}%; top:${t}%;"
+                @pointerdown=${(/** @type {any} */ e) => this._innerDown(e, part, 'ring')}>
+            ${spec.label}
+            <button class="ring-drop"
+                    title=${`Take the ${spec.label.toLowerCase()} off this gauge`}
+                    @pointerdown=${swallow}
+                    @click=${() => this._setInnerRing(part, false)}>−</button>
+          </span>`;
+      })}`;
+  }
+
+  /**
+   * The two buttons in the element frame's top-left corner.
+   *
+   * They belong to whichever ring is in hand, and they hold the number a
+   * person reaches for once the distance is right - a tick count, a sub-tick
+   * count, the size of the label type. The corner rather than the ring
+   * because the ring is already saying one thing by being dragged, and a
+   * second control on it would be a second meaning for the same gesture.
+   *
+   * Nothing is drawn when no ring is in hand: an empty corner says the
+   * buttons are not for the element itself.
+   */
+  _renderRingSteppers() {
+    const spec = GAUGE_RINGS[this._innerSel || ''];
+    const target = this._innerTarget;
+    if (!spec || !target) return '';
+    const st = spec.step;
+    const now = SC.safeFloat(target.cfg[st.key], st.dflt);
+    const swallow = (/** @type {any} */ e) => { e.stopPropagation(); e.preventDefault(); };
+    const btn = (/** @type {number} */ dir, /** @type {string} */ glyph) => html`
+      <button class="ring-step" ?disabled=${dir > 0 ? now >= st.max : now <= st.min}
+              title=${`${dir > 0 ? 'More' : 'Fewer'} ${st.what}`}
+              @pointerdown=${swallow}
+              @click=${() => this._stepRing(dir)}>${glyph}</button>`;
+    return html`
+      <div class="ring-steps" title=${`${spec.label}: ${st.what}`}>
+        ${btn(-1, '−')}<span class="ring-step-val">${now}</span>${btn(1, '+')}
+      </div>`;
   }
 
   /** The next step up (`dir > 0`) or down from wherever the zoom is now. */
@@ -2860,7 +3191,7 @@ class ScCanvasEditor extends LitElement {
         <sc-gauge-editor .hass=${props.hass} .slot=${props.slot}
                          .commitFn=${props.commitFn} .only=${Number(m[1])}
                          .priority=${this._innerOn && this._innerSel
-                           ? (GAUGE_PARTS[this._innerSel]?.section || '') : ''}
+                           ? (innerSpec(this._innerSel)?.section || '') : ''}
                          .framed=${this._innerOn && this._innerSel ? [this._innerSel] : []}></sc-gauge-editor>`);
     }
     if ((m = id.match(/^label_(\d+)(?:_(?:icon|name|value))?$/))) {
@@ -3153,6 +3484,7 @@ class ScCanvasEditor extends LitElement {
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
                 ${live ?? el.id}
                 ${this._innerOn && this._inner === el.id ? this._renderInner() : ''}
+                ${this._innerOn && this._inner === el.id ? this._renderRingSteppers() : ''}
                 ${pinned || selected.length > 1 ? '' : html`
                 <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>`}
               </div>`;
