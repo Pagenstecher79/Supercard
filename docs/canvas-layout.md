@@ -1182,6 +1182,22 @@ The canvas can be drawn between 50% and 400% of the size at which it fits the
 editor - buttons either side of a percentage, a reset next to them, and
 Ctrl or Cmd with the wheel, which is also what a trackpad pinch arrives as.
 
+A wheel or a pinch is aimed: the point under the pointer is the one that stays
+where it is, so the element being worked on does not walk off-screen as it
+gets bigger. The buttons name no point and keep the middle of the view.
+
+Zoomed in, the window is smaller than the drawing, and two things move it
+besides the scrollbars. The middle button drags the view, and so does space
+with the left one - space only while the pointer is over the canvas, and never
+while something is being typed into, because everywhere else it is a page
+scroll. And a drag held against the edge of the window scrolls it: the strip
+is 32px deep, the speed grows across it - a crawl where the pointer grazes
+the strip, a window's width or so a second hard against the edge - and each
+frame re-runs the gesture against the pointer so the element keeps up with the
+canvas sliding under it. A drag therefore counts the scroll it caused as part
+of its own travel (`startScroll`), and a selection frame reads the canvas'
+rect again each move rather than the one it started with.
+
 Nothing about it reaches the config. The zoom scales the *rendered width* of
 `.canvas`, and every pointer position in the editor is read as a fraction of
 that element's own rect:

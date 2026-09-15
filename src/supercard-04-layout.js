@@ -499,6 +499,39 @@ function touchesHistory(key, value) {
  * @type {readonly number[]}
  */
 const ZOOM_STEPS = Object.freeze([0.5, 0.75, 1, 1.5, 2, 3, 4]);
+
+/**
+ * How near the edge of the zoomed view a drag has to come before the view
+ * follows it, and the most it may travel in one frame.
+ *
+ * A drag that reaches the edge of the window has nowhere left to go: the
+ * element is still held, the rest of the canvas is a scroll away, and the
+ * hand would have to let go to get there. So the view scrolls itself, faster
+ * the deeper into the strip the pointer is - which also means a pointer that
+ * merely grazes the edge barely moves it.
+ *
+ * Deliberately slow: the point is to reach the next part of the canvas while
+ * still holding an element, not to cross the whole drawing. Hard against the
+ * edge this is 9px a frame - a window's width or so a second at 60Hz, which
+ * the eye can follow and the hand can stop - and it falls off across the
+ * strip to a crawl where the pointer only grazes it.
+ */
+const EDGE_STRIP_PX = 32;
+const EDGE_SPEED_MAX = 9;
+
+/**
+ * Whether a key event came out of something somebody is typing into.
+ *
+ * The press is read from its path rather than from `document.activeElement`,
+ * because the editor lives in a shadow root inside a dialog: the active
+ * element seen from the document is the dialog, whatever is focused inside.
+ */
+function isTyping(e) {
+  return e.composedPath().some(n => {
+    const tag = n?.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || n?.isContentEditable;
+  });
+}
 const ZOOM_MIN = ZOOM_STEPS[0];
 const ZOOM_MAX = ZOOM_STEPS[ZOOM_STEPS.length - 1];
 
@@ -522,6 +555,7 @@ class ScCanvasEditor extends LitElement {
       _placing: { type: String, state: true },
       _ghost: { type: Object, state: true },
       _zoom: { type: Number, state: true },
+      _space: { type: Boolean, state: true },
       _names: { type: Boolean, state: true },
       _layers: { type: Boolean, state: true },
       _undoStack: { type: Array, state: true },
@@ -553,6 +587,22 @@ class ScCanvasEditor extends LitElement {
     this._placingEntry = null;
     this._ghost = null;
     this._zoom = 1;
+    // A pan in progress: where the pointer went down and where the view stood
+    // then. Not reactive - scrolling the view is what draws it.
+    this._pan = null;
+    // The last pointer position, in client pixels. The edge scroll works from
+    // it: the pointer can stand still while the view keeps moving under it.
+    this._ptr = null;
+    this._edgeFrame = 0;
+    // Space held, which turns the canvas into a hand. Reactive, because the
+    // cursor says so before anything is dragged.
+    this._space = false;
+    // Where the pointer last was, in client pixels, whether or not anything
+    // is being dragged. Space arms the hand only over the canvas - everywhere
+    // else it is a page scroll, and taking it globally would be taking it
+    // from the rest of the dialog - and a key event cannot say where the
+    // pointer is, so the position is remembered as it moves.
+    this._lastClient = null;
     // On: a name under a box is what somebody recognises their element by.
     // The box itself still says the id, which is what the rest of the editor
     // calls it - the list, the glass targets, the colour rules - so the two
@@ -578,7 +628,24 @@ class ScCanvasEditor extends LitElement {
     // A menu that outlives a click elsewhere, or a placement no key can get
     // out of, is a trap - and the click that closes the menu is not one this
     // element ever sees, so both listeners are the document's.
-    this._onKey = e => { if (e.key === 'Escape' && (this._menu || this._placing)) this._closeMenu(); };
+    this._onKey = e => {
+      if (e.key === 'Escape' && (this._menu || this._placing)) this._closeMenu();
+      // Space is the hand, the way it is in every canvas editor - but only
+      // over the canvas, and never while something is being typed into.
+      if (e.key === ' ' && this._pointerOverCanvas() && !this._space && !isTyping(e)) {
+        this._space = true;
+        e.preventDefault();
+      }
+    };
+    this._onKeyUp = e => { if (e.key === ' ') this._space = false; };
+    // Tracked on the document rather than on the canvas: `pointerenter` is
+    // not fired for a pointer that was already standing where the editor
+    // opened, and the editor is opened by a click that ends over it often
+    // enough for that to be the normal case.
+    this._onDocMove = e => { this._lastClient = { x: e.clientX, y: e.clientY }; };
+    // A window that loses focus mid-gesture never sees the key come up, and
+    // the canvas would stay a hand until the next press of space.
+    this._onBlur = () => { this._space = false; };
     this._onDocDown = e => {
       if (this._menu && !e.composedPath().includes(this.shadowRoot?.querySelector('.menu-wrap'))) {
         this._menu = false;
@@ -597,12 +664,19 @@ class ScCanvasEditor extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('keydown', this._onKey);
+    window.addEventListener('keyup', this._onKeyUp);
+    window.addEventListener('blur', this._onBlur);
+    document.addEventListener('pointermove', this._onDocMove, true);
     document.addEventListener('pointerdown', this._onDocDown, true);
   }
 
   disconnectedCallback() {
     window.removeEventListener('keydown', this._onKey);
+    window.removeEventListener('keyup', this._onKeyUp);
+    window.removeEventListener('blur', this._onBlur);
+    document.removeEventListener('pointermove', this._onDocMove, true);
     document.removeEventListener('pointerdown', this._onDocDown, true);
+    this._stopEdgeScroll();
     super.disconnectedCallback();
   }
 
@@ -669,6 +743,11 @@ class ScCanvasEditor extends LitElement {
          canvas keeps being tracked. */
       .canvas-pad { flex: 1; min-width: 0; padding: 24px 16px; touch-action: none;
                     display: flex; justify-content: center; }
+      /* Space held: the whole canvas is a hand, and every cursor inside it -
+         an element's grab, a handle's resize - has to give way to that, or
+         the canvas would say one thing and its contents another. */
+      .canvas-pad.hand, .canvas-pad.hand * { cursor: grab !important; }
+      .canvas-pad.hand:active, .canvas-pad.hand:active * { cursor: grabbing !important; }
       /* The window the canvas is zoomed inside. It keeps the footprint the
          canvas has at 100% - width of the strip, shape of the canvas - so
          zooming in makes the drawing bigger and the editor no taller: the
@@ -1423,6 +1502,12 @@ class ScCanvasEditor extends LitElement {
   }
 
   _onDown(e, idx, mode) {
+    // Space makes the whole canvas a hand, elements included: the press is
+    // there to move the window, not to pick anything up.
+    if (e.button === 1 || (this._space && e.button === 0)) {
+      e.stopPropagation();
+      return this._startPan(e);
+    }
     e.stopPropagation();
     const surface = e.currentTarget.closest('.canvas');
     const rect = surface.getBoundingClientRect();
@@ -1454,26 +1539,63 @@ class ScCanvasEditor extends LitElement {
     const group = mode === 'move' && this._selection.length > 1
       ? this._canvas.elements.filter(e => this._isSel(e.id)).map(box)
       : null;
+    const view = this._view;
     this._drag = {
       idx, mode, rect, group,
       startX: e.clientX, startY: e.clientY,
+      startScroll: { left: view?.scrollLeft ?? 0, top: view?.scrollTop ?? 0 },
       origin: box(el),
     };
+    this._ptr = { x: e.clientX, y: e.clientY };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   }
 
+  /** The window the canvas is zoomed and scrolled inside. */
+  get _view() { return this.shadowRoot?.querySelector('.canvas-view') ?? null; }
+
+  /** Whether the pointer is standing over the canvas and its strip. */
+  _pointerOverCanvas() {
+    const p = this._lastClient;
+    const pad = this.shadowRoot?.querySelector('.canvas-pad');
+    if (!p || !pad) return false;
+    const r = pad.getBoundingClientRect();
+    return p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
+  }
+
+  /**
+   * A pointer that moved. The position is kept rather than used and dropped,
+   * because the edge scroll goes on working from it while the pointer stands
+   * still.
+   */
   _onMove(e) {
-    if (this._band) return this._onBandMove(e);
+    this._ptr = { x: e.clientX, y: e.clientY };
+    if (this._pan) return this._panTo();
+    if (!this._band && !this._drag) return;
+    this._track();
+    this._edgeScroll();
+  }
+
+  /** What the gesture in progress makes of wherever the pointer now is. */
+  _track() {
+    if (this._band) return this._onBandMove();
     if (!this._drag) return;
+    const p = this._ptr;
+    if (!p) return;
     const c = this._canvas;
-    const { rect, startX, startY, origin, mode, idx } = this._drag;
+    const { rect, startX, startY, startScroll, origin, mode, idx } = this._drag;
+    // The canvas moves under a scrolling view, so a pointer standing still is
+    // over a different part of it than it was. Without this the element would
+    // simply stop while the edge scroll carried the canvas out from under it.
+    const view = this._view;
+    const sx = view ? view.scrollLeft - startScroll.left : 0;
+    const sy = view ? view.scrollTop - startScroll.top : 0;
     // Pointer pixels -> virtual units, so the maths never sees a pixel.
     const delta = {
-      dx: (e.clientX - startX) / rect.width * c.w,
-      dy: (e.clientY - startY) / rect.height * c.h,
+      dx: (p.x - startX + sx) / rect.width * c.w,
+      dy: (p.y - startY + sy) / rect.height * c.h,
     };
-    if (this._lastDown && (Math.abs(e.clientX - startX) > SAME_SPOT_PX
-                        || Math.abs(e.clientY - startY) > SAME_SPOT_PX)) {
+    if (this._lastDown && (Math.abs(p.x - startX + sx) > SAME_SPOT_PX
+                        || Math.abs(p.y - startY + sy) > SAME_SPOT_PX)) {
       this._lastDown.moved = true;
     }
     if (this._drag.group) this._setEls(applyGroupDrag(c, this._drag.group, delta, origin.id));
@@ -1481,35 +1603,116 @@ class ScCanvasEditor extends LitElement {
   }
 
   /**
+   * Scroll the view while a gesture is held against its edge.
+   *
+   * One frame loop, started by the first move that reaches a strip and ended
+   * with the gesture. Each frame moves the view and then re-runs the gesture
+   * against the pointer, so the element under the hand keeps up with the
+   * canvas sliding beneath it.
+   */
+  _edgeScroll() {
+    if (this._edgeFrame) return;
+    const step = () => {
+      this._edgeFrame = 0;
+      const view = this._view;
+      const p = this._ptr;
+      if (!view || !p || (!this._drag && !this._band)) return;
+      const r = view.getBoundingClientRect();
+      // Scaled across the strip rather than clamped inside it: at a top speed
+      // below the strip's own width a clamp would make the outer half of the
+      // strip one flat speed, and the fine control is exactly there.
+      const speed = deep => Math.min(EDGE_SPEED_MAX, deep / EDGE_STRIP_PX * EDGE_SPEED_MAX);
+      const push = (near, far) => {
+        if (near < EDGE_STRIP_PX) return -speed(EDGE_STRIP_PX - near);
+        if (far < EDGE_STRIP_PX) return speed(EDGE_STRIP_PX - far);
+        return 0;
+      };
+      const dx = push(p.x - r.left, r.right - p.x);
+      const dy = push(p.y - r.top, r.bottom - p.y);
+      if (dx || dy) {
+        const was = { left: view.scrollLeft, top: view.scrollTop };
+        view.scrollLeft += dx;
+        view.scrollTop += dy;
+        // At either end there is nothing left to scroll, and re-running the
+        // gesture would only repeat the work of the last move.
+        if (view.scrollLeft !== was.left || view.scrollTop !== was.top) this._track();
+      }
+      this._edgeFrame = requestAnimationFrame(step);
+    };
+    this._edgeFrame = requestAnimationFrame(step);
+  }
+
+  _stopEdgeScroll() {
+    if (this._edgeFrame) cancelAnimationFrame(this._edgeFrame);
+    this._edgeFrame = 0;
+  }
+
+  /**
+   * Drag the view itself: the middle button, or space and the left one.
+   *
+   * A zoomed canvas is bigger than its window, and reaching the far corner by
+   * scrollbar alone is the one thing the zoom made worse. Nothing about the
+   * canvas changes here - this moves the window, not the drawing.
+   */
+  _startPan(e) {
+    const view = this._view;
+    if (!view) return;
+    this._pan = { x: e.clientX, y: e.clientY, left: view.scrollLeft, top: view.scrollTop };
+    this._ptr = { x: e.clientX, y: e.clientY };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no live pointer */ }
+    e.preventDefault();
+  }
+
+  _panTo() {
+    const view = this._view;
+    const p = this._ptr;
+    if (!view || !p) return;
+    view.scrollLeft = this._pan.left - (p.x - this._pan.x);
+    view.scrollTop = this._pan.top - (p.y - this._pan.y);
+  }
+
+  /**
    * Draw the canvas at `z` times the size it fits its frame at.
    *
-   * What is in the middle of the view stays in the middle of it. Left alone,
-   * the scroll position is a number of pixels, so zooming in would keep the
-   * top-left corner and walk away from whatever was being looked at; keeping
-   * the centre is what every canvas editor does and what the hand expects.
+   * Whatever the zoom is aimed at stays where it is. A wheel or a pinch
+   * names the point under the pointer, and the buttons name nothing, which
+   * keeps the middle of the view - left alone, the scroll position is a
+   * number of pixels, so zooming in would hold the top-left corner and walk
+   * away from whatever was being looked at.
+   *
+   * @param {number} z
+   * @param {{x: number, y: number} | null} [at] a point in client pixels
    */
-  _applyZoom(z) {
+  _applyZoom(z, at = null) {
     const view = this.shadowRoot?.querySelector('.canvas-view');
-    const mid = view && view.scrollWidth && view.scrollHeight ? {
-      x: (view.scrollLeft + view.clientWidth / 2) / view.scrollWidth,
-      y: (view.scrollTop + view.clientHeight / 2) / view.scrollHeight,
-    } : null;
+    // Where in the whole drawing the anchor sits, and where in the window it
+    // is to stay. Both are read before the zoom and put back after it, which
+    // is what keeps that one point still.
+    let hold = null;
+    if (view && view.scrollWidth && view.scrollHeight) {
+      const r = view.getBoundingClientRect();
+      const inX = at ? Math.max(0, Math.min(view.clientWidth, at.x - r.left)) : view.clientWidth / 2;
+      const inY = at ? Math.max(0, Math.min(view.clientHeight, at.y - r.top)) : view.clientHeight / 2;
+      hold = { inX, inY,
+               x: (view.scrollLeft + inX) / view.scrollWidth,
+               y: (view.scrollTop + inY) / view.scrollHeight };
+    }
     this._zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
-    if (!mid) return;
+    if (!hold) return;
     this.updateComplete.then(() => {
-      view.scrollLeft = mid.x * view.scrollWidth - view.clientWidth / 2;
-      view.scrollTop = mid.y * view.scrollHeight - view.clientHeight / 2;
+      view.scrollLeft = hold.x * view.scrollWidth - hold.inX;
+      view.scrollTop = hold.y * view.scrollHeight - hold.inY;
     });
   }
 
   /** The next step up (`dir > 0`) or down from wherever the zoom is now. */
-  _stepZoom(dir) {
+  _stepZoom(dir, at = null) {
     // Against the current value rather than an index into the list, because
     // the wheel sets values that are not in it.
     const next = dir > 0
       ? ZOOM_STEPS.find(z => z > this._zoom + 0.001)
       : ZOOM_STEPS.filter(z => z < this._zoom - 0.001).pop();
-    if (next) this._applyZoom(next);
+    if (next) this._applyZoom(next, at);
   }
 
   /**
@@ -1518,12 +1721,16 @@ class ScCanvasEditor extends LitElement {
    * The modifier is what a trackpad's pinch arrives as, so pinching zooms
    * too. Without `preventDefault` the same gesture is the browser's own page
    * zoom, which would take the whole dialog with it.
+   *
+   * The zoom is aimed at the pointer, so the element being worked on is the
+   * one that stays put - the wheel is used over the thing it is meant to
+   * bring closer, not over the middle of the window.
    */
   _onWheel(e) {
     if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-    this._applyZoom(Math.round(this._zoom * factor * 100) / 100);
+    this._applyZoom(Math.round(this._zoom * factor * 100) / 100, { x: e.clientX, y: e.clientY });
   }
 
   /**
@@ -1535,6 +1742,9 @@ class ScCanvasEditor extends LitElement {
    * every click would flash a zero-sized box.
    */
   _onCanvasDown(e) {
+    // The hand first: over a zoomed canvas the middle button and space both
+    // move the window, and neither is a press on anything in it.
+    if (e.button === 1 || (this._space && e.button === 0)) return this._startPan(e);
     // Placing puts its own layer over the canvas; a press on the strip beside
     // it is not a selection frame, and must not cancel the selection either.
     if (this._placing) return;
@@ -1566,13 +1776,20 @@ class ScCanvasEditor extends LitElement {
              y: Math.max(0, Math.min(c.h, (e.clientY - rect.top) / rect.height * c.h)) };
   }
 
-  _onBandMove(e) {
+  _onBandMove() {
     const b = this._band;
-    const live = b.live || Math.abs(e.clientX - b.startX) > SAME_SPOT_PX
-                        || Math.abs(e.clientY - b.startY) > SAME_SPOT_PX;
+    const p = this._ptr;
+    if (!p) return;
+    const live = b.live || Math.abs(p.x - b.startX) > SAME_SPOT_PX
+                        || Math.abs(p.y - b.startY) > SAME_SPOT_PX;
     if (!live) return;
-    const at = this._bandPoint(e, b.rect);
-    this._band = { ...b, live: true, x1: at.x, y1: at.y };
+    // The canvas' own rect, read again rather than remembered: the edge
+    // scroll moves it, and a frame drawn against where it used to be would
+    // grab the wrong elements.
+    const canvas = this.shadowRoot?.querySelector('.canvas');
+    const rect = canvas ? canvas.getBoundingClientRect() : b.rect;
+    const at = this._bandPoint({ clientX: p.x, clientY: p.y }, rect);
+    this._band = { ...b, rect, live: true, x1: at.x, y1: at.y };
     // Selected as the frame is drawn, not on release: what it holds has to be
     // visible while there is still a chance to make it hold something else.
     const inside = elementsInRect(this._canvas, this._band);
@@ -1580,6 +1797,8 @@ class ScCanvasEditor extends LitElement {
   }
 
   _onUp() {
+    this._stopEdgeScroll();
+    if (this._pan) { this._pan = null; return; }
     if (this._band) {
       const live = this._band.live;
       this._band = null;
@@ -2267,11 +2486,12 @@ class ScCanvasEditor extends LitElement {
         ${this._renderCanvasSettings()}
 
         <div class="canvas-wrap">
-          <div class="canvas-pad"
+          <div class="canvas-pad ${this._space ? 'hand' : ''}"
                @pointermove=${this._onMove}
                @pointerup=${this._onUp}
                @pointercancel=${this._onUp}
                @pointerdown=${this._onCanvasDown}
+               @auxclick=${e => { if (e.button === 1) e.preventDefault(); }}
                @wheel=${this._onWheel}>
           <div class="canvas-view" style="aspect-ratio:${c.w} / ${c.h};">
           <div class="canvas ${this._pushed('main') ? 'pushed' : ''}" style="aspect-ratio:${c.w} / ${c.h}; width:${this._zoom * 100}%;">
@@ -2370,7 +2590,7 @@ class ScCanvasEditor extends LitElement {
             <span class="hint level">${Math.round(this._zoom * 100)}%</span>
             <button title="Zoom in" ?disabled=${this._zoom >= ZOOM_MAX}
                     @click=${() => this._stepZoom(1)}>＋</button>
-            <button title="Back to 100%, the size at which the whole canvas fits"
+            <button title="Back to 100%, the size at which the whole canvas fits. Zoomed in, the middle button or space and the left one move the view, and Ctrl or Cmd with the wheel zooms where the pointer is."
                     ?disabled=${this._zoom === 1} @click=${() => this._applyZoom(1)}>⟲</button>
           </div>
         </div>
