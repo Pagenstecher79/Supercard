@@ -1266,12 +1266,12 @@ class ScCanvasEditor extends LitElement {
         border: 1px solid rgba(0,0,0,0.45); background: rgba(0,0,0,0.25);
         color: var(--sc-part-sel-ink); }
       .ring-shape:hover { background: rgba(0,0,0,0.45); }
-      /* The corner the ring's number lives in. Above everything the gauge
-         draws, and out of the lock's way on the other side. Held off the
-         border rather than tucked against it: pressed into the corner the
-         cluster read as part of the frame's edge instead of as something to
-         press, and its number was too small to check at a glance. */
-      .ring-steps { position: absolute; top: 6px; left: 6px; z-index: 7;
+      /* Where the ring's number lives: directly under the chip that names the
+         part, so the two read as one control rather than as a cluster in a
+         corner that has to be matched up with a selection across the gauge.
+         Hung from the chip's own spot, half a chip's height below its middle. */
+      .ring-steps { position: absolute; transform: translate(-50%, 12px);
+        z-index: 7;
         display: flex; align-items: center; gap: 3px; padding: 2px 3px;
         border-radius: 5px; background: rgba(0,0,0,0.62);
         box-shadow: 0 0 0 1px rgba(242,181,68,0.6); }
@@ -2344,6 +2344,9 @@ class ScCanvasEditor extends LitElement {
     // A ring is dragged in and out rather than about, so what the gesture
     // carries is the geometry it is measured against, not a pair of offsets.
     if (mode === 'ring' || mode === 'needle') {
+      // A needle has no ring, so its chip names the part and nothing more -
+      // the dragging is done by the handles on its two ends.
+      if (mode === 'ring' && GAUGE_RINGS[part]?.needle) return;
       const geo = this._ringGeometry(part);
       if (!geo) return;
       // The needle's other end is taken once, here, and held for the whole
@@ -2827,28 +2830,29 @@ class ScCanvasEditor extends LitElement {
                       title=${`Take the ${spec.label.toLowerCase()} off this gauge`}
                       @pointerdown=${swallow}
                       @click=${() => this._setInnerRing(part, false)}>−</button>` : ''}
-          </span>`;
+          </span>
+          ${this._innerSel === part
+            ? this._renderRingSteppers(clampPc(l), clampPc(t)) : ''}`;
       })}`;
   }
 
   /**
-   * The two buttons in the element frame's top-left corner.
+   * The two buttons under the chip of whichever part is in hand.
    *
-   * They belong to whichever ring is in hand, and they hold the number a
-   * person reaches for once the distance is right - a tick count, a sub-tick
-   * count, the size of the label type. The corner rather than the ring
-   * because the ring is already saying one thing by being dragged, and a
-   * second control on it would be a second meaning for the same gesture.
-   *
-   * Nothing is drawn when no ring is in hand: an empty corner says the
-   * buttons are not for the element itself.
+   * They hold the number a person reaches for once the distance is right - a
+   * tick count, a sub-tick count, the size of the label type. Under the chip
+   * rather than on the ring, because the ring is already saying one thing by
+   * being dragged and a second control on it would be a second meaning for
+   * the same gesture; and under the chip rather than in the frame's corner,
+   * because the corner is the far side of the gauge from the part the buttons
+   * belong to.
    */
-  _renderRingSteppers() {
+  _renderRingSteppers(left, top) {
     const spec = GAUGE_RINGS[this._innerSel || ''];
     const target = this._innerTarget;
     // Not every ring has a second number worth a pair of buttons - the hub is
-    // one size and nothing else - and an empty corner says so better than a
-    // cluster that does nothing.
+    // one size and nothing else - and no cluster at all says so better than
+    // one that does nothing.
     if (!spec?.step || !target) return '';
     const st = spec.step;
     const now = SC.safeFloat(target.cfg[st.key], st.dflt);
@@ -2859,7 +2863,8 @@ class ScCanvasEditor extends LitElement {
               @pointerdown=${swallow}
               @click=${() => this._stepRing(dir)}>${glyph}</button>`;
     return html`
-      <div class="ring-steps" title=${`${spec.label}: ${st.what}`}>
+      <div class="ring-steps" style="left:${left}%; top:${top}%;"
+           title=${`${spec.label}: ${st.what}`}>
         ${btn(-1, '−')}<span class="ring-step-val">${now}</span>${btn(1, '+')}
       </div>`;
   }
@@ -3742,7 +3747,6 @@ class ScCanvasEditor extends LitElement {
                    @pointerdown=${e => this._onDown(e, idx, 'move')}>
                 ${live ?? el.id}
                 ${this._innerOn && this._inner === el.id ? this._renderInner() : ''}
-                ${this._innerOn && this._inner === el.id ? this._renderRingSteppers() : ''}
                 ${pinned || selected.length > 1 ? '' : html`
                 <div class="handle" @pointerdown=${e => this._onDown(e, idx, 'resize')}></div>`}
               </div>`;

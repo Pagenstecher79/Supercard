@@ -779,10 +779,10 @@ class ScGaugeEditor extends LitElement {
     return html`<div class="framed-note">${framed.framedBy === 'pointer'
       ? html`Shape, length and offset are on the canvas while this one is
              selected - drag either end of the needle, or use the buttons on
-             its chip and in the frame's corner.`
+             and under its chip.`
       : RING_PARTS.has(framed.framedBy)
       ? html`Distance and count are on the canvas while this one is selected -
-             drag its ring, or use the buttons in the frame's corner.`
+             drag its ring, or use the buttons under its chip.`
       : html`Size and position are on the canvas while this one is selected -
              drag its frame, or the corner of it.`}</div>`;
   }
