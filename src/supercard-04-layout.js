@@ -1149,18 +1149,21 @@ class ScCanvasEditor extends LitElement {
         border: 1px solid rgba(255,255,255,0.7); background: rgba(0,0,0,0.4);
         color: #fff; }
       /* The corner the ring's number lives in. Above everything the gauge
-         draws, and out of the lock's way on the other side. */
-      .ring-steps { position: absolute; top: 2px; left: 2px; z-index: 7;
-        display: flex; align-items: center; gap: 2px; padding: 1px 2px;
-        border-radius: 4px; background: rgba(0,0,0,0.62);
+         draws, and out of the lock's way on the other side. Held off the
+         border rather than tucked against it: pressed into the corner the
+         cluster read as part of the frame's edge instead of as something to
+         press, and its number was too small to check at a glance. */
+      .ring-steps { position: absolute; top: 6px; left: 6px; z-index: 7;
+        display: flex; align-items: center; gap: 3px; padding: 2px 3px;
+        border-radius: 5px; background: rgba(0,0,0,0.62);
         box-shadow: 0 0 0 1px rgba(140,224,255,0.55); }
-      .ring-step { width: 15px; height: 15px; padding: 0; font-size: 12px;
-        line-height: 1; border-radius: 3px; cursor: pointer; touch-action: none;
+      .ring-step { width: 20px; height: 20px; padding: 0; font-size: 15px;
+        line-height: 1; border-radius: 4px; cursor: pointer; touch-action: none;
         border: 1px solid #8ce0ff; background: rgba(0,0,0,0.5); color: #fff; }
       .ring-step:hover:not([disabled]) { background: var(--primary-color,#03a9f4); }
       .ring-step[disabled] { opacity: 0.35; cursor: default; }
-      .ring-step-val { font-size: 10px; line-height: 1; color: #fff;
-        min-width: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+      .ring-step-val { font-size: 13px; line-height: 1; color: #fff;
+        min-width: 22px; text-align: center; font-variant-numeric: tabular-nums; }
       .ring-drop:hover { background: var(--error-color,#db4437);
         border-color: var(--error-color,#db4437); }
       .inner-grip { position: absolute; right: -8px; bottom: -8px; width: 10px; height: 10px;
